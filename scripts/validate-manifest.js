@@ -65,7 +65,13 @@ for (const group of manifest.groups) {
   }
   const dstPrefix = group.destination_prefix || '';
   for (const file of group.files) {
-    expectedFiles.add(path.posix.join(dstPrefix, file));
+    // String entries combine with destination_prefix; {src,dst}
+    // objects use file.dst verbatim (image-assets group convention).
+    const dstRel =
+      typeof file === 'object' && file !== null
+        ? file.dst
+        : path.posix.join(dstPrefix, file);
+    expectedFiles.add(dstRel);
   }
 }
 

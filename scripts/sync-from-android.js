@@ -70,9 +70,16 @@ for (const group of manifest.groups) {
   console.log(`── ${group.name} ─────────────────────`);
 
   for (const file of group.files) {
-    const src = path.join(androidRepo, srcPrefix, file);
-    const dst = path.join(SHARED_DIR, dstPrefix, file);
-    const rel = path.posix.join(dstPrefix, file);
+    // A file entry is either a string (uses the group's source_prefix +
+    // destination_prefix) or a {src, dst} object (explicit per-file
+    // paths, used by image-assets where PNGs live in scattered
+    // locations across the Android repo).
+    const isObj = typeof file === 'object' && file !== null;
+    const srcRel = isObj ? file.src : path.posix.join(srcPrefix, file);
+    const dstRel = isObj ? file.dst : path.posix.join(dstPrefix, file);
+    const src = path.join(androidRepo, srcRel);
+    const dst = path.join(SHARED_DIR, dstRel);
+    const rel = dstRel;
 
     if (!fs.existsSync(src)) {
       console.error(`  [MISSING-SRC] ${src}`);

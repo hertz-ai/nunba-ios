@@ -217,7 +217,6 @@
         "CommunityView/components/KidsLearning/templates/WordBuildTemplate.js",
         "CommunityView/components/Post/components/Body/index.js",
         "CommunityView/components/Post/components/Body/styles.js",
-        "CommunityView/components/Post/components/Footer/CommentItem.js",
         "CommunityView/components/Post/components/Footer/CommentsList.js",
         "CommunityView/components/Post/components/Footer/LikesList.js",
         "CommunityView/components/Post/components/Footer/ReportModalComment.js",
@@ -328,8 +327,28 @@
         "shared/NunbaKeyboard.js",
         "shared/SocialLiquidUI.js",
         "shared/TVFocusableItem.js",
-        "story/story.js",
         "wallpaper/scrolls.js"
+      ]
+    },
+    {
+      "name": "image-assets",
+      "rationale": "Static PNG assets referenced via require() from vendored components. Metro's --dev=false bundler walks every transitive import, so missing PNGs break CI even when the screen isn't visited at runtime. Mirrors Hevolve_RN's directory layout: root images/ folder + colocated PNGs next to the components that own them.",
+      "files": [
+        {"src": "images/back_arrow.png", "dst": "images/back_arrow.png"},
+        {"src": "images/boy.png", "dst": "images/boy.png"},
+        {"src": "images/date_icon.png", "dst": "images/date_icon.png"},
+        {"src": "images/girl.png", "dst": "images/girl.png"},
+        {"src": "images/goal_1.png", "dst": "images/goal_1.png"},
+        {"src": "images/language_icon.png", "dst": "images/language_icon.png"},
+        {"src": "images/mic.png", "dst": "images/mic.png"},
+        {"src": "images/non_selected.png", "dst": "images/non_selected.png"},
+        {"src": "images/selected.png", "dst": "images/selected.png"},
+        {"src": "images/student.png", "dst": "images/student.png"},
+        {"src": "images/teach_yourself_icon.png", "dst": "images/teach_yourself_icon.png"},
+        {"src": "images/teacher.png", "dst": "images/teacher.png"},
+        {"src": "images/user1.png", "dst": "images/user1.png"},
+        {"src": "components/CommunityView/components/Post/components/Footer/user1.png", "dst": "components/CommunityView/components/Post/components/Footer/user1.png"},
+        {"src": "components/CommunityView/components/FeedHeader/AddPost/user1.png", "dst": "components/CommunityView/components/FeedHeader/AddPost/user1.png"}
       ]
     }
   ],
