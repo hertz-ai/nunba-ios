@@ -35,9 +35,13 @@ final class OnboardingModuleTests: XCTestCase {
 
   func test_getUser_id_returnsEmptyStringWhenNotSet() {
     let exp = expectation(description: "callback fires")
+    // RCTResponseSenderBlock is typed `(NSArray) -> Void` in ObjC,
+    // which bridges to `([Any]?) -> Void` in Swift — args is
+    // optional. Unwrap before indexing.
     module.getUser_id { args in
-      XCTAssertEqual(args.count, 1)
-      XCTAssertEqual(args[0] as? String, "")
+      let unwrapped = args ?? []
+      XCTAssertEqual(unwrapped.count, 1)
+      XCTAssertEqual(unwrapped[0] as? String, "")
       exp.fulfill()
     }
     wait(for: [exp], timeout: 1.0)
@@ -47,7 +51,7 @@ final class OnboardingModuleTests: XCTestCase {
     OnboardingModule.setPersistedUserId("user-42")
     let exp = expectation(description: "callback fires with persisted id")
     module.getUser_id { args in
-      XCTAssertEqual(args[0] as? String, "user-42")
+      XCTAssertEqual((args ?? [])[0] as? String, "user-42")
       exp.fulfill()
     }
     wait(for: [exp], timeout: 1.0)
@@ -76,8 +80,9 @@ final class OnboardingModuleTests: XCTestCase {
   func test_getAccessToken_returnsEmptyStringWhenNotSet() {
     let exp = expectation(description: "callback fires")
     module.getAccessToken { args in
-      XCTAssertEqual(args.count, 1)
-      XCTAssertEqual(args[0] as? String, "")
+      let unwrapped = args ?? []
+      XCTAssertEqual(unwrapped.count, 1)
+      XCTAssertEqual(unwrapped[0] as? String, "")
       exp.fulfill()
     }
     wait(for: [exp], timeout: 1.0)
@@ -119,7 +124,7 @@ final class OnboardingModuleTests: XCTestCase {
     OnboardingModule.writeToken("xctest.bearer.token")
     let exp = expectation(description: "callback fires")
     module.getAccessToken { args in
-      XCTAssertEqual(args[0] as? String, "xctest.bearer.token")
+      XCTAssertEqual((args ?? [])[0] as? String, "xctest.bearer.token")
       exp.fulfill()
     }
     wait(for: [exp], timeout: 1.0)
@@ -127,12 +132,22 @@ final class OnboardingModuleTests: XCTestCase {
 
   // MARK: — publishToWamp
 
-  func test_publishToWamp_emptyTopicIsNoOp() {
-    // Should not crash; AutobahnConnectionManager.publish should not
-    // be invoked. We rely on the WAMP manager's own test to verify
-    // behavior when called with non-empty topic — here we just
-    // assert the guard.
-    XCTAssertNoThrow(module.publishToWamp("", payload: "{}"))
+  func test_publishToWamp_emptyTopicResolvesPublishedFalse() {
+    // The H10/H1 fix changed publishToWamp to a Promise-returning
+    // method. Empty topic resolves with {published: false, reason}
+    // rather than throwing or being a void no-op.
+    let exp = expectation(description: "promise resolves")
+    module.publishToWamp("", payload: "{}",
+                        resolver: { result in
+                          let dict = result as? [String: Any] ?? [:]
+                          XCTAssertEqual(dict["published"] as? Bool, false)
+                          XCTAssertNotNil(dict["reason"] as? String)
+                          exp.fulfill()
+                        },
+                        rejecter: { _, _, _ in
+                          XCTFail("Empty topic should resolve, not reject")
+                        })
+    wait(for: [exp], timeout: 1.0)
   }
 
   func test_publishToWamp_forwardsToConnectionManager() {
@@ -142,7 +157,19 @@ final class OnboardingModuleTests: XCTestCase {
     let probe = AutobahnConnectionManager.installPublishProbe()
     defer { AutobahnConnectionManager.uninstallPublishProbe() }
 
-    module.publishToWamp("com.hertzai.test.topic", payload: #"{"hello":"world"}"#)
+    let exp = expectation(description: "promise resolves")
+    module.publishToWamp("com.hertzai.test.topic",
+                        payload: #"{"hello":"world"}"#,
+                        resolver: { result in
+                          let dict = result as? [String: Any] ?? [:]
+                          // Probe is installed → publish() returns
+                          // true (captured), so resolver gets
+                          // {published: true}.
+                          XCTAssertEqual(dict["published"] as? Bool, true)
+                          exp.fulfill()
+                        },
+                        rejecter: { _, _, _ in XCTFail() })
+    wait(for: [exp], timeout: 1.0)
 
     XCTAssertEqual(probe.calls.count, 1)
     XCTAssertEqual(probe.calls.first?.topic, "com.hertzai.test.topic")
