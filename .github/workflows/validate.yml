@@ -386,19 +386,45 @@ jobs:
                          --report junit \
                          --report-path ../test-reports/xctest-iphone.xml
 
-      - name: Extract iPhone screenshots from .xcresult
+      - name: Extract iPhone screenshots + UI hierarchy from .xcresult
         if: always()
         run: |
-          mkdir -p artifacts/iphone-screenshots
+          mkdir -p artifacts/iphone-screenshots artifacts/iphone-attachments
           if [ -d ios/TestResults-iPhone.xcresult ]; then
-            # Pull every screenshot attachment out of the xcresult bundle.
-            # XCUIScreen.main.screenshot() attachments land here.
-            xcrun xcresulttool get --path ios/TestResults-iPhone.xcresult \
+            # Modern xcresulttool (Xcode 16+) needs --legacy for the
+            # JSON dump and a different export path for attachments.
+            # The bundle's internal storage is content-addressed, so
+            # find -name '*.png' no longer hits — we have to ask
+            # xcresulttool to export every attachment.
+            xcrun xcresulttool get --legacy \
+              --path ios/TestResults-iPhone.xcresult \
               --format json > artifacts/iphone-results.json 2>/dev/null || true
-            # xcparse is the popular tool for this but isn't preinstalled —
-            # fall back to a python one-liner that walks the bundle.
-            find ios/TestResults-iPhone.xcresult -name '*.png' -exec cp {} artifacts/iphone-screenshots/ \; 2>/dev/null || true
-            ls artifacts/iphone-screenshots/ || echo "no screenshots extracted"
+
+            # Export every test attachment (screenshots + UI hierarchy
+            # strings + staticTexts dump). Newer flag: 'export attachments'.
+            xcrun xcresulttool export attachments \
+              --path ios/TestResults-iPhone.xcresult \
+              --output-path artifacts/iphone-attachments \
+              2>/dev/null || true
+
+            # Move PNGs into the screenshots folder for the existing
+            # artifact upload contract; the rest stay in iphone-attachments
+            # (txt/json files for the UI hierarchy + staticTexts dump).
+            find artifacts/iphone-attachments -name '*.png' -exec mv {} artifacts/iphone-screenshots/ \; 2>/dev/null || true
+
+            echo "── extracted PNGs ──"
+            ls artifacts/iphone-screenshots/ 2>/dev/null || echo "none"
+            echo "── extracted attachments ──"
+            ls artifacts/iphone-attachments/ 2>/dev/null || echo "none"
+
+            # Print non-binary attachments (UI hierarchy + staticTexts)
+            # straight into the build log so we don't need to download
+            # the artifact zip to diagnose smoke-test failures.
+            for f in artifacts/iphone-attachments/*.txt artifacts/iphone-attachments/all-static-texts*.* artifacts/iphone-attachments/ui-hierarchy*.* 2>/dev/null; do
+              [ -f "$f" ] || continue
+              echo "── $(basename "$f") ──"
+              cat "$f" || true
+            done
           fi
 
       - name: Upload iPhone test artifacts
@@ -410,6 +436,7 @@ jobs:
             ios/TestResults-iPhone.xcresult
             test-reports/xctest-iphone.xml
             artifacts/iphone-screenshots/
+            artifacts/iphone-attachments/
             artifacts/iphone-results.json
           retention-days: 14
 
