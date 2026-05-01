@@ -228,8 +228,13 @@ jobs:
           ruby-version: ${{ env.RUBY_VERSION }}
           bundler-cache: true
 
-      - name: Install xcodegen
-        run: brew install xcodegen
+      - name: Install xcodegen + xcbeautify
+        # xcbeautify is the modern, statically-compiled replacement
+        # for xcpretty (which used to be preinstalled on macOS
+        # runners but was dropped from macos-15). Without a pretty-
+        # printer the build pipe fails with exit 127 "command not
+        # found" before any compiler output surfaces.
+        run: brew install xcodegen xcbeautify
 
       - name: Install JS dependencies
         run: yarn install --frozen-lockfile || yarn install
@@ -269,7 +274,7 @@ jobs:
             -sdk iphonesimulator \
             -destination 'generic/platform=iOS Simulator' \
             COMPILER_INDEX_STORE_ENABLE=NO \
-            | xcpretty --color
+            | xcbeautify --renderer github-actions
 
       - name: Boot iPhone simulator (dynamic pick)
         # Find the latest non-Plus / non-Pro / non-Pro-Max iPhone
@@ -314,7 +319,9 @@ jobs:
             -destination "platform=iOS Simulator,id=${IPHONE_SIM_ID}" \
             -resultBundlePath TestResults-iPhone.xcresult \
             COMPILER_INDEX_STORE_ENABLE=NO \
-            | xcpretty --color --report junit --output ../test-reports/xctest-iphone.xml
+            | xcbeautify --renderer github-actions \
+                         --report junit \
+                         --report-path ../test-reports/xctest-iphone.xml
 
       - name: Extract iPhone screenshots from .xcresult
         if: always()
@@ -387,8 +394,13 @@ jobs:
           ruby-version: ${{ env.RUBY_VERSION }}
           bundler-cache: true
 
-      - name: Install xcodegen
-        run: brew install xcodegen
+      - name: Install xcodegen + xcbeautify
+        # xcbeautify is the modern, statically-compiled replacement
+        # for xcpretty (which used to be preinstalled on macOS
+        # runners but was dropped from macos-15). Without a pretty-
+        # printer the build pipe fails with exit 127 "command not
+        # found" before any compiler output surfaces.
+        run: brew install xcodegen xcbeautify
 
       - name: Install JS dependencies
         run: yarn install --frozen-lockfile || yarn install
@@ -455,7 +467,9 @@ jobs:
             -destination "platform=iOS Simulator,id=${IPAD_SIM_ID}" \
             -resultBundlePath TestResults-iPad.xcresult \
             COMPILER_INDEX_STORE_ENABLE=NO \
-            | xcpretty --color --report junit --output ../test-reports/xctest-ipad.xml
+            | xcbeautify --renderer github-actions \
+                         --report junit \
+                         --report-path ../test-reports/xctest-ipad.xml
 
       - name: Extract iPad screenshots
         if: always()
