@@ -342,8 +342,11 @@ jobs:
         # chosen device so failures are debuggable.
         run: |
           set -e
-          # Try newest base iPhone first (16, 17, 18, ...).
-          for v in 18 17 16 15; do
+          # iPhone 16 first — known-good on macos-15 with our cached
+          # DerivedData. iPhone 17 boot hung indefinitely on a 2026-05
+          # run (1h+ before the job timeout). Try newer/older only as
+          # fallback if 16 is missing on a future runner image.
+          for v in 16 15 17 18; do
             DEVICE_ID=$(xcrun simctl list devices available | grep -E "iPhone $v \(" | grep -v Plus | grep -v Pro | head -1 | grep -oE '[A-F0-9-]{36}' || true)
             if [ -n "$DEVICE_ID" ]; then
               echo "Selected iPhone $v"
@@ -362,7 +365,14 @@ jobs:
           fi
           echo "Booting simulator $DEVICE_ID"
           xcrun simctl boot "$DEVICE_ID" || true
-          xcrun simctl bootstatus "$DEVICE_ID" -b
+          # Hard 10-min cap on bootstatus. Boot normally takes <60s;
+          # if it stalls past 10 min, fail loud rather than burn the
+          # job's 90-min wall clock waiting on a corrupt runtime.
+          if ! timeout 600 xcrun simctl bootstatus "$DEVICE_ID" -b; then
+            echo "::error::Simulator boot timed out after 10 min — runtime may be corrupt"
+            xcrun simctl shutdown "$DEVICE_ID" 2>/dev/null || true
+            exit 1
+          fi
           echo "IPHONE_SIM_ID=$DEVICE_ID" >> $GITHUB_ENV
 
       - name: Run XCTests + UI smoke tests on iPhone simulator
@@ -548,7 +558,12 @@ jobs:
           fi
           echo "Booting simulator $DEVICE_ID"
           xcrun simctl boot "$DEVICE_ID" || true
-          xcrun simctl bootstatus "$DEVICE_ID" -b
+          # Match iPhone job: hard 10-min cap on bootstatus.
+          if ! timeout 600 xcrun simctl bootstatus "$DEVICE_ID" -b; then
+            echo "::error::iPad simulator boot timed out after 10 min"
+            xcrun simctl shutdown "$DEVICE_ID" 2>/dev/null || true
+            exit 1
+          fi
           echo "IPAD_SIM_ID=$DEVICE_ID" >> $GITHUB_ENV
 
       - name: Build + test on iPad simulator
