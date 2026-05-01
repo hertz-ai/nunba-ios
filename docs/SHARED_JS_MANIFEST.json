@@ -53,16 +53,19 @@
     },
     {
       "name": "hooks",
-      "rationale": "React hooks with no NativeModules / DeviceEventEmitter imports. Mic-amplitude, multiplayer-sync, and speech-recognition hooks are deliberately EXCLUDED — they require iOS-native rewrites and live in js/ios/hooks/ instead.",
+      "rationale": "React hooks. Hooks that touch NativeModules (MicAmplitudeModule, SpeechRecognizerModule) work on iOS because those modules are implemented in Swift with the same NativeModules name + method signatures. Android-specific paths (ActivityStarterModule fallbacks, PermissionsAndroid) are guarded with Platform.OS / truthy checks and no-op on iOS.",
       "source_prefix": "hooks/",
       "destination_prefix": "hooks/",
       "files": [
         "useContextualInsights.js",
         "useDeviceCapability.js",
         "useLocationPing.js",
+        "useMicAmplitude.js",
+        "useMultiplayerSync.js",
         "useOrientation.js",
         "usePressAnimation.js",
         "useScreenContext.js",
+        "useSpeechRecognition.js",
         "useTVFocus.js"
       ]
     },
@@ -362,16 +365,16 @@
       "reason": "Imports NativeModules and calls FCM-specific paths. iOS uses APNs; rewrite in js/ios/."
     },
     {
-      "path": "hooks/useMicAmplitude.js",
-      "reason": "Reads from native AudioRecorder. iOS uses AVAudioEngine — different bindings."
+      "path": "hooks/useMicAmplitude.js — RECLASSIFIED (now vendored)",
+      "reason": "Originally excluded because it reads MicAmplitudeModule from NativeModules. iOS Swift port implements the same module name + event shape, so the Android JS works as-is. Android-only PermissionsAndroid path is guarded with Platform.OS !== 'android'."
     },
     {
-      "path": "hooks/useMultiplayerSync.js",
-      "reason": "Wired to Android-specific WAMP bridge events. iOS port uses URLSessionWebSocket-based WAMP and emits the same event names — hook will be reimplemented in js/ios/hooks/."
+      "path": "hooks/useMultiplayerSync.js — RECLASSIFIED (now vendored)",
+      "reason": "Originally excluded for WAMP bridge concerns. realtimeService.js abstracts WAMP through DeviceEventEmitter on both platforms; the hook itself is platform-agnostic and only depends on realtimeService + gamesApi (both vendored)."
     },
     {
-      "path": "hooks/useSpeechRecognition.js",
-      "reason": "Android SpeechRecognizer. iOS uses SFSpeechRecognizer (Speech framework) — different permission model + result shape."
+      "path": "hooks/useSpeechRecognition.js — RECLASSIFIED (now vendored)",
+      "reason": "Originally excluded for SFSpeechRecognizer differences. iOS Swift SpeechRecognizerModule implements the same NativeModule contract. ActivityStarterModule fallbacks are guarded with truthy checks and no-op on iOS where the module doesn't exist."
     },
     {
       "path": "components/**",
