@@ -82,5 +82,25 @@
 		<string>remote-notification</string>
 		<string>fetch</string>
 	</array>
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<!-- Custom URL scheme for deep links — matches Android's
+			     hevolve:// handler. Receivers in the JS layer
+			     (services/deepLinkService.js) parse the path. -->
+			<key>CFBundleURLName</key>
+			<string>com.hertzai.nunbacompanion</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>hevolve</string>
+				<string>nunba</string>
+			</array>
+		</dict>
+	</array>
+	<!-- Universal Links setup — the matching apple-app-site-association
+	     file lives on the server side; declaring the entitlement here
+	     wires the OS to recognize https://hevolve.app/* opens in-app.
+	     Actual associated-domains entitlement must be set on the App ID
+	     in Apple Developer portal. -->
 </dict>
 </plist>

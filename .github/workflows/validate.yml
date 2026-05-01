@@ -40,6 +40,9 @@ concurrency:
   cancel-in-progress: true
 
 env:
+  # RN 0.81.4 requires node >= 20.19.4. Locking to 20.x picks the
+  # latest minor automatically (CI runners track latest LTS within
+  # the major).
   NODE_VERSION: '20'
   RUBY_VERSION: '3.2'
   XCODE_VERSION: '16.0'
@@ -94,13 +97,10 @@ jobs:
           cache: 'yarn'
 
       - name: Install dependencies
-        run: yarn install --frozen-lockfile || yarn install
+        run: yarn install --frozen-lockfile --ignore-engines --network-timeout 600000
 
       - name: Run jest
-        # --passWithNoTests is intentional — the iOS-specific test
-        # surface is XCTest. JS-side tests are a future addition once
-        # iOS-only hooks land in js/ios/.
-        run: yarn test --passWithNoTests --ci
+        run: yarn test --ci
 
       - name: TypeScript typecheck on native-bridge contracts
         run: npx tsc --noEmit -p tsconfig.json
