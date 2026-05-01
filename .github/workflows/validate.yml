@@ -5,12 +5,18 @@
 #
 # Job graph:
 #
-#     manifest-integrity ──┐
-#                          ├─→ js-validate ────────┐
-#                          │                       │
-#                          └─→ sync-drift ─────────┤
-#                                                  │
-#                                                  └─→ ios-build (macOS)
+#     manifest-integrity ─┐
+#                         ├─→ js-validate ─┐
+#                         │                ├─→ ios-build (macOS) → ios-ipad-build
+#                         │                │
+#                         └─→ sync-drift   │  (independent — drift vs Android
+#                                          │   doesn't affect iOS build correctness)
+#
+# iOS jobs deliberately do NOT depend on sync-drift. Drift means
+# the vendored JS has fallen behind Android upstream — that's a
+# content-freshness signal, NOT a build-integrity signal. The Swift
+# code, RN bridge, and tests should compile and pass regardless of
+# whether js/shared/ matches HEAD of Hevolve_React_Native today.
 #
 # manifest-integrity is the gate — if the vendored JS layout doesn't
 # match the manifest, nothing else has a stable base to validate.
@@ -125,6 +131,33 @@ jobs:
     runs-on: ubuntu-latest
     needs: manifest-integrity
     steps:
+      - name: Verify ANDROID_REPO_TOKEN secret is set
+        # Without this guard, the next step fails with a cryptic
+        # "Input required and not supplied: token" message that
+        # gives no hint about what to do. Fail early with a
+        # human-readable explanation.
+        env:
+          TOKEN_PRESENT: ${{ secrets.ANDROID_REPO_TOKEN != '' }}
+        run: |
+          if [[ "$TOKEN_PRESENT" != "true" ]]; then
+            echo "::error::ANDROID_REPO_TOKEN secret is not set."
+            echo ""
+            echo "This job clones the private hertz-ai/Hevolve_React_Native"
+            echo "repo to detect drift in vendored JS files."
+            echo ""
+            echo "To fix:"
+            echo "  1. Go to https://github.com/settings/personal-access-tokens/new"
+            echo "  2. Resource owner: hertz-ai"
+            echo "  3. Repository access: only hertz-ai/Hevolve_React_Native"
+            echo "  4. Permissions → Repository → Contents: Read-only"
+            echo "  5. Add as secret at https://github.com/hertz-ai/nunba-ios/settings/secrets/actions"
+            echo "     Name: ANDROID_REPO_TOKEN"
+            echo ""
+            echo "See docs/CI.md for the full setup walkthrough."
+            exit 1
+          fi
+          echo "ANDROID_REPO_TOKEN is set; proceeding with sync drift check."
+
       - name: Checkout iOS repo
         uses: actions/checkout@v4
         with:
@@ -154,7 +187,10 @@ jobs:
   ios-build:
     name: iOS build + XCTest
     runs-on: macos-14
-    needs: [js-validate, sync-drift]
+    # Only gates on JS validation (not sync-drift). Drift is a
+    # content-freshness signal that doesn't affect whether the iOS
+    # app builds + tests pass — those are orthogonal concerns.
+    needs: [js-validate]
     timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
