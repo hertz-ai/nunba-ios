@@ -256,23 +256,45 @@ jobs:
         working-directory: ios
         run: |
           set -o pipefail
+          # Use generic/platform=iOS Simulator for build-for-testing
+          # — compiles for ANY simulator slice without requiring a
+          # specific device to exist. Necessary because runner image
+          # rotates simulator names (no iPhone 15 on macos-15; iPhone
+          # 16 today, 17 later). The actual run picks a real booted
+          # device below.
           xcodebuild build-for-testing \
             -workspace NunbaCompanion.xcworkspace \
             -scheme NunbaCompanion \
             -configuration Debug \
             -sdk iphonesimulator \
-            -destination 'platform=iOS Simulator,name=iPhone 15,OS=latest' \
+            -destination 'generic/platform=iOS Simulator' \
             COMPILER_INDEX_STORE_ENABLE=NO \
             | xcpretty --color
 
-      - name: Boot simulator (iPhone 15)
-        # Pre-boot the simulator before tests. xcodebuild can boot
-        # one on demand, but doing it explicitly gives clearer logs
-        # and lets us verify the simulator survives.
+      - name: Boot iPhone simulator (dynamic pick)
+        # Find the latest non-Plus / non-Pro / non-Pro-Max iPhone
+        # simulator (iPhone 16 today, 17 tomorrow). Falls back to
+        # ANY iPhone if the strict pattern doesn't match. Logs the
+        # chosen device so failures are debuggable.
         run: |
-          DEVICE_ID=$(xcrun simctl list devices available | grep "iPhone 15 (" | grep -v Plus | grep -v Pro | head -1 | grep -o '[A-F0-9-]\{36\}')
+          set -e
+          # Try newest base iPhone first (16, 17, 18, ...).
+          for v in 18 17 16 15; do
+            DEVICE_ID=$(xcrun simctl list devices available | grep -E "iPhone $v \(" | grep -v Plus | grep -v Pro | head -1 | grep -oE '[A-F0-9-]{36}' || true)
+            if [ -n "$DEVICE_ID" ]; then
+              echo "Selected iPhone $v"
+              break
+            fi
+          done
+          # Fallback: any iPhone simulator.
           if [ -z "$DEVICE_ID" ]; then
-            DEVICE_ID=$(xcrun simctl list devices available | grep "iPhone 15" | head -1 | grep -o '[A-F0-9-]\{36\}')
+            DEVICE_ID=$(xcrun simctl list devices available | grep -E "iPhone " | head -1 | grep -oE '[A-F0-9-]{36}' || true)
+            echo "Fallback: first available iPhone"
+          fi
+          if [ -z "$DEVICE_ID" ]; then
+            echo "::error::No iPhone simulator found on runner"
+            xcrun simctl list devices available | head -50
+            exit 1
           fi
           echo "Booting simulator $DEVICE_ID"
           xcrun simctl boot "$DEVICE_ID" || true
@@ -387,14 +409,33 @@ jobs:
         working-directory: ios
         run: pod install
 
-      - name: Boot simulator (iPad)
+      - name: Boot iPad simulator (dynamic pick)
+        # Walk available iPads, prefer iPad Pro 13" (newest), then
+        # iPad Pro 12.9", then any iPad Pro, then any iPad.
+        # Apple renamed simulator devices in 2024 ("iPad Pro 13-inch
+        # (M4)" replaced "iPad Pro (12.9-inch)") so the static
+        # selector approach is brittle.
         run: |
-          DEVICE_ID=$(xcrun simctl list devices available | grep "iPad Pro (12.9-inch)" | head -1 | grep -o '[A-F0-9-]\{36\}')
+          set -e
+          PATTERNS=(
+            'iPad Pro 13-inch'
+            'iPad Pro \(13-inch\)'
+            'iPad Pro \(12.9-inch\)'
+            'iPad Pro 11-inch'
+            'iPad Pro'
+            'iPad'
+          )
+          for pattern in "${PATTERNS[@]}"; do
+            DEVICE_ID=$(xcrun simctl list devices available | grep -E "$pattern" | head -1 | grep -oE '[A-F0-9-]{36}' || true)
+            if [ -n "$DEVICE_ID" ]; then
+              echo "Matched pattern: $pattern"
+              break
+            fi
+          done
           if [ -z "$DEVICE_ID" ]; then
-            DEVICE_ID=$(xcrun simctl list devices available | grep "iPad Pro" | head -1 | grep -o '[A-F0-9-]\{36\}')
-          fi
-          if [ -z "$DEVICE_ID" ]; then
-            DEVICE_ID=$(xcrun simctl list devices available | grep "iPad" | head -1 | grep -o '[A-F0-9-]\{36\}')
+            echo "::error::No iPad simulator found on runner"
+            xcrun simctl list devices available | head -50
+            exit 1
           fi
           echo "Booting simulator $DEVICE_ID"
           xcrun simctl boot "$DEVICE_ID" || true
