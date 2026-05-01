@@ -25,6 +25,8 @@
 import React, {useEffect, useState, useCallback} from 'react';
 import {
   ActivityIndicator,
+  AppState,
+  DeviceEventEmitter,
   NativeModules,
   SafeAreaView,
   StatusBar,
@@ -322,7 +324,27 @@ function App(): React.JSX.Element {
   }, []);
 
   useEffect(() => {
+    // Initial check on mount.
     checkAuth();
+
+    // Re-check when app foregrounds (e.g. user came back from
+    // OAuth in Safari) AND when JS-side auth code emits the
+    // 'authChanged' DeviceEvent — emitted by services/socialApi
+    // login helpers after OnboardingModule.setAccessToken resolves.
+    const appStateSub = AppState.addEventListener('change', (next) => {
+      if (next === 'active') {
+        checkAuth();
+      }
+    });
+    const authChangedSub = DeviceEventEmitter.addListener(
+      'authChanged',
+      checkAuth,
+    );
+
+    return () => {
+      appStateSub.remove();
+      authChangedSub.remove();
+    };
   }, [checkAuth]);
 
   if (!authReady) {
