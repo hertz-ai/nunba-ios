@@ -141,9 +141,15 @@ final class AutobahnConnectionManagerTests: XCTestCase {
     mgr._injectIncoming(#"[36, 8888, 0, {}, [{"a":1}]]"#)
 
     XCTAssertNotNil(received)
-    let asData = received?.data(using: .utf8)
-    let parsed = try? JSONSerialization.jsonObject(with: asData ?? Data()) as? [String: Any]
-    XCTAssertEqual(parsed??["a"] as? Int, 1)
+    let asData = received?.data(using: .utf8) ?? Data()
+    // (try? ... ) wraps the throwing call in Optional; the outer
+    // `as? [String: Any]` is then applied as a normal cast on the
+    // unwrapped Any. Avoids the prior `parsed??[...]` form which
+    // Swift parses as nil-coalescing, not double-unwrap, hence
+    // "cannot use optional chaining on non-optional".
+    let raw = (try? JSONSerialization.jsonObject(with: asData)) ?? [:]
+    let parsed = raw as? [String: Any]
+    XCTAssertEqual(parsed?["a"] as? Int, 1)
   }
 
   func test_subscribe_eventForUnknownSubId_isIgnored() {
