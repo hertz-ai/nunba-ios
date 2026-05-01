@@ -85,7 +85,13 @@ jobs:
               if (!g.name) throw new Error('group missing name');
               if (!Array.isArray(g.files)) throw new Error('group ' + g.name + ' missing .files');
               for (const f of g.files) {
-                if (typeof f !== 'string') throw new Error('non-string file entry in ' + g.name);
+                // Two valid shapes: string (uses group prefixes) or
+                // {src, dst} object (explicit per-file paths, used by
+                // image-assets group whose PNGs live in scattered
+                // directories across the Android repo).
+                if (typeof f === 'string') continue;
+                if (f && typeof f === 'object' && typeof f.src === 'string' && typeof f.dst === 'string') continue;
+                throw new Error('invalid file entry in ' + g.name + ': must be string or {src,dst} object');
               }
             }
             console.log('manifest schema OK:', m.groups.length, 'groups');
