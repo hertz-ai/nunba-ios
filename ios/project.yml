@@ -79,29 +79,14 @@ targets:
         #   .swift / .m   → Compile Sources phase
         #   .storyboard / .xcassets / .xcprivacy → Copy Bundle Resources
         # No explicit per-file declarations needed for those.
-    postCompileScripts:
-      - name: "Bundle React Native code and images"
-        # The standard RN template adds this phase via the Pods'
-        # post-install hook, but xcodegen-generated projects miss
-        # that hook because the .xcodeproj is regenerated AFTER
-        # `pod install`. Adding it explicitly here makes UI tests
-        # in CI work — without it, no main.jsbundle is emitted
-        # and the app shows a red 'No bundle URL' screen.
-        #
-        # FORCE_BUNDLING=true (passed via xcodebuild flag) makes
-        # this phase produce a bundle even in Debug+Simulator,
-        # where it normally skips on the assumption Metro is
-        # available.
-        script: |
-          set -e
-          export NODE_BINARY=node
-          export REACT_NATIVE_PATH="${PODS_ROOT}/../../node_modules/react-native"
-          if [[ -z "$BUNDLE_FILE" ]]; then
-            export BUNDLE_FILE="${CONFIGURATION_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/main.jsbundle"
-          fi
-          bash "$REACT_NATIVE_PATH/scripts/react-native-xcode.sh"
-        outputFiles:
-          - $(DERIVED_FILE_DIR)/main.jsbundle
+      # The pre-bundled JS payload. Workflow runs `npx react-native
+      # bundle` BEFORE xcodebuild and writes the file to ios/main.jsbundle.
+      # Marked optional so dev builds (no pre-bundle) also succeed —
+      # AppDelegate's bundleURL fallback then loads from Metro.
+      - path: main.jsbundle
+        type: file
+        buildPhase: resources
+        optional: true
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.hertzai.nunbacompanion

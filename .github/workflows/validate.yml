@@ -243,6 +243,23 @@ jobs:
       - name: Install JS dependencies
         run: yarn install --frozen-lockfile || yarn install
 
+      - name: Pre-bundle JS for simulator
+        # Produces ios/main.jsbundle so the simulator app boots
+        # without Metro. The file is registered as an optional
+        # resource in xcodegen project.yml — present in CI builds,
+        # absent in dev (where AppDelegate.bundleURL falls back to
+        # Metro on http://localhost:8081). UI smoke tests look for
+        # 'Nunba Companion' text which only renders when the JS
+        # bundle loads successfully.
+        run: |
+          set -e
+          npx react-native bundle \
+            --platform ios \
+            --dev false \
+            --entry-file index.js \
+            --bundle-output ios/main.jsbundle \
+            --assets-dest ios
+
       - name: Generate Xcode project
         working-directory: ios
         run: xcodegen generate
@@ -310,7 +327,6 @@ jobs:
             -sdk iphonesimulator \
             -destination 'generic/platform=iOS Simulator' \
             COMPILER_INDEX_STORE_ENABLE=NO \
-            FORCE_BUNDLING=true \
             | xcbeautify --renderer github-actions
 
       - name: Boot iPhone simulator (dynamic pick)
@@ -356,7 +372,6 @@ jobs:
             -destination "platform=iOS Simulator,id=${IPHONE_SIM_ID}" \
             -resultBundlePath TestResults-iPhone.xcresult \
             COMPILER_INDEX_STORE_ENABLE=NO \
-            FORCE_BUNDLING=true \
             | xcbeautify --renderer github-actions \
                          --report junit \
                          --report-path ../test-reports/xctest-iphone.xml
@@ -446,6 +461,23 @@ jobs:
       - name: Install JS dependencies
         run: yarn install --frozen-lockfile || yarn install
 
+      - name: Pre-bundle JS for simulator
+        # Produces ios/main.jsbundle so the simulator app boots
+        # without Metro. The file is registered as an optional
+        # resource in xcodegen project.yml — present in CI builds,
+        # absent in dev (where AppDelegate.bundleURL falls back to
+        # Metro on http://localhost:8081). UI smoke tests look for
+        # 'Nunba Companion' text which only renders when the JS
+        # bundle loads successfully.
+        run: |
+          set -e
+          npx react-native bundle \
+            --platform ios \
+            --dev false \
+            --entry-file index.js \
+            --bundle-output ios/main.jsbundle \
+            --assets-dest ios
+
       - name: Generate Xcode project
         working-directory: ios
         run: xcodegen generate
@@ -526,7 +558,6 @@ jobs:
             -destination "platform=iOS Simulator,id=${IPAD_SIM_ID}" \
             -resultBundlePath TestResults-iPad.xcresult \
             COMPILER_INDEX_STORE_ENABLE=NO \
-            FORCE_BUNDLING=true \
             | xcbeautify --renderer github-actions \
                          --report junit \
                          --report-path ../test-reports/xctest-ipad.xml
