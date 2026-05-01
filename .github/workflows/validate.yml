@@ -271,9 +271,27 @@ jobs:
             ${{ runner.os }}-deriveddata-${{ hashFiles('ios/Podfile') }}-
             ${{ runner.os }}-deriveddata-
 
-      - name: Install CocoaPods
+      - name: Install CocoaPods (with retry for flaky network)
         working-directory: ios
-        run: pod install --repo-update
+        # CocoaPods git-clones some pods (fast_float, boost, etc.)
+        # directly from github.com. macos-15 runners occasionally
+        # see DNS/connection failures to GitHub. Retry up to 3x
+        # with backoff so a transient network blip doesn't burn
+        # an entire 40-min build slot.
+        run: |
+          set -e
+          for attempt in 1 2 3; do
+            if pod install --repo-update; then
+              echo "pod install succeeded on attempt $attempt"
+              break
+            fi
+            if [[ $attempt -eq 3 ]]; then
+              echo "::error::pod install failed after 3 attempts"
+              exit 1
+            fi
+            echo "::warning::pod install failed (attempt $attempt) — retrying in 30s"
+            sleep 30
+          done
 
       - name: Build (Debug)
         working-directory: ios
@@ -449,9 +467,18 @@ jobs:
             ${{ runner.os }}-deriveddata-${{ hashFiles('ios/Podfile') }}-
             ${{ runner.os }}-deriveddata-
 
-      - name: Install CocoaPods
+      - name: Install CocoaPods (with retry)
         working-directory: ios
-        run: pod install
+        run: |
+          set -e
+          for attempt in 1 2 3; do
+            if pod install; then
+              break
+            fi
+            if [[ $attempt -eq 3 ]]; then exit 1; fi
+            echo "::warning::pod install attempt $attempt failed — retrying"
+            sleep 30
+          done
 
       - name: Boot iPad simulator (dynamic pick)
         # Walk available iPads, prefer iPad Pro 13" (newest), then
