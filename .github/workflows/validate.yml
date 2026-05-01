@@ -51,7 +51,10 @@ env:
   # the major).
   NODE_VERSION: '20'
   RUBY_VERSION: '3.2'
-  XCODE_VERSION: '16.0'
+  # Xcode is selected dynamically per-runner — see "Select Xcode"
+  # step below. Pinning to a hardcoded 16.x.y path is brittle
+  # because GitHub-hosted images rotate point releases without
+  # notice.
 
 jobs:
   # ── 1. Manifest integrity ───────────────────────────────────────
@@ -186,7 +189,11 @@ jobs:
 
   ios-build:
     name: iOS build + XCTest
-    runs-on: macos-14
+    # macos-15 runner ships Xcode 16.x by default — required by
+    # React Native 0.81.4 (which needs Xcode 16+ for the new
+    # architecture/codegen pipeline). macos-14 only has Xcode 15.x
+    # so it would compile-fail at the bridge generation step.
+    runs-on: macos-15
     # Only gates on JS validation (not sync-drift). Drift is a
     # content-freshness signal that doesn't affect whether the iOS
     # app builds + tests pass — those are orthogonal concerns.
@@ -195,8 +202,21 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Select Xcode ${{ env.XCODE_VERSION }}
-        run: sudo xcode-select -s /Applications/Xcode_${{ env.XCODE_VERSION }}.app
+      - name: Select latest installed Xcode 16.x
+        # Don't pin to a specific Xcode point release — runner
+        # images update without notice. Walk /Applications, pick
+        # the highest 16.x version, select it. Falls back to
+        # whatever's currently selected if no Xcode_16* found.
+        run: |
+          set -e
+          XCODE_PATH=$(ls -d /Applications/Xcode_16*.app 2>/dev/null | sort -V | tail -1 || true)
+          if [[ -z "$XCODE_PATH" ]]; then
+            echo "::warning::No Xcode 16.x found; using runner default"
+            XCODE_PATH=$(xcode-select -p | sed 's|/Contents/Developer$||')
+          fi
+          echo "Selecting: $XCODE_PATH"
+          sudo xcode-select -s "$XCODE_PATH/Contents/Developer"
+          xcodebuild -version
 
       - uses: actions/setup-node@v4
         with:
@@ -318,14 +338,22 @@ jobs:
 
   ios-ipad-build:
     name: iOS build (iPad)
-    runs-on: macos-14
+    runs-on: macos-15
     needs: ios-build
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
 
-      - name: Select Xcode ${{ env.XCODE_VERSION }}
-        run: sudo xcode-select -s /Applications/Xcode_${{ env.XCODE_VERSION }}.app
+      - name: Select latest installed Xcode 16.x
+        run: |
+          set -e
+          XCODE_PATH=$(ls -d /Applications/Xcode_16*.app 2>/dev/null | sort -V | tail -1 || true)
+          if [[ -z "$XCODE_PATH" ]]; then
+            echo "::warning::No Xcode 16.x found; using runner default"
+            XCODE_PATH=$(xcode-select -p | sed 's|/Contents/Developer$||')
+          fi
+          sudo xcode-select -s "$XCODE_PATH/Contents/Developer"
+          xcodebuild -version
 
       - uses: actions/setup-node@v4
         with:
