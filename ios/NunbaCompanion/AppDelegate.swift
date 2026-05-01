@@ -54,11 +54,12 @@ class AppDelegate: RCTAppDelegate {
   }
 
   // MARK: — Background remote notification handler.
-  // RCTAppDelegate (base class) does NOT implement these
-  // UIApplicationDelegate protocol methods, so we add them here
-  // WITHOUT `override`. (Marking them `override` would fail to
-  // compile against RN 0.81's RCTAppDelegate.)
-  func application(
+  // RN 0.81's RCTAppDelegate DOES implement these UIApplicationDelegate
+  // methods (verified by the Swift compiler insisting we mark them
+  // `override`). Earlier pre-flight audit incorrectly assumed the
+  // public header was authoritative — the actual RCTAppDelegate.mm
+  // file overrides them. Marking `override` is required.
+  override func application(
     _ application: UIApplication,
     didReceiveRemoteNotification userInfo: [AnyHashable: Any],
     fetchCompletionHandler completionHandler: @escaping (UIBackgroundFetchResult) -> Void
@@ -68,10 +69,10 @@ class AppDelegate: RCTAppDelegate {
     }
   }
 
-  // MARK: — APNs token + registration callbacks (no override —
-  // RCTAppDelegate doesn't implement these either).
+  // MARK: — APNs token + registration callbacks
+  // (Same `override` requirement as above.)
 
-  func application(
+  override func application(
     _ application: UIApplication,
     didRegisterForRemoteNotificationsWithDeviceToken deviceToken: Data
   ) {
@@ -80,7 +81,7 @@ class AppDelegate: RCTAppDelegate {
     APNsTokenStore.shared.token = token
   }
 
-  func application(
+  override func application(
     _ application: UIApplication,
     didFailToRegisterForRemoteNotificationsWithError error: Error
   ) {
