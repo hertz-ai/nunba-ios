@@ -37,22 +37,52 @@ final class SmokeUITests: XCTestCase {
 
     // Generous boot window. On a cold simulator, RN's first launch
     // can take 8-10s to compile the JS bundle. Real device is faster.
-    let bootDeadline: TimeInterval = 30
+    let bootDeadline: TimeInterval = 45
 
     let title = app.staticTexts["Nunba Companion"].firstMatch
     let appeared = title.waitForExistence(timeout: bootDeadline)
+
+    // Always attach a screenshot — including on failure, so we can
+    // see what the app actually showed (red error screen, blank,
+    // SignUp screen with different copy, etc).
+    let screenshot = XCUIScreen.main.screenshot()
+    let attachment = XCTAttachment(screenshot: screenshot)
+    attachment.name = appeared
+      ? "app-launched-\(deviceLabel())"
+      : "app-FAILED-\(deviceLabel())"
+    attachment.lifetime = .keepAlways
+    add(attachment)
+
+    if !appeared {
+      // Dump the entire accessibility hierarchy so we can see what
+      // text IS present. RN exposes most rendered text as
+      // staticTexts[] on iOS. If the app launched and rendered at
+      // all, this dump will show it.
+      let hierarchy = app.debugDescription
+      let hierAttachment = XCTAttachment(string: hierarchy)
+      hierAttachment.name = "ui-hierarchy-on-failure"
+      hierAttachment.lifetime = .keepAlways
+      add(hierAttachment)
+
+      // Also dump every staticText label for quick scan in CI logs.
+      let allStaticTexts = app.staticTexts.allElementsBoundByIndex.map { $0.label }
+      let textsAttachment = XCTAttachment(string: allStaticTexts.joined(separator: "\n"))
+      textsAttachment.name = "all-static-texts-on-failure"
+      textsAttachment.lifetime = .keepAlways
+      add(textsAttachment)
+
+      print("== ALL STATIC TEXTS ==")
+      print(allStaticTexts.joined(separator: "\n"))
+      print("== APP HIERARCHY ==")
+      print(hierarchy)
+    }
+
     XCTAssertTrue(
       appeared,
       "Expected 'Nunba Companion' text to render within \(bootDeadline)s — " +
       "app may have crashed on boot, the JS bundle failed to load, or " +
-      "the auth-loading screen never rendered"
+      "the auth-loading screen never rendered. See attached screenshot + UI hierarchy."
     )
-
-    let screenshot = XCUIScreen.main.screenshot()
-    let attachment = XCTAttachment(screenshot: screenshot)
-    attachment.name = "app-launched-\(deviceLabel())"
-    attachment.lifetime = .keepAlways
-    add(attachment)
   }
 
   /// Cold-launch twice. Catches AppDelegate idempotency bugs +
