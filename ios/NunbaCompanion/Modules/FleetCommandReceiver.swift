@@ -218,9 +218,11 @@ final class FleetCommandEventEmitter: RCTEventEmitter {
 
   /// Called by FleetCommandDispatcher when a payload should be
   /// pushed to JS. Guarded by hasJSListener so RCTEventEmitter
-  /// doesn't spam its "no observer" warning.
+  /// doesn't spam its "no observer" warning, AND by bridge != nil
+  /// so direct-instantiation XCTests don't trip the RCTAssert
+  /// in sendEvent's _callableJSModules check.
   func emit(payload: [String: Any]) {
-    guard hasJSListener else { return }
+    guard hasJSListener, bridge != nil else { return }
     sendEvent(withName: "fleetCommand", body: ["data": payload])
   }
 }

@@ -115,7 +115,10 @@ final class MicAmplitudeModule: RCTEventEmitter {
     guard now - lastEmitAt >= Self.emitIntervalSec else { return }
     lastEmitAt = now
 
-    if hasJSListener {
+    // Guard `bridge != nil` so XCTests that instantiate the module
+    // directly (without the RN bridge wiring) don't trip RCTAssert
+    // inside RCTEventEmitter.sendEvent.
+    if hasJSListener && bridge != nil {
       sendEvent(withName: "micAmplitude", body: ["value": value])
     }
   }

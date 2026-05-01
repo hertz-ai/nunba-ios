@@ -177,7 +177,10 @@ final class SpeechRecognizerModule: RCTEventEmitter {
   // MARK: — Helpers
 
   private func emit(name: String, body: [String: Any]) {
-    guard hasJSListener else { return }
+    // Guard bridge != nil so direct-instantiation XCTests (which
+    // don't wire an RN bridge) don't crash inside
+    // RCTEventEmitter.sendEvent's RCTAssert(_callableJSModules).
+    guard hasJSListener, bridge != nil else { return }
     sendEvent(withName: name, body: body)
   }
 

@@ -97,6 +97,13 @@ enum KeychainStore {
     addQuery[kSecValueData as String] = data
     addQuery[kSecAttrAccessible as String] = accessible.attribute
     let status = SecItemAdd(addQuery as CFDictionary, nil)
+    if status != errSecSuccess {
+      // -34018 = errSecMissingEntitlement (iOS Simulator without
+      // keychain-access-groups entitlement on macos-15+ rejects
+      // writes that pin accessibility class). Logging the OSStatus
+      // makes test failures diagnosable without re-running.
+      NSLog("[KeychainStore] SecItemAdd failed account=\(account) status=\(status)")
+    }
     return status == errSecSuccess
   }
 

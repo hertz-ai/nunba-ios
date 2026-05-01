@@ -61,15 +61,29 @@ final class LocalHartosModule: NSObject {
   }
 
   /// Pure helper for tests + non-bridge callers.
+  ///
+  /// Uses a dedicated ephemeral URLSession with bounded timeouts
+  /// so a busy CI runner can't queue-starve the request past the
+  /// XCTest wait deadline. URLSession.shared shares timers with
+  /// other in-flight requests, which has been observed flaky on
+  /// macos-15 simulators.
   static func fetchHealthStatus(
-    session: URLSession = .shared,
+    session: URLSession? = nil,
     timeout: TimeInterval = 0.5,
     completion: @escaping (LocalStatus) -> Void
   ) {
+    let usedSession: URLSession = {
+      if let session { return session }
+      let cfg = URLSessionConfiguration.ephemeral
+      cfg.timeoutIntervalForRequest = timeout
+      cfg.timeoutIntervalForResource = timeout * 2
+      return URLSession(configuration: cfg)
+    }()
+
     var req = URLRequest(url: localBaseURL.appendingPathComponent("health"))
     req.timeoutInterval = timeout
 
-    session.dataTask(with: req) { data, response, error in
+    let task = usedSession.dataTask(with: req) { data, response, error in
       guard error == nil,
             let http = response as? HTTPURLResponse,
             http.statusCode == 200,
@@ -90,7 +104,16 @@ final class LocalHartosModule: NSObject {
         activeModel: activeModel,
         modelSizeMb: 550   // Android assumes 0.8B if health passes; same here.
       ))
-    }.resume()
+    }
+    task.resume()
+
+    // Hard cancellation deadline as a safety net — if the task
+    // never even starts (queue starvation), cancel after timeout
+    // so the completion fires with .notRunning rather than
+    // hanging the test forever.
+    DispatchQueue.global().asyncAfter(deadline: .now() + timeout + 0.1) { [weak task] in
+      task?.cancel()
+    }
   }
 
   struct LocalStatus {
@@ -131,6 +154,13 @@ final class LocalHartosModule: NSObject {
   }
 
   static func computeConditions() -> [String: Any] {
+    // UIDevice mutations are documented main-thread-only. RN
+    // promises run on the JS thread; XCTest's wait() can spin
+    // nested run loops on other queues. Bounce to main here so
+    // we never trip an UIKit thread assertion on busy CI runners.
+    if !Thread.isMainThread {
+      return DispatchQueue.main.sync { computeConditions() }
+    }
     // Battery monitoring is opt-in on iOS; turning it on is cheap.
     UIDevice.current.isBatteryMonitoringEnabled = true
 
