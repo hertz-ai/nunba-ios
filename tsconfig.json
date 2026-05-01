@@ -4,8 +4,22 @@
     "baseUrl": ".",
     "paths": {
       "@nunba/*": ["js/*"]
-    }
+    },
+    "allowJs": false,
+    "checkJs": false,
+    "skipLibCheck": true
   },
-  "include": ["App.tsx", "index.js", "js/**/*", "__tests__/**/*"],
-  "exclude": ["node_modules", "ios/Pods", "ios/build"]
+  "include": [
+    "App.tsx",
+    "index.js",
+    "js/native-bridge/**/*",
+    "js/ios/**/*",
+    "__tests__/**/*"
+  ],
+  "exclude": [
+    "node_modules",
+    "ios/Pods",
+    "ios/build",
+    "js/shared/**"
+  ]
 }

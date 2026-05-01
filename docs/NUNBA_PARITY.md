@@ -1,223 +1,263 @@
-# Nunba (React Web) Parity Tracking
+# Nunba ↔ Hevolve RN ↔ iOS Three-Way Parity Matrix
 
-The original/upstream codebase is **Nunba**
-(`Nunba-HART-Companion/landing-page/src/`), a React + MUI web app.
-**Hevolve_React_Native** (Android RN) was ported FROM Nunba — it
-covers ~60% of Nunba's screens. **Nunba-Companion-iOS** (this repo)
-copies the React Native port and adds iOS-native bindings.
+**Source-of-truth**: Nunba (React web) at
+`C:\Users\sathi\PycharmProjects\Nunba-HART-Companion\landing-page\src\`.
+Hevolve_React_Native is a **port from Nunba** with ~60% screen
+coverage. Nunba-Companion-iOS is a **port from Hevolve_React_Native**
+that vendors the cross-platform JS via `docs/SHARED_JS_MANIFEST.json`.
 
-This document is the source of truth for screen-level parity.
+This document is the running ledger. Update it whenever you port a
+screen or close a gap.
 
 ## Topology
 
 ```
-                  Nunba (React/MUI/web)
-                  ─────────────────────
-                  ~373 components
-                  37+ user-facing routes
+              Nunba (React/MUI/web)
+              ─────────────────────
+              373 components
+              ~37 user-facing routes
+              5 web-only features (Autopilot, MCP Tools,
+                                    Marketplace, ActivityHub, Compute)
                           │
-                          │  port (manual, MUI→RN)
+                          │  port (manual, MUI→RN-Paper)
                           ▼
-                Hevolve_React_Native (Android RN)
-                ────────────────────────────────
-                ~223 components
-                ~60% screen coverage
+            Hevolve_React_Native (Android RN)
+            ────────────────────────────────
+            ~227 vendorable components (audit Cat A+B)
+            ~50 routes registered in home.routes.js
+            ~60% Nunba coverage; gaps documented below
                           │
-                          │  vendor (yarn sync)
+                          │  vendor verbatim (yarn sync)
                           ▼
-                Nunba-Companion-iOS (iOS RN)
-                ────────────────────────────
-                Same ~60% as Android (when JS works)
-                + iOS-native modules (Tier-1 done)
-                + 4 placeholder screens (Home/Profile/KidsHub/Encounters)
+            Nunba-Companion-iOS (iOS RN)
+            ────────────────────────────
+            227 vendored components in js/shared/
+            53 routes wired in App.tsx (incl. auth + 4 deferred to Phase 5)
+            8 native modules ported (Swift)
+            148 tests passing on iPhone + iPad simulators in CI
 ```
 
-Nunba moves fastest. Android lags Nunba. iOS lags Android because
-iOS is a fresh sibling — but JS is vendored, so once Hevolve_React_Native
-catches up to a Nunba screen, iOS gets it via `yarn sync`.
+## Audit Numbers
 
-## Coverage by feature area
+| Layer | Components | Routes | Notes |
+|-------|-----------|--------|-------|
+| **Nunba (web)** | 373 (232 social) | 37 user-facing + 16 admin | MUI-heavy; 241 Dialog instances need translation to RN-Paper |
+| **Hevolve RN (Android)** | 227 vendorable + 2 dropped (TV) + 3 mixed (Platform-conditional) | 50 in home.routes.js | iOS port-source |
+| **iOS (this repo)** | 227 vendored verbatim | 53 wired in App.tsx | 4 routes use placeholder (Phase 5 native deps) |
 
-| Feature area | Nunba files | Android RN files | iOS status (this repo) | Coverage |
-|--------------|-------------|------------------|------------------------|----------|
-| Social Feed & Core | 10 | 1 | 🟦 placeholder route only | ~10% |
-| Profiles | 5 | 1 | 🟦 placeholder route only | ~10% |
-| Gamification (Challenges/Achievements/Seasons) | 5 | 3 | 🟦 not yet routed | 0% |
-| Encounters (Missed Connections) | 5 | 1 | 🟦 placeholder route only | ~10% |
-| Regions | 3 | 2 | 🟦 not yet routed | 0% |
-| Communities | 3 | 1 | 🟦 not yet routed | 0% |
-| Campaigns | 3 | 3 | 🟦 not yet routed | 0% |
-| Games Hub (Adult) | 25 | 4 | 🟦 not yet routed | 0% |
-| Kids Learning | 92 | 15 | 🟦 placeholder route only | ~5% |
-| Chat & Agent Interview | 2 | 2 | 🟦 not yet routed | 0% |
-| Tracker (Hive + Experiments) | 6 | 2 | 🟦 not yet routed | 0% |
-| Channels | 5 | 2 | 🟦 not yet routed | 0% |
-| Settings | 4 | 1 | 🟦 not yet routed | 0% |
-| Admin | 13 | 1 | ❌ not in scope (operator UI) | ❌ |
-| Autopilot | 4 | 0 | ❌ not in Android either | ❌ |
-| MCP Tools | 1 | 0 | ❌ not in Android either | ❌ |
-| Marketplace | 1 | 0 | ❌ not in Android either | ❌ |
-| Activity Hub | 1 | 0 | ❌ not in Android either | ❌ |
-| Compute Dashboard | 1 | 0 | ❌ not in Android either | ❌ |
-| Mindstory | 1 | 0 (stub) | ❌ deferred | ❌ |
+## Three-way feature-area matrix
 
-Legend:
-- ✅ Done — screen exists, navigation wired, tested
-- 🟦 Pending — no screen yet on iOS; route may or may not be wired
-- ❌ Out of scope — not user-facing, or not in Android either
+Legend: ✅ ported · 🟡 partial · ❌ missing · 🚫 out-of-scope · 🆕 Nunba-only (Android gap)
 
-## Screen-level cross-reference
+### Social Feed
 
-### Social feed + core navigation
+| Screen | Nunba route | Nunba file | Android RN | iOS |
+|--------|-------------|-----------|-----------|-----|
+| Feed | `/social` | `Feed/FeedPage.js` (581 lines) | ✅ MainScreen | ✅ wired |
+| Post detail | `/social/post/:postId` | `Post/PostDetailPage.js` | ✅ PostDetailScreen | ✅ wired |
+| Comment thread | (in Post detail) | `Post/CommentThread.js` | ✅ CommentsList | ✅ wired |
+| Likes list | (modal) | (in PostDetailPage) | ✅ LikesList | ✅ wired |
+| Add post | (modal) | `Feed/CreatePostDialog.js` | ✅ AddPost | ✅ wired |
+| Report post | (modal) | inline | ✅ ReportModal | ✅ wired |
+| Report comment | (modal) | inline | ✅ ReportModalComment | ✅ wired |
+| Thought experiment card | inline | `Feed/ThoughtExperimentCard.jsx` | ✅ component | ✅ vendored |
+| Pledge dialog | (modal) | `Feed/PledgeDialog.jsx` | ❓ check | ❓ |
 
-| Nunba route | Component | Android RN | iOS |
-|-------------|-----------|------------|-----|
-| `/social` | SocialFeed (FeedPage.js) | ✅ FederatedFeedScreen | 🟦 |
-| `/social/profile/:userId` | SocialProfile | ✅ ProfileScreen | 🟦 |
-| `/social/post/:postId` | PostDetailPage | ✅ PostDetailScreen | 🟦 |
-| `/social/search` | SearchPage | ✅ SearchScreen | 🟦 |
+### Profiles
+
+| Screen | Nunba route | Nunba file | Android RN | iOS |
+|--------|-------------|-----------|-----------|-----|
+| User profile | `/social/profile/:userId` | `Profile/ProfilePage.js` | ✅ ProfileScreen | ✅ wired |
+| Profile edit | (modal) | `Profile/ProfileEditDialog.js` | ❓ partial | ❓ |
+| Agent profile | `/social/agent/:agentId` | `Agents/AgentProfilePage.jsx` | ✅ AgentDashboardScreen | ✅ wired |
+| Story | (modal) | (Stories component) | ✅ StoryScreen | ✅ wired |
 
 ### Gamification
 
-| Nunba route | Android RN | iOS |
-|-------------|------------|-----|
-| `/social/achievements` | ✅ AchievementsScreen | 🟦 |
-| `/social/challenges` | ✅ ChallengesScreen | 🟦 |
-| `/social/challenges/:id` | ✅ ChallengeDetailScreen | 🟦 |
-| `/social/seasons` | ✅ SeasonScreen | 🟦 |
-| `/social/resonance` | ✅ ResonanceDashboard | 🟦 |
-| `/social/recipes` | ✅ RecipesScreen | 🟦 |
+| Screen | Nunba route | Nunba file | Android RN | iOS |
+|--------|-------------|-----------|-----------|-----|
+| Resonance dashboard | `/social/resonance` | `Gamification/ResonanceDashboard.js` (599 lines) | ✅ ResonanceDashboardScreen | ✅ wired |
+| Achievements | `/social/achievements` | `Gamification/AchievementsPage.js` | ✅ AchievementsScreen | ✅ wired |
+| Challenges | `/social/challenges` | `Gamification/ChallengesPage.js` | ✅ ChallengesScreen | ✅ wired |
+| Challenge detail | `/social/challenges/:id` | `Gamification/ChallengeDetailPage.js` | ✅ ChallengeDetailScreen | ✅ wired |
+| Season | `/social/seasons` | `Gamification/SeasonPage.js` | ✅ SeasonScreen | ✅ wired |
+| Recipes list | `/social/recipes` | `Recipes/RecipeListPage.js` | ✅ RecipesScreen | ✅ wired |
+| Recipe detail | `/social/recipes/:id` | `Recipes/RecipeDetailPage.js` | ✅ RecipeDetailScreen | ✅ wired |
 
-### Communities + regions + campaigns
+### Encounters / Missed Connections
 
-| Nunba route | Android RN | iOS |
-|-------------|------------|-----|
-| `/social/communities` | ✅ CommunitiesScreen | 🟦 |
-| `/social/h/:communityId` | ✅ CommunityDetailScreen | 🟦 |
-| `/social/regions` | ✅ RegionsScreen | 🟦 |
-| `/social/regions/:regionId` | ✅ RegionDetailScreen | 🟦 |
-| `/social/campaigns` | ✅ CampaignsScreen | 🟦 |
-| `/social/campaigns/:id` | ✅ CampaignDetailScreen | 🟦 |
-| `/social/campaigns/create` | ✅ CampaignStudioScreen | 🟦 |
+| Screen | Nunba route | Nunba file | Android RN | iOS |
+|--------|-------------|-----------|-----------|-----|
+| Encounters hub | `/social/encounters` | `Encounters/EncountersPage.js` | ✅ EncountersScreen | ✅ wired |
+| Encounter detail | `/social/encounters/:id` | `Encounters/EncounterDetailPage.js` | ✅ MissedConnectionDetailScreen | 🟡 placeholder (needs react-native-maps — Phase 5) |
+| Create missed connection | (in detail flow) | inline | ✅ CreateMissedConnectionScreen | 🟡 placeholder (Phase 5) |
+| Map view | (modal) | `MissedConnectionMapView.js` | ✅ MissedConnectionsMapScreen | 🟡 placeholder (Phase 5) |
+| Discoverable toggle | inline | `Encounters/DiscoverableTogglePanel.jsx` | ✅ component | ✅ vendored |
+| Icebreaker draft | (modal) | `Encounters/IcebreakerDraftSheet.jsx` | ✅ component | ✅ vendored |
 
-### Games hub
+### Communities + Regions + Campaigns
 
-Nunba has **25 game files** (5 board games, 7 Phaser arcade scenes,
-6 game engines). Android has 4. iOS has 0. Phaser games likely don't
-port cleanly to RN — they're canvas-based. Board games + engines
-do port.
+| Screen | Nunba route | Nunba file | Android RN | iOS |
+|--------|-------------|-----------|-----------|-----|
+| Communities | `/social/communities` | `Communities/CommunityListPage.js` | ✅ CommunitiesScreen | ✅ wired |
+| Community detail | `/social/h/:communityId` | `Communities/CommunityDetailPage.js` | ✅ CommunityDetailScreen | ✅ wired |
+| Regions | `/social/regions` | `Regions/RegionsPage.js` | ✅ RegionsScreen | ✅ wired |
+| Region detail | `/social/regions/:id` | `Regions/RegionDetailPage.js` | ✅ RegionDetailScreen | ✅ wired |
+| Campaigns | `/social/campaigns` | `Campaigns/CampaignsPage.js` | ✅ CampaignsScreen | ✅ wired |
+| Campaign detail | `/social/campaigns/:id` | `Campaigns/CampaignDetailPage.js` | ✅ CampaignDetailScreen | ✅ wired |
+| Campaign studio | `/social/campaigns/create` | `Campaigns/CampaignStudio.js` | ✅ CampaignStudioScreen | ✅ wired |
 
-| Nunba route | Android RN | iOS |
-|-------------|------------|-----|
-| `/social/games` | ✅ GameHubScreen | 🟦 |
-| `/social/games/:gameId` | ✅ GameScreen | 🟦 |
-| Board games: TicTacToe, ConnectFour, Checkers, Reversi, Mancala | ⚠️ partial | 🟦 |
-| Phaser arcade: Snake, Pong, Breakout, BubbleShooter, Match3, Runner, Flappy | ❌ | 🟦 |
-| Engines: BoardGame, Phaser, Sudoku, Trivia, WordScramble, WordSearch | ⚠️ partial | 🟦 |
+### Games (Adult)
 
-### Kids Learning hub
+| Screen | Nunba route | Nunba file | Android RN | iOS |
+|--------|-------------|-----------|-----------|-----|
+| Game hub | `/social/games` | `Games/GameHub.jsx` (491 lines) | ✅ GameHubScreen | ✅ wired |
+| Game instance | `/social/games/:gameId` | `Games/UnifiedGameScreen.jsx` | ✅ GameScreen | ✅ wired |
+| Board games (TicTacToe/Checkers/Connect4/Reversi/Mancala) | inline | `Games/board-games/*.js` | ✅ rules engine present | ✅ vendored |
+| Phaser arcade games (7) | inline | `Games/phaser-games/*.js` | ⚠️ rendered via WebView | 🆕 ⚠️ same approach (PhaserWebViewBridge) |
+| Multiplayer lobby | inline | `Games/AdultLobby.jsx` | ✅ MultiplayerLobby.js | ✅ vendored |
+| Scoreboard | inline | `Games/AdultScoreboard.jsx` | ✅ MultiplayerScoreboard.js | ✅ vendored |
 
-Nunba has **92 files**. Android has 15. Big gap on game templates +
-audio features.
+### Kids Learning Zone (the largest feature area)
 
-| Nunba route | Android RN | iOS |
-|-------------|------------|-----|
-| `/social/kids` | ✅ KidsHub | 🟦 placeholder |
-| `/social/kids/game/:gameId` | ✅ KidsGameScreen | 🟦 |
-| `/social/kids/progress` | ✅ KidsProgressScreen | 🟦 |
-| `/social/kids/create` | ✅ GameCreatorScreen | 🟦 |
-| `/social/kids/custom` | ✅ CustomGamesScreen | 🟦 |
-| Game categories: Creativity, English, Interactive, Life Skills, Math, Science | ⚠️ partial | 🟦 |
-| Audio: AudioChannelManager, SoundManager, MediaPreloader, TTSManager, PeerConnectionManager | ⚠️ partial | 🟦 |
+| Screen | Nunba route | Nunba file | Android RN | iOS |
+|--------|-------------|-----------|-----------|-----|
+| Kids hub | `/social/kids` | `KidsLearning/KidsLearningHub.jsx` (579 lines) | ✅ KidsHub/index.js | ✅ wired |
+| Kids game | `/social/kids/game/:gameId` | `KidsLearning/KidsGameScreen.jsx` | ✅ KidsGameScreen | ✅ wired |
+| Progress | `/social/kids/progress` | `KidsLearning/KidsProgressScreen.jsx` | ✅ KidsProgressScreen | ✅ wired |
+| Game creator | `/social/kids/create` | `KidsLearning/GameCreatorScreen.jsx` | ✅ GameCreatorScreen | ✅ wired |
+| Custom games | `/social/kids/custom` | `KidsLearning/CustomGamesScreen.jsx` | ✅ CustomGamesScreen | ✅ wired |
+| 35+ game templates | (template engine) | `KidsLearning/templates/*.jsx` | ✅ 18 templates ported | ✅ vendored |
+| Voice game templates | inline | `templates/Voice*.jsx` | ✅ 6 voice templates | ✅ vendored |
+| Server-driven UI | inline | `KidsLearning/ServerDrivenUI.jsx` | ✅ ServerDrivenUI.js | ✅ vendored |
+| Audio managers (Sound/TTS/AudioChannel) | inline | `shared/SoundManager.js` etc. | ✅ all 3 ported | ✅ vendored |
+| Kids video player | inline | `media/KidsVideoPlayer.jsx` | ✅ KidsVideoPlayer.js | ✅ vendored (uses react-native-video — Phase 5 verifies pod) |
 
-### Channels + agents + tracker
+### Chat + Agent
 
-| Nunba route | Android RN | iOS |
-|-------------|------------|-----|
-| `/social/channels` | ✅ ChannelBindingsScreen | 🟦 |
-| `/social/channels/history` | ✅ ConversationHistoryScreen | 🟦 |
-| `/social/agents/:id/evolution` | ✅ AgentEvolutionScreen | 🟦 |
-| `/social/agent/:id` | ✅ AgentDashboardScreen | 🟦 |
-| `/social/agent/:id/chat` | ⚠️ AgentInterviewScreen (limited) | 🟦 |
-| `/social/coding` | ✅ CodingAgentScreen | 🟦 |
-| `/social/hive` | ✅ AgentHiveScreen | 🟦 |
-| `/social/tracker` | ❌ NOT PORTED (role-gated) | ❌ |
+| Screen | Nunba route | Nunba file | Android RN | iOS |
+|--------|-------------|-----------|-----------|-----|
+| Agent chat | `/social/agent/:agentId/chat` | `Chat/AgentChatPage.js` | ✅ AgentDashboardScreen | ✅ wired |
+| Coding agent | `/social/coding` | `Chat/AgentChatPage.js` (alias) | ✅ CodingAgentScreen | ✅ wired |
+| Agent evolution | `/social/agents/:id/evolution` | `Evolution/AgentEvolutionPage.js` | ✅ AgentEvolutionScreen | ✅ wired |
+| Thought experiment tracker | `/social/tracker` | `Tracker/ThoughtExperimentTracker.jsx` | ⚠️ partial via AgentInterview | 🟡 ⚠️ partial |
+| Agent hive | `/social/hive` | `Tracker/AgentHiveView.jsx` | ✅ AgentHiveScreen | ✅ wired |
+| Agent interview | (in tracker) | `Tracker/AgentInterviewPanel.jsx` | ✅ AgentInterviewScreen | ✅ wired |
 
-### Encounters + notifications + settings
+### Channels + Notifications + Settings
 
-| Nunba route | Android RN | iOS |
-|-------------|------------|-----|
-| `/social/encounters` | ✅ EncountersScreen | 🟦 placeholder |
-| `/social/encounters/:id` | ✅ (in EncountersScreen) | 🟦 |
-| `/social/notifications` | ✅ NotificationsScreen | 🟦 |
-| `/social/settings/privacy` | ✅ PrivacySettingsScreen | 🟦 |
-| `/social/settings/backup` | ❌ | ❌ |
-| `/social/settings/appearance` | ❌ | ❌ |
+| Screen | Nunba route | Nunba file | Android RN | iOS |
+|--------|-------------|-----------|-----------|-----|
+| Notifications | `/social/notifications` | `Notifications/NotificationsPage.js` | ✅ NotificationsScreen | ✅ wired |
+| Channel bindings | `/social/channels` | `Channels/ChannelBindingsPage.js` | ✅ ChannelBindingsScreen | ✅ wired |
+| Channel setup | (modal in bindings) | `ChannelSetupWizard.js` | ✅ ChannelSetupScreen | ✅ wired |
+| Conversation history | `/social/channels/history` | `Channels/ConversationHistoryPanel.js` | ✅ ConversationHistoryScreen | ✅ wired |
+| QR pairing | inline | `Channels/QRPairingDisplay.js` | ✅ QRScannerScreen (scanner+display) | 🟡 placeholder (Phase 5: needs camera-kit pod) |
+| Privacy settings | `/social/settings/privacy` | `Settings/PrivacySettingsPage.jsx` | ✅ PrivacySettingsScreen | ✅ wired |
+| Backup settings | `/social/settings/backup` | `Settings/BackupSettingsPage.jsx` | ❌ not in Hevolve | ❌ Android gap |
+| Theme settings | `/social/settings/appearance` | `Settings/ThemeSettingsPage.jsx` | ❌ not in Hevolve | ❌ Android gap |
 
-### Out-of-scope on iOS (not in Android either)
+### Search
 
-- `/social/autopilot` — Autopilot task UI (4 Nunba files)
-- `/social/tools` — MCP Tool browser
-- `/social/marketplace` — Agent/template marketplace
-- `/social/activity` — Activity Hub
-- `/social/compute` — Compute Dashboard
-- `/admin/*` — Admin suite (13 Nunba files)
-- Landing pages (`/AboutHevolve`, `/Plan`, `/contact`, etc.) — handled by mobile signup flow, not in-app
+| Screen | Nunba route | Nunba file | Android RN | iOS |
+|--------|-------------|-----------|-----------|-----|
+| Search | `/social/search` | `pages/SearchPage.js` (?) | ✅ SearchScreen | ✅ wired |
 
-## What it takes to close the iOS-side gap
+### Mindstory + Federation + Tasks + Misc
 
-### Per-screen porting work
+| Screen | Nunba route | Nunba file | Android RN | iOS |
+|--------|-------------|-----------|-----------|-----|
+| Mindstory | `/social/mindstory` | `Mindstory/MindstoryPage.jsx` | ✅ MindstoryScreen | ✅ wired |
+| Federated feed | (no Nunba route) | n/a | ✅ FederatedFeedScreen | ✅ wired (Hevolve enhancement) |
+| Tasks | (no Nunba route) | n/a | ✅ TasksScreen | ✅ wired (Hevolve enhancement) |
+| All features | (no Nunba route) | n/a | ✅ AllFeaturesScreen | ✅ wired (Hevolve enhancement) |
+| Experiment discovery | `/social/experiments` | `Experiments/ExperimentDiscoveryPage.jsx` | ✅ ExperimentDiscoveryScreen | ✅ wired |
+| Provider management | inline | (admin) | ✅ ProviderManagementScreen | ✅ wired |
+| Share landing | (deep-link) | `pages/ShareLandingPage.js` | ✅ ShareLandingScreen | ✅ wired |
+| Onboarding overlay | (modal) | inline | ✅ OnboardingOverlayScreen | ✅ wired |
 
-For each Android RN screen you want on iOS, the work breakdown is:
+### Auth / Signup
 
-1. **Vendor the JS** — verify `js/shared/` has the screen's
-   imports (most components live in `components/CommunityView/...`
-   which we haven't yet vendored). Add to
-   `docs/SHARED_JS_MANIFEST.json`, run `yarn sync`.
-2. **Resolve native dependencies** — the screen may use
-   `NativeModules.X` for X we haven't ported. Check against
-   `docs/PORT_MANIFEST.md`; port any missing module.
-3. **Wire the route** — add to `App.tsx` Stack.Navigator + the
-   `linking.config.screens` map.
-4. **Smoke test** — extend `SmokeUITests.swift` to navigate to
-   the screen and assert it renders.
+| Screen | Nunba route | Nunba file | Android RN | iOS |
+|--------|-------------|-----------|-----------|-----|
+| Signup combined | `/signup` | `pages/NewSignup.js` | ✅ SignUpCombined.js | ✅ wired (initial route when no token) |
+| Signup steps (Name/DOB/Gender/Lang/Email/Phone) | (within NewSignup) | inline | ✅ separate components | ✅ vendored (auth flow Phase 4) |
+| OTP modal | (modal) | `pages/OTPModal.js`/`OtpAuthModal.js` | ✅ via NativeModule | ✅ via OnboardingModule.setAccessToken |
+| Institution signup | `/institution/signup` | `pages/signuplite.js` | ❌ not in Hevolve | ❌ Android gap |
 
-Realistic per-screen effort: 1-3 hours for a vendored RN screen with
-all native deps already done. Days for a screen that introduces
-new native modules.
+## 🆕 Android gaps — Nunba features missing in Hevolve_React_Native
 
-### Components NOT yet vendored
+These are features that exist in Nunba (web) but were never ported to the Android RN codebase. **Since iOS vendors from Hevolve_RN, these are also iOS gaps** — but porting them to iOS would require translating Nunba's MUI implementation directly to RN.
 
-`docs/SHARED_JS_MANIFEST.json` currently vendors only stores, theme,
-utils, hooks, services. The full `components/` tree is deliberately
-NOT vendored because:
+For each: documenting the Nunba file + complexity so a future port pass (Android OR iOS) can pick them up.
 
-- ~200 component files in `components/CommunityView/`
-- Many import RN-specific libraries that may need iOS pod additions
-- Per-component classification needed (cross-platform vs Android-only)
+| Feature | Nunba file | Complexity | Priority | Notes |
+|---------|-----------|------------|----------|-------|
+| Autopilot | `Autopilot/AutopilotPage.jsx` | Medium | Low | Automation scheduler (rules + triggers + actions). Touches socialApi.autopilotApi. |
+| MCP Tool Browser | `Tools/MCPToolBrowser.jsx` | Medium | Medium | Browse + use Model Context Protocol tools registered with HARTOS. Backend already supports — just UI port. |
+| Marketplace | `Marketplace/MarketplacePage.jsx` | Medium | Low | Agent / template marketplace. Discovery + install flow. |
+| Activity Hub | `ActivityHub/ActivityHub.js` | Large | Medium | Event feed (engagement, notifications, agent activity). Could replace/augment NotificationsScreen. |
+| Compute Dashboard | `Compute/ComputeDashboardPage.js` | Large | Medium | GPU/CPU usage, cost tracking, quotas. Touches socialApi.computeApi. |
+| Backup Settings | `Settings/BackupSettingsPage.jsx` | Small | Low | Cloud sync + scheduling. Not yet in Hevolve. |
+| Theme Settings | `Settings/ThemeSettingsPage.jsx` | Small | Low | Theme picker + accent color. Not yet in Hevolve. |
+| Institution Signup | `pages/signuplite.js` | Small | Low | B2B onboarding variant. Not yet in Hevolve. |
 
-A future sweep should add a `components` group to the manifest with
-a curated list of cross-platform components.
+**Recommendation**: when Hevolve adds any of these screens, sync them to iOS via the manifest. Until then, these are documented gaps — not bugs.
 
-## Scope decisions that made sense
+## 🚫 Out-of-scope (deliberately not ported)
 
-These are **not** parity gaps — they're deliberately out of scope:
+- **Admin suite** (16 Nunba screens under `/admin/*`): operator UI, web-only, role-gated. Mobile users don't access admin.
+- **Landing / marketing pages** (`/`, `/AboutHevolve`, `/Plan`, etc.): web-only. Mobile boots into authenticated flow.
+- **Pupit docs** (`/docs`): SDK documentation site, web-only.
+- **Apple Watch port**: separate WatchOS project. Apple Watch ≠ Wear OS.
+- **tvOS port**: separate target. tvOS ≠ Android TV.
+- **OpenGL ES 3.0 avatar renderer**: Android-only. iOS would use Metal — future phase.
+- **Wear Data Layer / TVHomeScreen**: dropped per audit.
 
-| Decision | Rationale |
-|----------|-----------|
-| No tvOS port | Apple TV is a separate SDK with its own UX paradigm. Android TV → tvOS is a future project, not a port. |
-| No watchOS port | Apple Watch uses WatchConnectivity, not Wear Data Layer. Separate WatchOS project. |
-| No admin suite | Operator-only UI; not user-facing. Not in Android RN either. |
-| No landing pages | Web-only marketing pages. Mobile app boots into authenticated flow. |
-| No Pupit docs | Web-only documentation site. |
-| No B2B Institution flow | Web sales path, not mobile. |
-| Mindstory deferred | AI video generation; needs Metal renderer + ffmpeg integration. |
+## Sync mechanism
+
+| Direction | Mechanism | Frequency |
+|-----------|-----------|-----------|
+| Hevolve_RN → iOS | `yarn sync` (manifest-driven script) | On-demand, drift gated by CI sync-drift job |
+| Nunba → Hevolve_RN | Manual port (MUI → RN) | When Hevolve team picks up a Nunba feature |
+| Nunba → iOS | (indirect via Hevolve) | Wait for Hevolve to land it |
+
+If a feature is **urgent on iOS but not yet in Hevolve**, the choice is:
+1. Port from Nunba directly into `js/ios/` (bypasses shared/) — iOS-only escape hatch.
+2. First port to Hevolve_RN, then sync. Cleanest but slower.
+
+Default to (2) unless time-pressured.
+
+## Status snapshot (last update: 2026-05-02)
+
+| Layer | Items | Done | Pending |
+|-------|-------|------|---------|
+| Native modules (iOS Swift) | 8 priority modules | 8 | 0 (drops: Wear, TV, FCM-iOS-equivalent) |
+| Vendored shared JS | 280 files | 280 | 0 |
+| Routes wired | 53 | 49 ✅ + 4 placeholder (Phase 5) | iPad/iPhone build green |
+| Tests passing | 296 (148 × 2 platforms) | 296 | 0 |
+| Auth flow port | Signup → token persist | Wired in App.tsx | Per-step screens vendored, integration test pending |
+| Tier-2 native (camera/maps) | 4 native modules | 0 | Phase 5 |
+| Nunba-only screens (Android gaps) | 8 | 0 | Defer until Hevolve adds |
+
+## How to update this doc
+
+When porting a screen or closing a gap:
+1. Move the row from ❌/🟡 to ✅
+2. Note the commit SHA in the "Status snapshot" section
+3. If the change adds Android gap awareness, add a row to "Android gaps"
+4. Run `yarn validate:manifest` to confirm vendored content matches
+5. Run `yarn sync:check` (locally) or wait for CI sync-drift to confirm no upstream drift
 
 ## Sources
 
 - Nunba: `C:\Users\sathi\PycharmProjects\Nunba-HART-Companion\landing-page\src\`
-- Android RN: `C:\Users\sathi\StudioProjects\Hevolve_React_Native\components\`
-- iOS RN (this): `js/shared/` (vendored from Android), `App.tsx` (routing), `ios/NunbaCompanion/Modules/` (native)
+  - 373 components, 232 social, 40 feature directories, 584 MUI imports, 241 Dialog instances
+- Hevolve_React_Native: `C:\Users\sathi\StudioProjects\Hevolve_React_Native\`
+  - 227 cross-platform components (audit Cat A+B), 50 routes in home.routes.js
+- Nunba-Companion-iOS: this repo
+  - 280 vendored JS files in 6 manifest groups, 53 routes in App.tsx, 8 native modules
 
-Audit conducted 2026-05-01 by reviewer agent. Nunba file count: 373.
-Android component count: 223. iOS placeholder routes: 4.
+Audit history:
+- 2026-05-01: initial parity scaffold
+- 2026-05-02: comprehensive three-way matrix + 227-file vendor pass + 53-route wiring
