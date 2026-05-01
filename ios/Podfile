@@ -1,0 +1,46 @@
+# Podfile for Nunba Companion iOS app.
+# Pinned to React Native 0.81.4 — must match ../package.json.
+
+require Pod::Executable.execute_command('node', ['-p',
+  'require.resolve(
+    "react-native/scripts/react_native_pods.rb",
+    {paths: [process.argv[1]]},
+  )', __dir__]).strip
+
+platform :ios, '15.0'
+prepare_react_native_project!
+
+# Use static frameworks for stable Swift interop with Objective-C++ deps.
+use_frameworks! :linkage => :static
+$RNFirebaseAsStaticFramework = true
+
+target 'NunbaCompanion' do
+  config = use_native_modules!
+
+  use_react_native!(
+    :path => config[:reactNativePath],
+    :app_path => "#{Pod::Config.instance.installation_root}/.."
+  )
+
+  target 'NunbaCompanionTests' do
+    inherit! :complete
+    # XCTest target picks up the same pods so we can import the host
+    # app's Swift modules directly in tests.
+  end
+
+  post_install do |installer|
+    react_native_post_install(
+      installer,
+      config[:reactNativePath],
+      :mac_catalyst_enabled => false
+    )
+
+    # Force iOS 15 deployment on every pod target — silences a slew
+    # of "iOS 12.0 unsupported" warnings from older transitive pods.
+    installer.pods_project.targets.each do |target|
+      target.build_configurations.each do |config|
+        config.build_settings['IPHONEOS_DEPLOYMENT_TARGET'] = '15.0'
+      end
+    end
+  end
+end

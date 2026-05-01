@@ -1,0 +1,71 @@
+{
+  "name": "NunbaCompanion",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Nunba Companion — iOS companion app for HARTOS. Sibling to Hevolve_React_Native (Android). Same JS surface where reusable; iOS-native implementations of every native module.",
+  "scripts": {
+    "ios": "react-native run-ios",
+    "ios:ipad": "react-native run-ios --simulator='iPad Pro (12.9-inch) (6th generation)'",
+    "ios:iphone": "react-native run-ios --simulator='iPhone 15'",
+    "start": "react-native start",
+    "test": "jest",
+    "test:watch": "jest --watch",
+    "lint": "eslint .",
+    "pods": "cd ios && pod install",
+    "sync": "node scripts/sync-from-android.js",
+    "sync:check": "node scripts/sync-from-android.js --check",
+    "sync:dry": "node scripts/sync-from-android.js --dry-run"
+  },
+  "dependencies": {
+    "@react-native-async-storage/async-storage": "^1.17.11",
+    "@react-native-community/netinfo": "^9.3.10",
+    "@react-navigation/native": "^7.1.17",
+    "@react-navigation/native-stack": "^7.3.26",
+    "axios": "^1.12.2",
+    "react": "19.1.0",
+    "react-native": "0.81.4",
+    "react-native-animatable": "^1.4.0",
+    "react-native-elements": "^1.2.3",
+    "react-native-gesture-handler": "^2.28.0",
+    "react-native-safe-area-context": "^5.6.1",
+    "react-native-screens": "^4.16.0",
+    "react-native-sound": "^0.11.2",
+    "react-native-svg": "^15.15.3",
+    "react-native-vector-icons": "^10.3.0",
+    "react-native-webview": "^13.16.0",
+    "zustand": "^5.0.8"
+  },
+  "devDependencies": {
+    "@babel/core": "^7.25.2",
+    "@babel/preset-env": "^7.25.3",
+    "@babel/runtime": "^7.25.0",
+    "@react-native-community/cli": "20.0.0",
+    "@react-native-community/cli-platform-ios": "20.0.0",
+    "@react-native/babel-preset": "0.81.4",
+    "@react-native/metro-config": "0.81.4",
+    "@react-native/typescript-config": "0.81.4",
+    "@types/jest": "^29.5.13",
+    "@types/react": "^19.1.0",
+    "jest": "^29.6.3",
+    "prettier": "2.8.8",
+    "react-test-renderer": "19.1.0",
+    "typescript": "^5.8.3"
+  },
+  "jest": {
+    "preset": "react-native",
+    "setupFiles": [
+      "./jest.setup.js"
+    ],
+    "testPathIgnorePatterns": [
+      "/node_modules/",
+      "/ios/Pods/",
+      "/ios/build/"
+    ],
+    "moduleNameMapper": {
+      "^@nunba/(.*)$": "<rootDir>/js/$1"
+    }
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

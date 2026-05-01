@@ -1,0 +1,92 @@
+# XcodeGen spec for Nunba Companion iOS app.
+#
+# Run `xcodegen generate` from this directory (on macOS) to produce
+# NunbaCompanion.xcodeproj. The generated project is .gitignored —
+# this YAML is the source of truth.
+#
+# Why XcodeGen:
+#   - project.pbxproj is an opaque UUID-laden plist that's hostile to
+#     code review and merge conflicts. Declarative YAML is reviewable.
+#   - We can edit the project structure from Windows/Linux without
+#     opening Xcode.
+#   - New native modules become a one-line addition under sources.
+#
+# Install on macOS:
+#   brew install xcodegen
+#
+# Generate after any change to this file or after a fresh checkout:
+#   xcodegen generate
+#   pod install
+#   open NunbaCompanion.xcworkspace
+
+name: NunbaCompanion
+
+options:
+  bundleIdPrefix: com.hertzai
+  deploymentTarget:
+    iOS: '15.0'
+  developmentLanguage: en
+  createIntermediateGroups: true
+  generateEmptyDirectories: true
+
+settings:
+  base:
+    SWIFT_VERSION: '5.9'
+    IPHONEOS_DEPLOYMENT_TARGET: '15.0'
+    TARGETED_DEVICE_FAMILY: '1,2'  # iPhone (1) + iPad (2) — universal
+    ENABLE_BITCODE: false
+    SUPPORTS_MACCATALYST: false
+    CODE_SIGN_STYLE: Automatic
+
+targets:
+  NunbaCompanion:
+    type: application
+    platform: iOS
+    deploymentTarget: '15.0'
+    sources:
+      - path: NunbaCompanion
+        excludes:
+          - 'Info.plist'  # referenced separately, not as a build source
+          - 'LaunchScreen.storyboard'  # auto-detected as resource
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.hertzai.nunbacompanion
+        PRODUCT_NAME: NunbaCompanion
+        DISPLAY_NAME: Nunba Companion
+        INFOPLIST_FILE: NunbaCompanion/Info.plist
+        TARGETED_DEVICE_FAMILY: '1,2'
+        SUPPORTS_MACCATALYST: false
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
+        SWIFT_OBJC_BRIDGING_HEADER: NunbaCompanion/NunbaCompanion-Bridging-Header.h
+        OTHER_LDFLAGS:
+          - '$(inherited)'
+          - '-ObjC'
+
+  NunbaCompanionTests:
+    type: bundle.unit-test
+    platform: iOS
+    deploymentTarget: '15.0'
+    sources:
+      - NunbaCompanionTests
+    dependencies:
+      - target: NunbaCompanion
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.hertzai.nunbacompanion.tests
+        TEST_HOST: '$(BUILT_PRODUCTS_DIR)/NunbaCompanion.app/NunbaCompanion'
+        BUNDLE_LOADER: '$(TEST_HOST)'
+        SWIFT_OBJC_BRIDGING_HEADER: NunbaCompanion/NunbaCompanion-Bridging-Header.h
+
+schemes:
+  NunbaCompanion:
+    build:
+      targets:
+        NunbaCompanion: all
+        NunbaCompanionTests: [test]
+    test:
+      gatherCoverageData: true
+      coverageTargets:
+        - NunbaCompanion
+      targets:
+        - NunbaCompanionTests

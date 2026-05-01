@@ -1,0 +1,11 @@
+{
+  "extends": "@react-native/typescript-config/tsconfig.json",
+  "compilerOptions": {
+    "baseUrl": ".",
+    "paths": {
+      "@nunba/*": ["js/*"]
+    }
+  },
+  "include": ["App.tsx", "index.js", "js/**/*", "__tests__/**/*"],
+  "exclude": ["node_modules", "ios/Pods", "ios/build"]
+}

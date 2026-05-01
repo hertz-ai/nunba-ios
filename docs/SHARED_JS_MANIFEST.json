@@ -1,0 +1,146 @@
+{
+  "$schema": "./SHARED_JS_MANIFEST.schema.json",
+  "description": "Source-of-truth list of JS files vendored from Hevolve_React_Native into Nunba-Companion-iOS. Read by scripts/sync-from-android.sh. Each entry maps a source path (relative to the Android repo root) to a destination path (relative to js/shared/). Files are copied verbatim — destinations should NEVER be hand-edited.",
+  "android_repo_path": "../Hevolve_React_Native",
+  "synced_at": "2026-05-01T00:00:00Z",
+  "synced_from_commit": "a64e3878",
+  "groups": [
+    {
+      "name": "stores",
+      "rationale": "Zustand stores. All verified pure-JS (no NativeModules imports). Drives shared state on both platforms.",
+      "destination_prefix": "stores/",
+      "files": [
+        "channelStore.js",
+        "colorThemeZustand.js",
+        "contextAwarenessStore.js",
+        "conversationStore.js",
+        "encounterStore.js",
+        "experimentStore.js",
+        "fleetCommandStore.js",
+        "gamificationStore.js",
+        "kidsIntelligenceStore.js",
+        "kidsLearningStore.js",
+        "kidsMediaStore.js",
+        "liquidOverlayStore.js",
+        "marketingStore.js",
+        "nunbaKeyboardStore.js",
+        "secureInputStore.js",
+        "zustandStore.js"
+      ]
+    },
+    {
+      "name": "theme",
+      "rationale": "Color tokens + design system. Pure JS objects.",
+      "source_prefix": "theme/",
+      "destination_prefix": "theme/",
+      "files": [
+        "colors.js",
+        "kidsColors.js"
+      ]
+    },
+    {
+      "name": "utils",
+      "rationale": "Pure-JS helpers. No native imports verified by grep.",
+      "source_prefix": "utils/",
+      "destination_prefix": "utils/",
+      "files": [
+        "gamification.js",
+        "iconMap.js",
+        "timeOfDay.js"
+      ]
+    },
+    {
+      "name": "hooks",
+      "rationale": "React hooks with no NativeModules / DeviceEventEmitter imports. Mic-amplitude, multiplayer-sync, and speech-recognition hooks are deliberately EXCLUDED — they require iOS-native rewrites and live in js/ios/hooks/ instead.",
+      "source_prefix": "hooks/",
+      "destination_prefix": "hooks/",
+      "files": [
+        "useContextualInsights.js",
+        "useDeviceCapability.js",
+        "useLocationPing.js",
+        "useOrientation.js",
+        "usePressAnimation.js",
+        "useScreenContext.js",
+        "useTVFocus.js"
+      ]
+    },
+    {
+      "name": "services",
+      "rationale": "API client + business-logic layer. Some files import NativeModules (OnboardingModule, PeerLinkModule, WearDataSyncModule, etc.) — those NativeModule names form the contract iOS-side Swift modules must implement. JS itself stays platform-agnostic.",
+      "source_prefix": "services/",
+      "destination_prefix": "services/",
+      "files": [
+        "PocketTTSService.js",
+        "TTSCapabilityProbe.js",
+        "apiHelpers.js",
+        "audioApi.js",
+        "channelConversationService.js",
+        "chatApi.js",
+        "computePolicy.js",
+        "deepLinkService.js",
+        "deviceApi.js",
+        "endpointResolver.js",
+        "featureGates.js",
+        "fleetCommandHandler.js",
+        "gameRecommendationEngine.js",
+        "haptics.js",
+        "kidsLearningApi.js",
+        "kidsMediaApi.js",
+        "marketingNotificationService.js",
+        "notificationRouter.js",
+        "peerLinkService.js",
+        "realtimeService.js",
+        "socialApi.js",
+        "vaultApi.js",
+        "visionApi.js"
+      ]
+    }
+  ],
+  "deliberately_excluded": [
+    {
+      "path": "deviceCapabilityStore.js",
+      "reason": "Imports NativeModules. The store itself is small and iOS-specific UUID persistence (Keychain) differs from Android's SharedPreferences — reimplement in js/ios/."
+    },
+    {
+      "path": "notificationStore.js",
+      "reason": "Imports NativeModules and calls FCM-specific paths. iOS uses APNs; rewrite in js/ios/."
+    },
+    {
+      "path": "hooks/useMicAmplitude.js",
+      "reason": "Reads from native AudioRecorder. iOS uses AVAudioEngine — different bindings."
+    },
+    {
+      "path": "hooks/useMultiplayerSync.js",
+      "reason": "Wired to Android-specific WAMP bridge events. iOS port uses URLSessionWebSocket-based WAMP and emits the same event names — hook will be reimplemented in js/ios/hooks/."
+    },
+    {
+      "path": "hooks/useSpeechRecognition.js",
+      "reason": "Android SpeechRecognizer. iOS uses SFSpeechRecognizer (Speech framework) — different permission model + result shape."
+    },
+    {
+      "path": "components/**",
+      "reason": "Sync deferred. Many components are cross-platform but the kids-learning + agentic-overlay + signup screens have native imports. Per-component classification + copy is a follow-up sync pass."
+    },
+    {
+      "path": "android/**",
+      "reason": "All Java/Kotlin. iOS native modules live in ios/NunbaCompanion/Modules/."
+    },
+    {
+      "path": "Wear OS source",
+      "reason": "Apple Watch is a separate WatchOS project. Different SDK, different paradigm. Out of scope for this port."
+    },
+    {
+      "path": "Android TV source",
+      "reason": "tvOS is a separate target. Out of scope for this port."
+    },
+    {
+      "path": "OpenGL ES 3.0 avatar renderer (glSurface/)",
+      "reason": "Will need a Metal port. Future phase."
+    }
+  ],
+  "policy": {
+    "edits_to_synced_files": "FORBIDDEN. js/shared/ is vendored — any edit gets clobbered on the next sync. If iOS needs to diverge, copy the file out of shared/ into js/ios/ first.",
+    "adding_new_synced_files": "1) Add the path to this manifest. 2) Run scripts/sync-from-android.sh. 3) Commit both the manifest update and the new file in one commit.",
+    "removing_synced_files": "Remove from manifest, delete from js/shared/, commit both. Don't leave orphans."
+  }
+}
