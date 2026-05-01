@@ -11,6 +11,10 @@
 import UIKit
 import React
 import React_RCTAppDelegate
+// RN 0.81 codegen pod — supplies RCTAppDependencyProvider class
+// referenced below. With use_frameworks!:static, this pod is
+// importable as a Swift module.
+import ReactAppDependencyProvider
 
 @main
 class AppDelegate: RCTAppDelegate {
