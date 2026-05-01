@@ -1,0 +1,303 @@
+# validate.yml — full-parity CI for Nunba Companion iOS.
+#
+# Every job is REQUIRED. Nothing is best-effort. A red X on any job
+# blocks the merge.
+#
+# Job graph:
+#
+#     manifest-integrity ──┐
+#                          ├─→ js-validate ────────┐
+#                          │                       │
+#                          └─→ sync-drift ─────────┤
+#                                                  │
+#                                                  └─→ ios-build (macOS)
+#
+# manifest-integrity is the gate — if the vendored JS layout doesn't
+# match the manifest, nothing else has a stable base to validate.
+#
+# sync-drift requires the secret ANDROID_REPO_TOKEN to be set
+# (https://github.com/hertz-ai/nunba-ios/settings/secrets/actions)
+# with read access to hertz-ai/Hevolve_React_Native. Without it the
+# job fails by design — drift detection is a hard requirement, not
+# best-effort.
+#
+# ios-build runs on macOS-14 (arm64). It's the slowest + most
+# expensive job; gated behind the cheap js+manifest jobs so CI fails
+# fast on common mistakes before paying for a Mac runner.
+
+name: validate
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+# Cancel in-progress runs of the same workflow on the same ref —
+# saves CI minutes when someone pushes multiple commits in a row.
+concurrency:
+  group: validate-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  NODE_VERSION: '20'
+  RUBY_VERSION: '3.2'
+  XCODE_VERSION: '16.0'
+
+jobs:
+  # ── 1. Manifest integrity ───────────────────────────────────────
+  # Cheap. Catches "added file to js/shared/ without manifest entry"
+  # and the reverse.
+
+  manifest-integrity:
+    name: Manifest integrity
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Validate SHARED_JS_MANIFEST.json against js/shared/
+        run: node scripts/validate-manifest.js
+
+      - name: Verify manifest is valid JSON Schema-shape
+        run: |
+          node -e "
+            const m = require('./docs/SHARED_JS_MANIFEST.json');
+            if (!m.android_repo_path) throw new Error('missing android_repo_path');
+            if (!Array.isArray(m.groups)) throw new Error('groups must be array');
+            if (!Array.isArray(m.deliberately_excluded)) throw new Error('deliberately_excluded must be array');
+            for (const g of m.groups) {
+              if (!g.name) throw new Error('group missing name');
+              if (!Array.isArray(g.files)) throw new Error('group ' + g.name + ' missing .files');
+              for (const f of g.files) {
+                if (typeof f !== 'string') throw new Error('non-string file entry in ' + g.name);
+              }
+            }
+            console.log('manifest schema OK:', m.groups.length, 'groups');
+          "
+
+  # ── 2. JS validation: jest + TS contract typecheck ──────────────
+
+  js-validate:
+    name: JS (jest + tsc)
+    runs-on: ubuntu-latest
+    needs: manifest-integrity
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'yarn'
+
+      - name: Install dependencies
+        run: yarn install --frozen-lockfile || yarn install
+
+      - name: Run jest
+        # --passWithNoTests is intentional — the iOS-specific test
+        # surface is XCTest. JS-side tests are a future addition once
+        # iOS-only hooks land in js/ios/.
+        run: yarn test --passWithNoTests --ci
+
+      - name: TypeScript typecheck on native-bridge contracts
+        run: npx tsc --noEmit -p tsconfig.json
+
+      - name: Verify shared JS files parse as JS
+        # Catches "manifest copied a Java file by mistake" and similar.
+        # Uses Node's own parser — fast, no dep.
+        run: |
+          set -e
+          for f in $(find js/shared -name '*.js'); do
+            node --check "$f" || { echo "FAIL: $f does not parse"; exit 1; }
+          done
+          echo "OK: all js/shared/*.js files parse"
+
+  # ── 3. Sync drift vs Hevolve_React_Native (Android sibling) ─────
+  # Clones the Android repo using a fine-grained PAT and runs
+  # scripts/sync-from-android.js --check. Fails if any vendored file
+  # has drifted from upstream.
+
+  sync-drift:
+    name: Sync drift vs Android
+    runs-on: ubuntu-latest
+    needs: manifest-integrity
+    steps:
+      - name: Checkout iOS repo
+        uses: actions/checkout@v4
+        with:
+          path: nunba-ios
+
+      - name: Checkout Android repo (sibling)
+        uses: actions/checkout@v4
+        with:
+          repository: hertz-ai/Hevolve_React_Native
+          token: ${{ secrets.ANDROID_REPO_TOKEN }}
+          path: Hevolve_React_Native
+          # Shallow clone — we only need the working tree, not history.
+          fetch-depth: 1
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Run sync drift check
+        working-directory: nunba-ios
+        run: node scripts/sync-from-android.js --check
+
+  # ── 4. iOS build + XCTest ───────────────────────────────────────
+  # macOS-14 = arm64 runner with Xcode 16. Slowest job; gated on the
+  # cheap jobs above so CI fails fast for non-iOS-specific mistakes.
+
+  ios-build:
+    name: iOS build + XCTest
+    runs-on: macos-14
+    needs: [js-validate, sync-drift]
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Select Xcode ${{ env.XCODE_VERSION }}
+        run: sudo xcode-select -s /Applications/Xcode_${{ env.XCODE_VERSION }}.app
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'yarn'
+
+      - uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: ${{ env.RUBY_VERSION }}
+          bundler-cache: true
+
+      - name: Install xcodegen
+        run: brew install xcodegen
+
+      - name: Install JS dependencies
+        run: yarn install --frozen-lockfile || yarn install
+
+      - name: Generate Xcode project
+        working-directory: ios
+        run: xcodegen generate
+
+      - name: Cache CocoaPods
+        uses: actions/cache@v4
+        with:
+          path: |
+            ios/Pods
+            ~/.cocoapods
+          key: ${{ runner.os }}-pods-${{ hashFiles('ios/Podfile') }}-${{ hashFiles('package.json') }}
+          restore-keys: |
+            ${{ runner.os }}-pods-
+
+      - name: Install CocoaPods
+        working-directory: ios
+        run: pod install --repo-update
+
+      - name: Build (Debug)
+        working-directory: ios
+        run: |
+          set -o pipefail
+          xcodebuild build \
+            -workspace NunbaCompanion.xcworkspace \
+            -scheme NunbaCompanion \
+            -configuration Debug \
+            -sdk iphonesimulator \
+            -destination 'platform=iOS Simulator,name=iPhone 15,OS=latest' \
+            COMPILER_INDEX_STORE_ENABLE=NO \
+            | xcpretty --color
+
+      - name: Run XCTests
+        working-directory: ios
+        run: |
+          set -o pipefail
+          xcodebuild test \
+            -workspace NunbaCompanion.xcworkspace \
+            -scheme NunbaCompanion \
+            -configuration Debug \
+            -sdk iphonesimulator \
+            -destination 'platform=iOS Simulator,name=iPhone 15,OS=latest' \
+            -resultBundlePath TestResults.xcresult \
+            COMPILER_INDEX_STORE_ENABLE=NO \
+            | xcpretty --color --report junit --output ../test-reports/xctest.xml
+
+      - name: Upload test artifacts on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: xctest-results
+          path: |
+            ios/TestResults.xcresult
+            test-reports/xctest.xml
+          retention-days: 14
+
+      - name: Publish XCTest summary
+        if: always()
+        run: |
+          if [[ -f test-reports/xctest.xml ]]; then
+            echo "### XCTest results" >> $GITHUB_STEP_SUMMARY
+            grep -E '<testsuite ' test-reports/xctest.xml | head -20 >> $GITHUB_STEP_SUMMARY || true
+          fi
+
+  # ── 5. iPad build (universal-target sanity check) ───────────────
+  # Same scheme, different simulator destination. Catches accidental
+  # iPhone-only assumptions (e.g. orientation lock) — needed because
+  # we declared TARGETED_DEVICE_FAMILY=1,2 (universal).
+
+  ios-ipad-build:
+    name: iOS build (iPad)
+    runs-on: macos-14
+    needs: ios-build
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Select Xcode ${{ env.XCODE_VERSION }}
+        run: sudo xcode-select -s /Applications/Xcode_${{ env.XCODE_VERSION }}.app
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'yarn'
+
+      - uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: ${{ env.RUBY_VERSION }}
+          bundler-cache: true
+
+      - name: Install xcodegen
+        run: brew install xcodegen
+
+      - name: Install JS dependencies
+        run: yarn install --frozen-lockfile || yarn install
+
+      - name: Generate Xcode project
+        working-directory: ios
+        run: xcodegen generate
+
+      - name: Restore CocoaPods cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            ios/Pods
+            ~/.cocoapods
+          key: ${{ runner.os }}-pods-${{ hashFiles('ios/Podfile') }}-${{ hashFiles('package.json') }}
+
+      - name: Install CocoaPods
+        working-directory: ios
+        run: pod install
+
+      - name: Build for iPad simulator
+        working-directory: ios
+        run: |
+          set -o pipefail
+          xcodebuild build \
+            -workspace NunbaCompanion.xcworkspace \
+            -scheme NunbaCompanion \
+            -configuration Debug \
+            -sdk iphonesimulator \
+            -destination 'platform=iOS Simulator,name=iPad Pro (12.9-inch) (6th generation),OS=latest' \
+            COMPILER_INDEX_STORE_ENABLE=NO \
+            | xcpretty --color

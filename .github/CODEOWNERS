@@ -1,0 +1,19 @@
+# CODEOWNERS — required reviewers per path.
+#
+# CI workflow + the manifest are load-bearing: changing them affects
+# every PR going forward. Default reviewer is the repo owner; tune
+# as the team grows.
+
+# CI workflow + sync infrastructure
+/.github/workflows/ @lawlietlight
+/scripts/           @lawlietlight
+/docs/SHARED_JS_MANIFEST.json @lawlietlight
+/docs/PORT_MANIFEST.md @lawlietlight
+/docs/CI.md @lawlietlight
+
+# Vendored JS — never hand-edit; PRs touching js/shared/ must come from
+# yarn sync, not direct edits.
+/js/shared/ @lawlietlight
+
+# iOS native modules + Xcode project
+/ios/ @lawlietlight

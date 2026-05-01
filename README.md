@@ -1,5 +1,7 @@
 # Nunba Companion (iOS)
 
+[![validate](https://github.com/hertz-ai/nunba-ios/actions/workflows/validate.yml/badge.svg?branch=main)](https://github.com/hertz-ai/nunba-ios/actions/workflows/validate.yml)
+
 iOS-native React Native companion app for HARTOS. Sibling to
 `Hevolve_React_Native/` (which targets Android). Same product,
 two platforms, two codebases — by design.
