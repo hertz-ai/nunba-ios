@@ -70,34 +70,59 @@ To make CI actually block merges:
 
 ## Local equivalents
 
-Run the same checks locally before pushing:
+One command runs the entire CI pipeline locally:
 
 ```bash
-# 1. Manifest integrity
+yarn validate:local              # everything (macOS only for iOS portion)
+yarn validate:local:js           # JS-only — works on Windows/Linux
+yarn validate:local:iphone       # iOS portion, iPhone simulator only
+yarn validate:local:ipad         # iOS portion, iPad simulator only
+```
+
+Or run individual checks:
+
+```bash
+# Manifest integrity (~30s)
 yarn validate:manifest
 
-# 2. JS checks
+# JS validation (~1-2min)
 yarn test
 npx tsc --noEmit
 
-# 3. Sync drift (requires sibling Android repo at ../Hevolve_React_Native)
+# Sync drift (~5s; requires ../Hevolve_React_Native checkout)
 yarn sync:check
 
-# 4. iOS build (macOS only)
+# iOS — full pipeline (macOS only, ~10-15min cold)
 cd ios
 xcodegen generate
 pod install
-xcodebuild build \
-  -workspace NunbaCompanion.xcworkspace \
-  -scheme NunbaCompanion \
-  -sdk iphonesimulator \
-  -destination 'platform=iOS Simulator,name=iPhone 15'
 xcodebuild test \
   -workspace NunbaCompanion.xcworkspace \
   -scheme NunbaCompanion \
   -sdk iphonesimulator \
   -destination 'platform=iOS Simulator,name=iPhone 15'
+
+# Open the result bundle to inspect screenshots + logs
+open ios/TestResults-iphone.xcresult
 ```
+
+## Emulator smoke test
+
+The XCUITest target (`NunbaCompanionUITests/SmokeUITests.swift`) launches
+the app on a simulator, waits up to 30s for the React Native bridge +
+root component to render, and captures a screenshot as a test artifact.
+Two cases:
+
+| Case | Catches |
+|------|---------|
+| `test_appLaunches_andRendersRoot` | Build succeeds but app crashes on launch (missing Info.plist keys, UIKit assertions, RN bridge wiring); JS bundle fails to load; root component never renders |
+| `test_appLaunches_twice_withoutCrash` | "First-run only" bugs in AppDelegate; JS bundle caching issues; state leaks |
+
+CI runs both on iPhone 15 + iPad Pro 12.9". Screenshots are uploaded
+as workflow artifacts (`iphone-test-results` / `ipad-test-results`)
+and retained for 14 days. The step summary on each run reports
+how many screenshots were captured, so a passing run with zero
+screenshots is also a fail signal.
 
 ## Troubleshooting first-run failures
 

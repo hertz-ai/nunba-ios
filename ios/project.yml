@@ -78,15 +78,30 @@ targets:
         BUNDLE_LOADER: '$(TEST_HOST)'
         SWIFT_OBJC_BRIDGING_HEADER: NunbaCompanion/NunbaCompanion-Bridging-Header.h
 
+  NunbaCompanionUITests:
+    type: bundle.ui-testing
+    platform: iOS
+    deploymentTarget: '15.0'
+    sources:
+      - NunbaCompanionUITests
+    dependencies:
+      - target: NunbaCompanion
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.hertzai.nunbacompanion.uitests
+        TEST_TARGET_NAME: NunbaCompanion
+
 schemes:
   NunbaCompanion:
     build:
       targets:
         NunbaCompanion: all
         NunbaCompanionTests: [test]
+        NunbaCompanionUITests: [test]
     test:
       gatherCoverageData: true
       coverageTargets:
         - NunbaCompanion
       targets:
         - NunbaCompanionTests
+        - NunbaCompanionUITests

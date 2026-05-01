@@ -15,7 +15,11 @@
     "sync": "node scripts/sync-from-android.js",
     "sync:check": "node scripts/sync-from-android.js --check",
     "sync:dry": "node scripts/sync-from-android.js --dry-run",
-    "validate:manifest": "node scripts/validate-manifest.js"
+    "validate:manifest": "node scripts/validate-manifest.js",
+    "validate:local": "bash scripts/validate-locally.sh",
+    "validate:local:js": "bash scripts/validate-locally.sh --skip-ios",
+    "validate:local:iphone": "bash scripts/validate-locally.sh --iphone-only",
+    "validate:local:ipad": "bash scripts/validate-locally.sh --ipad-only"
   },
   "dependencies": {
     "@react-native-async-storage/async-storage": "^1.17.11",

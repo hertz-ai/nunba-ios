@@ -200,7 +200,7 @@ jobs:
         working-directory: ios
         run: |
           set -o pipefail
-          xcodebuild build \
+          xcodebuild build-for-testing \
             -workspace NunbaCompanion.xcworkspace \
             -scheme NunbaCompanion \
             -configuration Debug \
@@ -209,37 +209,71 @@ jobs:
             COMPILER_INDEX_STORE_ENABLE=NO \
             | xcpretty --color
 
-      - name: Run XCTests
+      - name: Boot simulator (iPhone 15)
+        # Pre-boot the simulator before tests. xcodebuild can boot
+        # one on demand, but doing it explicitly gives clearer logs
+        # and lets us verify the simulator survives.
+        run: |
+          DEVICE_ID=$(xcrun simctl list devices available | grep "iPhone 15 (" | grep -v Plus | grep -v Pro | head -1 | grep -o '[A-F0-9-]\{36\}')
+          if [ -z "$DEVICE_ID" ]; then
+            DEVICE_ID=$(xcrun simctl list devices available | grep "iPhone 15" | head -1 | grep -o '[A-F0-9-]\{36\}')
+          fi
+          echo "Booting simulator $DEVICE_ID"
+          xcrun simctl boot "$DEVICE_ID" || true
+          xcrun simctl bootstatus "$DEVICE_ID" -b
+          echo "IPHONE_SIM_ID=$DEVICE_ID" >> $GITHUB_ENV
+
+      - name: Run XCTests + UI smoke tests on iPhone simulator
         working-directory: ios
         run: |
           set -o pipefail
-          xcodebuild test \
+          mkdir -p ../test-reports
+          xcodebuild test-without-building \
             -workspace NunbaCompanion.xcworkspace \
             -scheme NunbaCompanion \
             -configuration Debug \
             -sdk iphonesimulator \
-            -destination 'platform=iOS Simulator,name=iPhone 15,OS=latest' \
-            -resultBundlePath TestResults.xcresult \
+            -destination "platform=iOS Simulator,id=${IPHONE_SIM_ID}" \
+            -resultBundlePath TestResults-iPhone.xcresult \
             COMPILER_INDEX_STORE_ENABLE=NO \
-            | xcpretty --color --report junit --output ../test-reports/xctest.xml
+            | xcpretty --color --report junit --output ../test-reports/xctest-iphone.xml
 
-      - name: Upload test artifacts on failure
-        if: failure()
+      - name: Extract iPhone screenshots from .xcresult
+        if: always()
+        run: |
+          mkdir -p artifacts/iphone-screenshots
+          if [ -d ios/TestResults-iPhone.xcresult ]; then
+            # Pull every screenshot attachment out of the xcresult bundle.
+            # XCUIScreen.main.screenshot() attachments land here.
+            xcrun xcresulttool get --path ios/TestResults-iPhone.xcresult \
+              --format json > artifacts/iphone-results.json 2>/dev/null || true
+            # xcparse is the popular tool for this but isn't preinstalled —
+            # fall back to a python one-liner that walks the bundle.
+            find ios/TestResults-iPhone.xcresult -name '*.png' -exec cp {} artifacts/iphone-screenshots/ \; 2>/dev/null || true
+            ls artifacts/iphone-screenshots/ || echo "no screenshots extracted"
+          fi
+
+      - name: Upload iPhone test artifacts
+        if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: xctest-results
+          name: iphone-test-results
           path: |
-            ios/TestResults.xcresult
-            test-reports/xctest.xml
+            ios/TestResults-iPhone.xcresult
+            test-reports/xctest-iphone.xml
+            artifacts/iphone-screenshots/
+            artifacts/iphone-results.json
           retention-days: 14
 
       - name: Publish XCTest summary
         if: always()
         run: |
-          if [[ -f test-reports/xctest.xml ]]; then
-            echo "### XCTest results" >> $GITHUB_STEP_SUMMARY
-            grep -E '<testsuite ' test-reports/xctest.xml | head -20 >> $GITHUB_STEP_SUMMARY || true
+          if [[ -f test-reports/xctest-iphone.xml ]]; then
+            echo "### XCTest + UI smoke results (iPhone)" >> $GITHUB_STEP_SUMMARY
+            grep -E '<testsuite ' test-reports/xctest-iphone.xml | head -20 >> $GITHUB_STEP_SUMMARY || true
           fi
+          SCREENSHOT_COUNT=$(ls artifacts/iphone-screenshots/ 2>/dev/null | wc -l)
+          echo "**iPhone screenshots captured**: $SCREENSHOT_COUNT" >> $GITHUB_STEP_SUMMARY
 
   # ── 5. iPad build (universal-target sanity check) ───────────────
   # Same scheme, different simulator destination. Catches accidental
@@ -289,15 +323,61 @@ jobs:
         working-directory: ios
         run: pod install
 
-      - name: Build for iPad simulator
+      - name: Boot simulator (iPad)
+        run: |
+          DEVICE_ID=$(xcrun simctl list devices available | grep "iPad Pro (12.9-inch)" | head -1 | grep -o '[A-F0-9-]\{36\}')
+          if [ -z "$DEVICE_ID" ]; then
+            DEVICE_ID=$(xcrun simctl list devices available | grep "iPad Pro" | head -1 | grep -o '[A-F0-9-]\{36\}')
+          fi
+          if [ -z "$DEVICE_ID" ]; then
+            DEVICE_ID=$(xcrun simctl list devices available | grep "iPad" | head -1 | grep -o '[A-F0-9-]\{36\}')
+          fi
+          echo "Booting simulator $DEVICE_ID"
+          xcrun simctl boot "$DEVICE_ID" || true
+          xcrun simctl bootstatus "$DEVICE_ID" -b
+          echo "IPAD_SIM_ID=$DEVICE_ID" >> $GITHUB_ENV
+
+      - name: Build + test on iPad simulator
         working-directory: ios
         run: |
           set -o pipefail
-          xcodebuild build \
+          mkdir -p ../test-reports
+          xcodebuild test \
             -workspace NunbaCompanion.xcworkspace \
             -scheme NunbaCompanion \
             -configuration Debug \
             -sdk iphonesimulator \
-            -destination 'platform=iOS Simulator,name=iPad Pro (12.9-inch) (6th generation),OS=latest' \
+            -destination "platform=iOS Simulator,id=${IPAD_SIM_ID}" \
+            -resultBundlePath TestResults-iPad.xcresult \
             COMPILER_INDEX_STORE_ENABLE=NO \
-            | xcpretty --color
+            | xcpretty --color --report junit --output ../test-reports/xctest-ipad.xml
+
+      - name: Extract iPad screenshots
+        if: always()
+        run: |
+          mkdir -p artifacts/ipad-screenshots
+          if [ -d ios/TestResults-iPad.xcresult ]; then
+            find ios/TestResults-iPad.xcresult -name '*.png' -exec cp {} artifacts/ipad-screenshots/ \; 2>/dev/null || true
+            ls artifacts/ipad-screenshots/ || echo "no screenshots extracted"
+          fi
+
+      - name: Upload iPad test artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ipad-test-results
+          path: |
+            ios/TestResults-iPad.xcresult
+            test-reports/xctest-ipad.xml
+            artifacts/ipad-screenshots/
+          retention-days: 14
+
+      - name: Publish iPad XCTest summary
+        if: always()
+        run: |
+          if [[ -f test-reports/xctest-ipad.xml ]]; then
+            echo "### XCTest + UI smoke results (iPad)" >> $GITHUB_STEP_SUMMARY
+            grep -E '<testsuite ' test-reports/xctest-ipad.xml | head -20 >> $GITHUB_STEP_SUMMARY || true
+          fi
+          SCREENSHOT_COUNT=$(ls artifacts/ipad-screenshots/ 2>/dev/null | wc -l)
+          echo "**iPad screenshots captured**: $SCREENSHOT_COUNT" >> $GITHUB_STEP_SUMMARY
