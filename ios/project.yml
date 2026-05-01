@@ -108,6 +108,12 @@ targets:
         TEST_HOST: '$(BUILT_PRODUCTS_DIR)/NunbaCompanion.app/NunbaCompanion'
         BUNDLE_LOADER: '$(TEST_HOST)'
         SWIFT_OBJC_BRIDGING_HEADER: NunbaCompanion/NunbaCompanion-Bridging-Header.h
+        # Test bundles don't need a hand-written Info.plist; Xcode
+        # auto-generates one from the build settings below. Required
+        # by xcodebuild's code-signing path on iOS 15+.
+        GENERATE_INFOPLIST_FILE: 'YES'
+        CURRENT_PROJECT_VERSION: '1'
+        MARKETING_VERSION: '0.1.0'
 
   NunbaCompanionUITests:
     type: bundle.ui-testing
@@ -121,6 +127,9 @@ targets:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.hertzai.nunbacompanion.uitests
         TEST_TARGET_NAME: NunbaCompanion
+        GENERATE_INFOPLIST_FILE: 'YES'
+        CURRENT_PROJECT_VERSION: '1'
+        MARKETING_VERSION: '0.1.0'
 
 schemes:
   NunbaCompanion:
