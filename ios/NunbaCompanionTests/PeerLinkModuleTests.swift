@@ -168,20 +168,39 @@ final class PeerLinkModuleTests: XCTestCase {
   // MARK: — handleIncoming control + reply correlation
 
   func test_handleIncoming_helloAck_promotesToReady() {
-    XCTAssertFalse({ () -> Bool in
-      let exp = expectation(description: "")
-      var ready = false
-      module.isReady({ ready = $0 as? Bool ?? false; exp.fulfill() }, rejecter: { _, _, _ in })
-      wait(for: [exp], timeout: 1.0)
-      return ready
-    }())
+    // Start NOT-ready.
+    let exp1 = expectation(description: "starts not ready")
+    var ready1 = false
+    module.isReady({ ready1 = $0 as? Bool ?? false; exp1.fulfill() }, rejecter: { _, _, _ in })
+    wait(for: [exp1], timeout: 1.0)
+    XCTAssertFalse(ready1)
+
+    // Simulate the client having sent HELLO — required after the C3
+    // fix added the localEphemeral guard. Without this prelude the
+    // hello_ack handler refuses with state=.failed.
+    module._simulateOutgoingHello()
 
     // hello_ack without a session_pubkey → cleartext mode.
     module._injectIncoming(#"{"ch":"control","id":"hello_ack","d":{}}"#)
 
-    let exp = expectation(description: "")
+    let exp2 = expectation(description: "now ready")
     module.isReady({ result in
       XCTAssertEqual(result as? Bool, true)
+      exp2.fulfill()
+    }, rejecter: { _, _, _ in XCTFail() })
+    wait(for: [exp2], timeout: 1.0)
+  }
+
+  func test_handleIncoming_helloAck_withoutOutgoingHello_setsStateFailed() {
+    // C3 contract: receiving hello_ack out-of-band (no in-flight
+    // HELLO) is a protocol error; state must transition to .failed
+    // rather than silently to .ready.
+    module._injectIncoming(#"{"ch":"control","id":"hello_ack","d":{}}"#)
+
+    let exp = expectation(description: "")
+    module.isReady({ result in
+      XCTAssertEqual(result as? Bool, false,
+                     "Out-of-order hello_ack must NOT promote to ready")
       exp.fulfill()
     }, rejecter: { _, _, _ in XCTFail() })
     wait(for: [exp], timeout: 1.0)

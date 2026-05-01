@@ -549,6 +549,25 @@ final class PeerLinkModule: NSObject {
     handleIncoming(message)
   }
 
+  /// Test-only: simulate the client side of the handshake having
+  /// just sent its HELLO. Sets up `localEphemeral` exactly the way
+  /// `sendHello()` would, so a subsequent injected hello_ack frame
+  /// can derive a session key without needing a real WebSocket
+  /// round-trip. Required after the C3 fix (which added the
+  /// localEphemeral guard).
+  func _simulateOutgoingHello() {
+    state = .handshaking
+    localEphemeral = PeerLinkCrypto.newEphemeral()
+  }
+
+  /// Test-only: returns the public key bytes of the current
+  /// localEphemeral, so a test can construct a matching hello_ack
+  /// payload that the handler will accept.
+  func _localEphemeralPubKeyHex() -> String? {
+    guard let key = localEphemeral else { return nil }
+    return PeerLinkCrypto.toHex(key.publicKey.rawRepresentation)
+  }
+
   func _reset() {
     teardown()
     discoveredPeers.removeAll()

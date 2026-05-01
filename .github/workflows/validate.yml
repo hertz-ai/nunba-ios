@@ -274,6 +274,7 @@ jobs:
             -sdk iphonesimulator \
             -destination 'generic/platform=iOS Simulator' \
             COMPILER_INDEX_STORE_ENABLE=NO \
+            FORCE_BUNDLING=true \
             | xcbeautify --renderer github-actions
 
       - name: Boot iPhone simulator (dynamic pick)
@@ -319,6 +320,7 @@ jobs:
             -destination "platform=iOS Simulator,id=${IPHONE_SIM_ID}" \
             -resultBundlePath TestResults-iPhone.xcresult \
             COMPILER_INDEX_STORE_ENABLE=NO \
+            FORCE_BUNDLING=true \
             | xcbeautify --renderer github-actions \
                          --report junit \
                          --report-path ../test-reports/xctest-iphone.xml
@@ -467,6 +469,7 @@ jobs:
             -destination "platform=iOS Simulator,id=${IPAD_SIM_ID}" \
             -resultBundlePath TestResults-iPad.xcresult \
             COMPILER_INDEX_STORE_ENABLE=NO \
+            FORCE_BUNDLING=true \
             | xcbeautify --renderer github-actions \
                          --report junit \
                          --report-path ../test-reports/xctest-ipad.xml

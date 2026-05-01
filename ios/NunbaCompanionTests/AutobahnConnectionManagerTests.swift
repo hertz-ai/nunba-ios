@@ -107,46 +107,43 @@ final class AutobahnConnectionManagerTests: XCTestCase {
   }
 
   func test_subscribe_invokesHandlerOnEvent() {
+    // Handler dispatch is async (C5 thread-safety fix:
+    // DispatchQueue.global() so a slow JS handler can't back-pressure
+    // the WS read loop). Use an expectation to wait for it.
+    let exp = expectation(description: "handler called")
     var receivedPayloads: [String] = []
     mgr._markJoined()
 
-    // The probe doesn't capture subscribe — but we don't need it to,
-    // we want to verify the EVENT routing path.
     mgr.subscribe(topic: "com.test.topic") { payload in
       receivedPayloads.append(payload)
+      exp.fulfill()
     }
 
     // Simulate router replying SUBSCRIBED for our request.
-    // SUBSCRIBED = [33, requestId, subscriptionId]
-    // The first SUBSCRIBE we send has requestId=1.
     mgr._injectIncoming("[33, 1, 7777]")
-
     // Simulate an EVENT for that subscription.
-    // EVENT = [36, subscriptionId, publicationId, details, args]
     mgr._injectIncoming(#"[36, 7777, 0, {}, ["{\"hello\":\"world\"}"]]"#)
 
+    wait(for: [exp], timeout: 2.0)
     XCTAssertEqual(receivedPayloads, [#"{"hello":"world"}"#])
   }
 
   func test_subscribe_handlerReceivesDictAsJSONString() {
+    // Async handler dispatch — wait for it.
+    let exp = expectation(description: "handler called")
     var received: String?
     mgr._markJoined()
 
     mgr.subscribe(topic: "com.test.topic") { payload in
       received = payload
+      exp.fulfill()
     }
     mgr._injectIncoming("[33, 1, 8888]")
-
-    // EVENT carries a dict (not pre-stringified).
     mgr._injectIncoming(#"[36, 8888, 0, {}, [{"a":1}]]"#)
 
+    wait(for: [exp], timeout: 2.0)
     XCTAssertNotNil(received)
     let asData = received?.data(using: .utf8) ?? Data()
-    // (try? ... ) wraps the throwing call in Optional; the outer
-    // `as? [String: Any]` is then applied as a normal cast on the
-    // unwrapped Any. Avoids the prior `parsed??[...]` form which
-    // Swift parses as nil-coalescing, not double-unwrap, hence
-    // "cannot use optional chaining on non-optional".
     let raw = (try? JSONSerialization.jsonObject(with: asData)) ?? [:]
     let parsed = raw as? [String: Any]
     XCTAssertEqual(parsed?["a"] as? Int, 1)
