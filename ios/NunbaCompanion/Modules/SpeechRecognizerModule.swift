@@ -72,13 +72,21 @@ final class SpeechRecognizerModule: RCTEventEmitter {
                        message: "Speech recognition permission denied")
         return
       }
-      AVAudioApplication.requestRecordPermission { granted in
+      // AVAudioApplication.requestRecordPermission is iOS 17+ only;
+      // we deploy to iOS 15. Branch by availability so the build
+      // succeeds AND iOS 15/16 users still see the prompt.
+      let micGranted: (Bool) -> Void = { granted in
         guard granted else {
           self.emitError(code: "MIC_PERMISSION_DENIED",
                          message: "Microphone permission denied")
           return
         }
         self.startRecognition(localeString: locale as String)
+      }
+      if #available(iOS 17.0, *) {
+        AVAudioApplication.requestRecordPermission(completionHandler: micGranted)
+      } else {
+        AVAudioSession.sharedInstance().requestRecordPermission(micGranted)
       }
     }
   }

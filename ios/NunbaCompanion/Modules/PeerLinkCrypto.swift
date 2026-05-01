@@ -29,56 +29,27 @@ enum PeerLinkCrypto {
   // MARK: — Identity (Ed25519, persisted in Keychain)
 
   static let identityKeychainAccount = "com.hertzai.nunbacompanion.peerlink.identity"
-  static let keychainService = "com.hertzai.nunbacompanion"
 
   /// Read the persisted Ed25519 signing key. Generates + persists a
   /// new one on first call. Returns nil only on Keychain error.
   static func loadOrCreateIdentity() -> Curve25519.Signing.PrivateKey? {
-    if let raw = readIdentityRaw(),
+    if let raw = KeychainStore.readData(account: identityKeychainAccount),
        let key = try? Curve25519.Signing.PrivateKey(rawRepresentation: raw) {
       return key
     }
     let new = Curve25519.Signing.PrivateKey()
-    if writeIdentityRaw(new.rawRepresentation) {
+    // PeerLink identity is strictly per-install — never migrate to
+    // a new device via iCloud Keychain. Use .deviceOnly.
+    if KeychainStore.writeData(new.rawRepresentation,
+                               account: identityKeychainAccount,
+                               accessible: .deviceOnly) {
       return new
     }
     return nil
   }
 
   static func clearIdentity() {
-    let q: [String: Any] = [
-      kSecClass as String: kSecClassGenericPassword,
-      kSecAttrService as String: keychainService,
-      kSecAttrAccount as String: identityKeychainAccount,
-    ]
-    SecItemDelete(q as CFDictionary)
-  }
-
-  private static func readIdentityRaw() -> Data? {
-    let q: [String: Any] = [
-      kSecClass as String: kSecClassGenericPassword,
-      kSecAttrService as String: keychainService,
-      kSecAttrAccount as String: identityKeychainAccount,
-      kSecReturnData as String: true,
-      kSecMatchLimit as String: kSecMatchLimitOne,
-    ]
-    var item: CFTypeRef?
-    let status = SecItemCopyMatching(q as CFDictionary, &item)
-    return status == errSecSuccess ? (item as? Data) : nil
-  }
-
-  @discardableResult
-  private static func writeIdentityRaw(_ data: Data) -> Bool {
-    let baseQ: [String: Any] = [
-      kSecClass as String: kSecClassGenericPassword,
-      kSecAttrService as String: keychainService,
-      kSecAttrAccount as String: identityKeychainAccount,
-    ]
-    SecItemDelete(baseQ as CFDictionary)
-    var addQ = baseQ
-    addQ[kSecValueData as String] = data
-    addQ[kSecAttrAccessible as String] = kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly
-    return SecItemAdd(addQ as CFDictionary, nil) == errSecSuccess
+    KeychainStore.delete(account: identityKeychainAccount)
   }
 
   // MARK: — Ed25519 sign / verify

@@ -21,7 +21,40 @@ class AppDelegate: RCTAppDelegate {
     self.moduleName = "NunbaCompanion"
     self.dependencyProvider = RCTAppDependencyProvider()
     self.initialProps = [:]
+
+    // Open the long-lived WAMP session. Without this, every
+    // `OnboardingModule.publishToWamp` call from JS silently no-ops
+    // (review C4). The connection runs on its own queue and won't
+    // block app launch.
+    AutobahnConnectionManager.shared.connect()
+
+    // Register for APNs so background fleet commands actually reach
+    // FleetCommandReceiver. Without this we never receive the device
+    // token + the OS doesn't deliver remote-notifications to us
+    // (review M25).
+    application.registerForRemoteNotifications()
+
     return super.application(application, didFinishLaunchingWithOptions: launchOptions)
+  }
+
+  // MARK: — APNs token + registration callbacks
+
+  override func application(
+    _ application: UIApplication,
+    didRegisterForRemoteNotificationsWithDeviceToken deviceToken: Data
+  ) {
+    // Hex-encode the APNs token. The JS layer (deviceApi.js) uploads
+    // this to HARTOS so backend can address this physical install.
+    let token = deviceToken.map { String(format: "%02x", $0) }.joined()
+    NSLog("[AppDelegate] APNs registration succeeded; token bytes=\(deviceToken.count)")
+    APNsTokenStore.shared.token = token
+  }
+
+  override func application(
+    _ application: UIApplication,
+    didFailToRegisterForRemoteNotificationsWithError error: Error
+  ) {
+    NSLog("[AppDelegate] APNs registration failed: \(error.localizedDescription)")
   }
 
   override func sourceURL(for bridge: RCTBridge) -> URL? {

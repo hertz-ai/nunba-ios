@@ -36,7 +36,6 @@ import React
 final class DeviceCapabilityModule: NSObject {
 
   static let deviceIdKeychainAccount = "com.hertzai.nunbacompanion.deviceId"
-  static let keychainService = "com.hertzai.nunbacompanion"
 
   /// Tablet threshold — Android uses 600dp smallest-width. iOS: any
   /// iPad reports .pad. Simpler.
@@ -145,36 +144,17 @@ final class DeviceCapabilityModule: NSObject {
   }
 
   static func readDeviceId() -> String? {
-    let query: [String: Any] = [
-      kSecClass as String: kSecClassGenericPassword,
-      kSecAttrService as String: keychainService,
-      kSecAttrAccount as String: deviceIdKeychainAccount,
-      kSecReturnData as String: true,
-      kSecMatchLimit as String: kSecMatchLimitOne,
-    ]
-    var item: CFTypeRef?
-    let status = SecItemCopyMatching(query as CFDictionary, &item)
-    guard status == errSecSuccess, let data = item as? Data,
-          let s = String(data: data, encoding: .utf8) else {
-      return nil
-    }
-    return s
+    KeychainStore.readString(account: deviceIdKeychainAccount)
   }
 
+  /// Per-install device id MUST NOT migrate to other Apple devices
+  /// via iCloud Keychain — Android's matching SharedPreferences UUID
+  /// is per-physical-install. Use `.deviceOnly` (review H2: prior
+  /// version used `.afterFirstUnlock` which IS iCloud-syncable).
   @discardableResult
   static func writeDeviceId(_ id: String?) -> Bool {
-    let baseQuery: [String: Any] = [
-      kSecClass as String: kSecClassGenericPassword,
-      kSecAttrService as String: keychainService,
-      kSecAttrAccount as String: deviceIdKeychainAccount,
-    ]
-    SecItemDelete(baseQuery as CFDictionary)
-
-    guard let id, !id.isEmpty else { return true }
-    var addQuery = baseQuery
-    addQuery[kSecValueData as String] = id.data(using: .utf8)
-    addQuery[kSecAttrAccessible as String] = kSecAttrAccessibleAfterFirstUnlock
-    return SecItemAdd(addQuery as CFDictionary, nil) == errSecSuccess
+    KeychainStore.writeString(id, account: deviceIdKeychainAccount,
+                              accessible: .deviceOnly)
   }
 
   // MARK: — getDeviceName

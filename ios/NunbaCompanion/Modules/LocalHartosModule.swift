@@ -134,9 +134,22 @@ final class LocalHartosModule: NSObject {
     // Battery monitoring is opt-in on iOS; turning it on is cheap.
     UIDevice.current.isBatteryMonitoringEnabled = true
 
-    let batteryPct = Double(UIDevice.current.batteryLevel) * 100.0
-    let batteryState = UIDevice.current.batteryState
-    let isCharging = batteryState == .charging || batteryState == .full
+    var batteryPct = Double(UIDevice.current.batteryLevel) * 100.0
+    var isCharging = UIDevice.current.batteryState == .charging
+                    || UIDevice.current.batteryState == .full
+
+    // Simulator workaround (review H8): UIDevice.batteryLevel returns
+    // -1 on the iOS Simulator (no battery). Without an override the
+    // computePolicy.js LOCAL tier is unreachable in dev/CI. Treat
+    // simulator as "always healthy" so the local-tier path is
+    // testable. Real devices fall through to actual readings.
+    #if targetEnvironment(simulator)
+    if batteryPct < 0 {
+      batteryPct = 100
+      isCharging = true
+    }
+    #endif
+
     let thermalOk = ProcessInfo.processInfo.thermalState != .serious
                   && ProcessInfo.processInfo.thermalState != .critical
     let ramAvailableMb = availableRamMb()

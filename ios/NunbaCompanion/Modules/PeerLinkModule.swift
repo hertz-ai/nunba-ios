@@ -67,10 +67,24 @@ final class PeerLinkModule: NSObject {
   private var session: URLSession?
 
   /// In-flight runAgent requests keyed by message id.
+  /// Gated by `repliesQueue` for thread safety — it's mutated from
+  /// JS thread (insert), URLSession callback queue (resolve), and
+  /// DispatchQueue.main (timeout). Without serial queue access this
+  /// dict races (review H5).
   private var pendingReplies: [String: (Result<String, Error>) -> Void] = [:]
+  private let repliesQueue = DispatchQueue(
+    label: "com.hertzai.nunbacompanion.peerlink.replies"
+  )
 
   /// Identity (Ed25519) — created/loaded on start().
   private var identity: Curve25519.Signing.PrivateKey?
+
+  /// Per-connection ephemeral X25519 keypair, generated as part of
+  /// HELLO and held until hello_ack so we can derive the session
+  /// key from (myEphPriv, peerEphPub). C3-fix: previously we
+  /// generated this AFTER receiving hello_ack which made it
+  /// impossible for the peer to compute the same shared secret.
+  private var localEphemeral: Curve25519.KeyAgreement.PrivateKey?
 
   /// Session key (AES-256) derived after handshake.
   private var sessionKey: SymmetricKey?
@@ -180,12 +194,29 @@ final class PeerLinkModule: NSObject {
 
   // MARK: — Handshake
 
-  /// hello = {"ch":"control","id":"hello","d":{"pubkey":<hex>}}
+  /// HELLO carries BOTH the long-term identity pubkey AND a freshly
+  /// minted ephemeral X25519 pubkey. The peer must use these
+  /// together to derive the same session key:
+  ///
+  ///   client → server: hello { identity_pubkey, ephemeral_pubkey }
+  ///   server → client: hello_ack { peer_identity_pubkey, peer_ephemeral_pubkey }
+  ///   both:            sessionKey = HKDF(ECDH(myEphPriv, peerEphPub))
+  ///
+  /// (C3-fix: prior version generated the ephemeral AFTER hello_ack,
+  ///  so the peer never received it and couldn't compute the same
+  ///  shared secret. Resulted in encrypted channels with mismatched
+  ///  keys.)
   private func sendHello() {
     guard let identity else { return }
     state = .handshaking
+
+    // Generate + retain the ephemeral so we can use it in hello_ack.
+    let ephemeral = PeerLinkCrypto.newEphemeral()
+    self.localEphemeral = ephemeral
+
     let body: [String: Any] = [
-      "pubkey": PeerLinkCrypto.toHex(identity.publicKey.rawRepresentation),
+      "identity_pubkey": PeerLinkCrypto.toHex(identity.publicKey.rawRepresentation),
+      "ephemeral_pubkey": PeerLinkCrypto.toHex(ephemeral.publicKey.rawRepresentation),
       "version": 1,
     ]
     sendFrame(channel: "control", id: "hello", body: body)
@@ -194,17 +225,19 @@ final class PeerLinkModule: NSObject {
   /// Process an incoming control frame. hello_ack lands here.
   private func handleControl(id: String, body: [String: Any]) {
     if id == "hello_ack" {
-      // body.peer_pubkey + body.session_pubkey expected
-      if let peerEphHex = body["session_pubkey"] as? String,
+      guard let myEphemeral = localEphemeral else {
+        // No outstanding handshake — ack arrived without hello?
+        NSLog("[PeerLink] hello_ack with no in-flight ephemeral; ignoring")
+        state = .failed
+        return
+      }
+
+      if let peerEphHex = (body["peer_ephemeral_pubkey"] as? String)
+                           ?? (body["session_pubkey"] as? String),  // legacy field name
          let peerEphRaw = PeerLinkCrypto.fromHex(peerEphHex) {
-        // Generate our own ephemeral, derive shared key.
-        // Real protocol exchanges ephemerals during hello; stub
-        // path uses a single round-trip and assumes the router
-        // sent us its ephemeral inside hello_ack.
-        let myEph = PeerLinkCrypto.newEphemeral()
         do {
           sessionKey = try PeerLinkCrypto.deriveSessionKey(
-            privateKey: myEph,
+            privateKey: myEphemeral,
             peerPublicRaw: peerEphRaw
           )
           state = .ready
@@ -213,9 +246,14 @@ final class PeerLinkModule: NSObject {
           state = .failed
         }
       } else {
-        // No key exchange in ack — accept cleartext mode.
+        // No key exchange in ack — accept cleartext mode (peer
+        // doesn't support encrypted channels).
         state = .ready
       }
+
+      // Ephemeral served its purpose; clear so subsequent handshakes
+      // (after a teardown+reconnect) get a fresh one.
+      localEphemeral = nil
     }
   }
 
@@ -227,15 +265,30 @@ final class PeerLinkModule: NSObject {
     let d: [String: AnyCodable]?
   }
 
-  /// Send a frame. If sessionKey is present and the channel is
-  /// in the encrypted set, the body is AES-GCM sealed first.
-  func sendFrame(channel: String, id: String, body: [String: Any]) {
+  /// Send a frame.
+  ///
+  /// If the channel is in the encrypted-set, this REQUIRES a session
+  /// key to be present — otherwise the send is rejected with a log
+  /// + the function returns false (review H4: prior version
+  /// silently fell back to cleartext on encrypted channels).
+  ///
+  /// Returns true on enqueue success, false on rejection.
+  @discardableResult
+  func sendFrame(channel: String, id: String, body: [String: Any]) -> Bool {
     var dict: [String: Any] = ["ch": channel, "id": id]
 
-    let bodyJson = (try? JSONSerialization.data(withJSONObject: body)) ?? Data()
-
-    if shouldEncrypt(channel: channel), let key = sessionKey,
-       let sealed = try? PeerLinkCrypto.encrypt(bodyJson, with: key) {
+    if shouldEncrypt(channel: channel) {
+      // Encrypted channels MUST have a session key. No silent
+      // cleartext fallback — that would leak sensitive data.
+      guard let key = sessionKey else {
+        NSLog("[PeerLink] REFUSING to send on encrypted channel '\(channel)' without session key")
+        return false
+      }
+      let bodyJson = (try? JSONSerialization.data(withJSONObject: body)) ?? Data()
+      guard let sealed = try? PeerLinkCrypto.encrypt(bodyJson, with: key) else {
+        NSLog("[PeerLink] AES-GCM seal failed for channel '\(channel)'")
+        return false
+      }
       dict["d"] = ["enc": PeerLinkCrypto.toHex(sealed)]
     } else {
       dict["d"] = body
@@ -244,7 +297,7 @@ final class PeerLinkModule: NSObject {
     guard let data = try? JSONSerialization.data(withJSONObject: dict),
           let str = String(data: data, encoding: .utf8) else {
       NSLog("[PeerLink] frame encoding failed")
-      return
+      return false
     }
 
     ws?.send(.string(str)) { err in
@@ -252,6 +305,7 @@ final class PeerLinkModule: NSObject {
         NSLog("[PeerLink] send error: \(err)")
       }
     }
+    return true
   }
 
   private static let encryptedChannels: Set<String> = ["consent", "fleet", "credentials"]
@@ -301,11 +355,18 @@ final class PeerLinkModule: NSObject {
 
     if ch == "control" {
       handleControl(id: id, body: body)
-    } else if let cb = pendingReplies.removeValue(forKey: id) {
-      // Request/reply correlation — runAgent's reply lands here.
-      let json = (try? JSONSerialization.data(withJSONObject: body)) ?? Data()
-      let str = String(data: json, encoding: .utf8) ?? "{}"
-      cb(.success(str))
+    } else {
+      // Atomically remove the pending reply under the queue, then
+      // call the callback OUTSIDE the queue so a slow JS handler
+      // can't back-pressure the WS read loop.
+      let cb: ((Result<String, Error>) -> Void)? = repliesQueue.sync {
+        pendingReplies.removeValue(forKey: id)
+      }
+      if let cb {
+        let json = (try? JSONSerialization.data(withJSONObject: body)) ?? Data()
+        let str = String(data: json, encoding: .utf8) ?? "{}"
+        cb(.success(str))
+      }
     }
     // Other channels can be wired up by extending dispatch — fleet
     // commands route via FleetCommandReceiver; chat events would
@@ -365,22 +426,41 @@ final class PeerLinkModule: NSObject {
               as? [String: Any] ?? [:]
     let id = "agent-\(UUID().uuidString.prefix(8))"
 
-    pendingReplies[id] = { result in
-      switch result {
-      case .success(let s): resolve(s)
-      case .failure(let err):
-        reject("PEERLINK_AGENT_FAILED", err.localizedDescription, err)
+    repliesQueue.sync {
+      pendingReplies[id] = { result in
+        switch result {
+        case .success(let s): resolve(s)
+        case .failure(let err):
+          reject("PEERLINK_AGENT_FAILED", err.localizedDescription, err)
+        }
       }
     }
-    sendFrame(channel: "agent", id: id,
-              body: ["agent_type": agentType, "input": input])
+    let sent = sendFrame(channel: "agent", id: id,
+                         body: ["agent_type": agentType, "input": input])
+    if !sent {
+      // sendFrame refused (e.g. encrypted channel without session key).
+      // Drop the pending and reject right away — JS shouldn't wait
+      // 30s for a deterministic failure.
+      let cb: ((Result<String, Error>) -> Void)? = repliesQueue.sync {
+        pendingReplies.removeValue(forKey: id)
+      }
+      cb?(.failure(NSError(
+        domain: "PeerLink", code: 1,
+        userInfo: [NSLocalizedDescriptionKey: "send refused — channel state"]
+      )))
+      return
+    }
 
     // 30s timeout — JS layer can retry.
     DispatchQueue.main.asyncAfter(deadline: .now() + 30) { [weak self] in
-      if let cb = self?.pendingReplies.removeValue(forKey: id) {
-        cb(.failure(NSError(domain: "PeerLink", code: 408,
-                            userInfo: [NSLocalizedDescriptionKey: "runAgent timeout"])))
+      guard let self else { return }
+      let cb: ((Result<String, Error>) -> Void)? = self.repliesQueue.sync {
+        self.pendingReplies.removeValue(forKey: id)
       }
+      cb?(.failure(NSError(
+        domain: "PeerLink", code: 408,
+        userInfo: [NSLocalizedDescriptionKey: "runAgent timeout"]
+      )))
     }
   }
 
@@ -450,8 +530,9 @@ final class PeerLinkModule: NSObject {
     }
   }
 
-  // MARK: — Test affordances
+  // MARK: — Test affordances (DEBUG-only — Release builds skip these)
 
+  #if DEBUG
   func _markReady() {
     state = .ready
   }
@@ -468,7 +549,10 @@ final class PeerLinkModule: NSObject {
     teardown()
     discoveredPeers.removeAll()
     sessionKey = nil
+    localEphemeral = nil
+    repliesQueue.sync { pendingReplies.removeAll() }
   }
+  #endif
 }
 
 /// Tiny helper — needed because [String: Any] isn't directly Codable.

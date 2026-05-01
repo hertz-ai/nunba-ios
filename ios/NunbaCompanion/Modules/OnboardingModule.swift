@@ -34,7 +34,6 @@ final class OnboardingModule: NSObject {
 
   static let userIdDefaultsKey = "com.hertzai.nunbacompanion.userId"
   static let accessTokenKeychainAccount = "com.hertzai.nunbacompanion.accessToken"
-  static let keychainService = "com.hertzai.nunbacompanion"
 
   // ─── React Native bridge requirements ──────────────────────────
 
@@ -73,43 +72,45 @@ final class OnboardingModule: NSObject {
 
   /// Public for tests + for FCM bootstrap to seed a token after login.
   static func readToken() -> String? {
-    let query: [String: Any] = [
-      kSecClass as String: kSecClassGenericPassword,
-      kSecAttrService as String: keychainService,
-      kSecAttrAccount as String: accessTokenKeychainAccount,
-      kSecReturnData as String: true,
-      kSecMatchLimit as String: kSecMatchLimitOne,
-    ]
-    var item: CFTypeRef?
-    let status = SecItemCopyMatching(query as CFDictionary, &item)
-    guard status == errSecSuccess, let data = item as? Data,
-          let token = String(data: data, encoding: .utf8) else {
-      return nil
-    }
-    return token
+    KeychainStore.readString(account: accessTokenKeychainAccount)
   }
 
   @discardableResult
   static func writeToken(_ token: String?) -> Bool {
-    let baseQuery: [String: Any] = [
-      kSecClass as String: kSecClassGenericPassword,
-      kSecAttrService as String: keychainService,
-      kSecAttrAccount as String: accessTokenKeychainAccount,
-    ]
+    // Per-install: don't migrate the user's session token to a new
+    // device via iCloud Keychain backup. They should re-authenticate
+    // on the new device.
+    KeychainStore.writeString(token, account: accessTokenKeychainAccount,
+                              accessible: .deviceOnly)
+  }
 
-    // Always delete first to avoid duplicate-item errors. SecItemUpdate
-    // would also work but the read-after-update path is messier.
-    SecItemDelete(baseQuery as CFDictionary)
-
-    guard let token, !token.isEmpty else {
-      return true  // delete-only path
+  /// Persist a Bearer token from JS (login response handler).
+  /// Without this, getAccessToken() always returns "" and every
+  /// authenticated REST call from socialApi.js gets a 401 (review H3).
+  @objc(setAccessToken:resolver:rejecter:)
+  func setAccessToken(
+    _ token: String,
+    resolver resolve: @escaping RCTPromiseResolveBlock,
+    rejecter reject: @escaping RCTPromiseRejectBlock
+  ) {
+    let ok = Self.writeToken(token.isEmpty ? nil : token)
+    if ok {
+      resolve(["stored": true])
+    } else {
+      reject("KEYCHAIN_WRITE_FAILED", "Could not persist access token", nil)
     }
+  }
 
-    var addQuery = baseQuery
-    addQuery[kSecValueData as String] = token.data(using: .utf8)
-    addQuery[kSecAttrAccessible as String] = kSecAttrAccessibleAfterFirstUnlock
-    let status = SecItemAdd(addQuery as CFDictionary, nil)
-    return status == errSecSuccess
+  /// Persist a user id from JS (login flow). Mirror of
+  /// setAccessToken — covers the contract gap on the read side.
+  @objc(setUser_id:resolver:rejecter:)
+  func setUser_id(
+    _ userId: String,
+    resolver resolve: @escaping RCTPromiseResolveBlock,
+    rejecter reject: @escaping RCTPromiseRejectBlock
+  ) {
+    Self.setPersistedUserId(userId.isEmpty ? nil : userId)
+    resolve(["stored": true])
   }
 
   // MARK: — WAMP publish bridge
@@ -118,12 +119,24 @@ final class OnboardingModule: NSObject {
   /// to push a compute request through the long-lived WAMP session that
   /// AutobahnConnectionManager owns. The Swift WAMP client lives in
   /// AutobahnConnectionManager.swift; we just forward.
-  @objc(publishToWamp:payload:)
-  func publishToWamp(_ topic: String, payload: String) {
+  /// Returns a promise resolving { published: true/false } so JS gets
+  /// back-pressure on dropped publishes (H10).
+  @objc(publishToWamp:payload:resolver:rejecter:)
+  func publishToWamp(
+    _ topic: String,
+    payload: String,
+    resolver resolve: @escaping RCTPromiseResolveBlock,
+    rejecter reject: @escaping RCTPromiseRejectBlock
+  ) {
     guard !topic.isEmpty else {
-      RCTLogWarn("OnboardingModule.publishToWamp: empty topic, ignored")
+      // RCTLogWarn is a C macro — not Swift-callable. Use NSLog.
+      NSLog("[OnboardingModule] publishToWamp: empty topic, ignored")
+      resolve(["published": false, "reason": "empty topic"])
       return
     }
-    AutobahnConnectionManager.shared.publish(topic: topic, payload: payload)
+    let attempted = AutobahnConnectionManager.shared.publish(
+      topic: topic, payload: payload
+    )
+    resolve(["published": attempted])
   }
 }
