@@ -335,57 +335,51 @@ jobs:
             COMPILER_INDEX_STORE_ENABLE=NO \
             | xcbeautify --renderer github-actions
 
-      - name: Boot iPhone simulator (dynamic pick)
-        # Find the latest non-Plus / non-Pro / non-Pro-Max iPhone
-        # simulator (iPhone 16 today, 17 tomorrow). Falls back to
-        # ANY iPhone if the strict pattern doesn't match. Logs the
-        # chosen device so failures are debuggable.
+      - name: Pick iPhone device name + reset simulator service
+        # Two prior runs (iPhone 17 then iPhone 16) hung indefinitely
+        # at `xcrun simctl bootstatus` on the macos-15 / Xcode 16
+        # image. The CoreSimulatorService daemon was apparently in a
+        # wedged state. Restart it before doing anything else, then
+        # let xcodebuild handle the boot via -destination — its
+        # internal boot path is more resilient than raw simctl.
         run: |
           set -e
-          # iPhone 16 first — known-good on macos-15 with our cached
-          # DerivedData. iPhone 17 boot hung indefinitely on a 2026-05
-          # run (1h+ before the job timeout). Try newer/older only as
-          # fallback if 16 is missing on a future runner image.
+          # Restart the CoreSimulator daemon. Cleared the boot-hang
+          # in field reports; harmless if the daemon was healthy.
+          sudo pkill -9 -f com.apple.CoreSimulator.CoreSimulatorService || true
+          sleep 2
+          # Pick a device NAME (not ID) so xcodebuild can match by
+          # name + OS=latest and pick whichever runtime boots cleanly.
+          NAME=""
           for v in 16 15 17 18; do
-            DEVICE_ID=$(xcrun simctl list devices available | grep -E "iPhone $v \(" | grep -v Plus | grep -v Pro | head -1 | grep -oE '[A-F0-9-]{36}' || true)
-            if [ -n "$DEVICE_ID" ]; then
-              echo "Selected iPhone $v"
+            if xcrun simctl list devices available | grep -qE "iPhone $v \("; then
+              NAME="iPhone $v"
               break
             fi
           done
-          # Fallback: any iPhone simulator.
-          if [ -z "$DEVICE_ID" ]; then
-            DEVICE_ID=$(xcrun simctl list devices available | grep -E "iPhone " | head -1 | grep -oE '[A-F0-9-]{36}' || true)
-            echo "Fallback: first available iPhone"
-          fi
-          if [ -z "$DEVICE_ID" ]; then
-            echo "::error::No iPhone simulator found on runner"
+          if [ -z "$NAME" ]; then
+            echo "::error::No iPhone simulator found"
             xcrun simctl list devices available | head -50
             exit 1
           fi
-          echo "Booting simulator $DEVICE_ID"
-          xcrun simctl boot "$DEVICE_ID" || true
-          # Hard 10-min cap on bootstatus. Boot normally takes <60s;
-          # if it stalls past 10 min, fail loud rather than burn the
-          # job's 90-min wall clock waiting on a corrupt runtime.
-          if ! timeout 600 xcrun simctl bootstatus "$DEVICE_ID" -b; then
-            echo "::error::Simulator boot timed out after 10 min — runtime may be corrupt"
-            xcrun simctl shutdown "$DEVICE_ID" 2>/dev/null || true
-            exit 1
-          fi
-          echo "IPHONE_SIM_ID=$DEVICE_ID" >> $GITHUB_ENV
+          echo "Selected $NAME"
+          echo "IPHONE_SIM_NAME=$NAME" >> $GITHUB_ENV
 
       - name: Run XCTests + UI smoke tests on iPhone simulator
         working-directory: ios
+        timeout-minutes: 40
         run: |
           set -o pipefail
           mkdir -p ../test-reports
+          # xcodebuild auto-boots the simulator named in -destination.
+          # The internal boot path retries + recovers from
+          # CoreSimulator hangs better than raw simctl bootstatus.
           xcodebuild test-without-building \
             -workspace NunbaCompanion.xcworkspace \
             -scheme NunbaCompanion \
             -configuration Debug \
             -sdk iphonesimulator \
-            -destination "platform=iOS Simulator,id=${IPHONE_SIM_ID}" \
+            -destination "platform=iOS Simulator,name=${IPHONE_SIM_NAME},OS=latest" \
             -resultBundlePath TestResults-iPhone.xcresult \
             COMPILER_INDEX_STORE_ENABLE=NO \
             | xcbeautify --renderer github-actions \
@@ -528,14 +522,14 @@ jobs:
             sleep 30
           done
 
-      - name: Boot iPad simulator (dynamic pick)
-        # Walk available iPads, prefer iPad Pro 13" (newest), then
-        # iPad Pro 12.9", then any iPad Pro, then any iPad.
-        # Apple renamed simulator devices in 2024 ("iPad Pro 13-inch
-        # (M4)" replaced "iPad Pro (12.9-inch)") so the static
-        # selector approach is brittle.
+      - name: Pick iPad device name + reset simulator service
+        # See iPhone job for rationale: explicit simctl boot was
+        # hanging on macos-15. Restart CoreSimulator daemon and let
+        # xcodebuild auto-boot the named device via -destination.
         run: |
           set -e
+          sudo pkill -9 -f com.apple.CoreSimulator.CoreSimulatorService || true
+          sleep 2
           PATTERNS=(
             'iPad Pro 13-inch'
             'iPad Pro \(13-inch\)'
@@ -544,30 +538,25 @@ jobs:
             'iPad Pro'
             'iPad'
           )
+          NAME=""
           for pattern in "${PATTERNS[@]}"; do
-            DEVICE_ID=$(xcrun simctl list devices available | grep -E "$pattern" | head -1 | grep -oE '[A-F0-9-]{36}' || true)
-            if [ -n "$DEVICE_ID" ]; then
-              echo "Matched pattern: $pattern"
+            CANDIDATE=$(xcrun simctl list devices available | grep -E "$pattern" | head -1 | sed -E 's/^[[:space:]]*([^(]+) \(.*$/\1/' | sed 's/[[:space:]]*$//' || true)
+            if [ -n "$CANDIDATE" ]; then
+              NAME="$CANDIDATE"
+              echo "Matched pattern: $pattern -> $NAME"
               break
             fi
           done
-          if [ -z "$DEVICE_ID" ]; then
+          if [ -z "$NAME" ]; then
             echo "::error::No iPad simulator found on runner"
             xcrun simctl list devices available | head -50
             exit 1
           fi
-          echo "Booting simulator $DEVICE_ID"
-          xcrun simctl boot "$DEVICE_ID" || true
-          # Match iPhone job: hard 10-min cap on bootstatus.
-          if ! timeout 600 xcrun simctl bootstatus "$DEVICE_ID" -b; then
-            echo "::error::iPad simulator boot timed out after 10 min"
-            xcrun simctl shutdown "$DEVICE_ID" 2>/dev/null || true
-            exit 1
-          fi
-          echo "IPAD_SIM_ID=$DEVICE_ID" >> $GITHUB_ENV
+          echo "IPAD_SIM_NAME=$NAME" >> $GITHUB_ENV
 
       - name: Build + test on iPad simulator
         working-directory: ios
+        timeout-minutes: 40
         run: |
           set -o pipefail
           mkdir -p ../test-reports
@@ -576,7 +565,7 @@ jobs:
             -scheme NunbaCompanion \
             -configuration Debug \
             -sdk iphonesimulator \
-            -destination "platform=iOS Simulator,id=${IPAD_SIM_ID}" \
+            -destination "platform=iOS Simulator,name=${IPAD_SIM_NAME},OS=latest" \
             -resultBundlePath TestResults-iPad.xcresult \
             COMPILER_INDEX_STORE_ENABLE=NO \
             | xcbeautify --renderer github-actions \
