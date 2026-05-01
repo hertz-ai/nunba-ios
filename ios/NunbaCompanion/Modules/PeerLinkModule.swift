@@ -258,12 +258,16 @@ final class PeerLinkModule: NSObject {
   }
 
   // MARK: — Wire format
-
-  private struct Frame: Codable {
-    let ch: String
-    let id: String
-    let d: [String: AnyCodable]?
-  }
+  //
+  // Frames are emitted as JSON objects via JSONSerialization
+  // (we don't use Codable here — the body shape is open-ended
+  // [String: Any] which Codable can't easily express without
+  // type erasure). Schema:
+  //
+  //     {"ch": "<channel>", "id": "<msg-id>", "d": {...}}
+  //
+  // Encrypted channels swap `d` for `{"enc": "<hex>"}` where the
+  // hex is AES-256-GCM-sealed JSON of the original `d`.
 
   /// Send a frame.
   ///
@@ -555,24 +559,3 @@ final class PeerLinkModule: NSObject {
   #endif
 }
 
-/// Tiny helper — needed because [String: Any] isn't directly Codable.
-private struct AnyCodable: Codable {
-  let value: Any
-  init(_ v: Any) { self.value = v }
-  init(from decoder: Decoder) throws {
-    let c = try decoder.singleValueContainer()
-    if let s = try? c.decode(String.self) { value = s; return }
-    if let i = try? c.decode(Int.self) { value = i; return }
-    if let b = try? c.decode(Bool.self) { value = b; return }
-    if let d = try? c.decode(Double.self) { value = d; return }
-    value = NSNull()
-  }
-  func encode(to encoder: Encoder) throws {
-    var c = encoder.singleValueContainer()
-    if let s = value as? String { try c.encode(s) }
-    else if let i = value as? Int { try c.encode(i) }
-    else if let b = value as? Bool { try c.encode(b) }
-    else if let d = value as? Double { try c.encode(d) }
-    else { try c.encodeNil() }
-  }
-}

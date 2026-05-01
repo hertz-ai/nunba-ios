@@ -37,25 +37,7 @@ class AppDelegate: RCTAppDelegate {
     return super.application(application, didFinishLaunchingWithOptions: launchOptions)
   }
 
-  // MARK: — APNs token + registration callbacks
-
-  override func application(
-    _ application: UIApplication,
-    didRegisterForRemoteNotificationsWithDeviceToken deviceToken: Data
-  ) {
-    // Hex-encode the APNs token. The JS layer (deviceApi.js) uploads
-    // this to HARTOS so backend can address this physical install.
-    let token = deviceToken.map { String(format: "%02x", $0) }.joined()
-    NSLog("[AppDelegate] APNs registration succeeded; token bytes=\(deviceToken.count)")
-    APNsTokenStore.shared.token = token
-  }
-
-  override func application(
-    _ application: UIApplication,
-    didFailToRegisterForRemoteNotificationsWithError error: Error
-  ) {
-    NSLog("[AppDelegate] APNs registration failed: \(error.localizedDescription)")
-  }
+  // (Remote notification methods moved below — see new section.)
 
   override func sourceURL(for bridge: RCTBridge) -> URL? {
     self.bundleURL()
@@ -72,12 +54,11 @@ class AppDelegate: RCTAppDelegate {
   }
 
   // MARK: — Background remote notification handler.
-  // FCM data messages routed through APNs land here; the iOS sibling
-  // of Android's MyFirebaseMessagingService.onMessageReceived. The
-  // FleetCommandReceiver module re-broadcasts the payload as a JS
-  // event named 'fleetCommand' so services/fleetCommandHandler.js
-  // can consume it unchanged.
-  override func application(
+  // RCTAppDelegate (base class) does NOT implement these
+  // UIApplicationDelegate protocol methods, so we add them here
+  // WITHOUT `override`. (Marking them `override` would fail to
+  // compile against RN 0.81's RCTAppDelegate.)
+  func application(
     _ application: UIApplication,
     didReceiveRemoteNotification userInfo: [AnyHashable: Any],
     fetchCompletionHandler completionHandler: @escaping (UIBackgroundFetchResult) -> Void
@@ -85,5 +66,24 @@ class AppDelegate: RCTAppDelegate {
     FleetCommandReceiver.shared.handleRemoteNotification(userInfo: userInfo) { fetched in
       completionHandler(fetched ? .newData : .noData)
     }
+  }
+
+  // MARK: — APNs token + registration callbacks (no override —
+  // RCTAppDelegate doesn't implement these either).
+
+  func application(
+    _ application: UIApplication,
+    didRegisterForRemoteNotificationsWithDeviceToken deviceToken: Data
+  ) {
+    let token = deviceToken.map { String(format: "%02x", $0) }.joined()
+    NSLog("[AppDelegate] APNs registration succeeded; token bytes=\(deviceToken.count)")
+    APNsTokenStore.shared.token = token
+  }
+
+  func application(
+    _ application: UIApplication,
+    didFailToRegisterForRemoteNotificationsWithError error: Error
+  ) {
+    NSLog("[AppDelegate] APNs registration failed: \(error.localizedDescription)")
   }
 }

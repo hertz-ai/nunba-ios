@@ -68,8 +68,17 @@ targets:
     sources:
       - path: NunbaCompanion
         excludes:
-          - 'Info.plist'  # referenced separately, not as a build source
-          - 'LaunchScreen.storyboard'  # auto-detected as resource
+          # Info.plist is referenced via INFOPLIST_FILE setting,
+          # not as a build source — would otherwise be copied twice.
+          - 'Info.plist'
+          # Bridging header is wired via SWIFT_OBJC_BRIDGING_HEADER;
+          # excluding it from build sources prevents Xcode from
+          # trying to compile it as a top-level header.
+          - 'NunbaCompanion-Bridging-Header.h'
+        # XcodeGen auto-classifies the rest of the directory:
+        #   .swift / .m   → Compile Sources phase
+        #   .storyboard / .xcassets / .xcprivacy → Copy Bundle Resources
+        # No explicit per-file declarations needed for those.
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.hertzai.nunbacompanion

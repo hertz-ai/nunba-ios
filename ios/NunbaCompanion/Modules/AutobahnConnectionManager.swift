@@ -138,10 +138,16 @@ final class AutobahnConnectionManager: NSObject {
 
     let config = URLSessionConfiguration.default
     let sess = URLSession(configuration: config, delegate: nil, delegateQueue: nil)
-    var req = URLRequest(url: routerURL)
-    req.setValue(Self.subprotocol, forHTTPHeaderField: "Sec-WebSocket-Protocol")
-
-    let task = sess.webSocketTask(with: req)
+    // URLSessionWebSocketTask requires the subprotocol via the
+    // dedicated `protocols:` parameter — manually setting the
+    // `Sec-WebSocket-Protocol` header on a URLRequest is ignored
+    // by URLSession (Apple doc and tested behavior). Crossbar
+    // refuses connections without "wamp.2.json" advertised in
+    // this slot.
+    let task = sess.webSocketTask(
+      with: routerURL,
+      protocols: [Self.subprotocol]
+    )
     task.resume()
     self.ws = task
     self.session = sess
