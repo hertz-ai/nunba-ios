@@ -198,7 +198,11 @@ jobs:
     # content-freshness signal that doesn't affect whether the iOS
     # app builds + tests pass — those are orthogonal concerns.
     needs: [js-validate]
-    timeout-minutes: 45
+    # Cold RN 0.81 + use_frameworks!:static + Hermes compile takes
+    # ~40 min on macos-15 (xcodebuild output confirmed). 45 min was
+    # too tight — boot+tests got the timeout. Warm DerivedData cache
+    # cuts subsequent runs to ~10 min.
+    timeout-minutes: 90
     steps:
       - uses: actions/checkout@v4
 
@@ -252,6 +256,20 @@ jobs:
           key: ${{ runner.os }}-pods-${{ hashFiles('ios/Podfile') }}-${{ hashFiles('package.json') }}
           restore-keys: |
             ${{ runner.os }}-pods-
+
+      - name: Cache DerivedData
+        # The first xcodebuild compile on a cold runner takes ~40 min
+        # (Hermes, Folly, Yoga, all RN-Core, etc.). Caching DerivedData
+        # cuts subsequent runs to ~5-10 min when only Swift sources
+        # change. Cache key includes Podfile so a Pod version bump
+        # invalidates correctly.
+        uses: actions/cache@v4
+        with:
+          path: ~/Library/Developer/Xcode/DerivedData
+          key: ${{ runner.os }}-deriveddata-${{ hashFiles('ios/Podfile') }}-${{ hashFiles('ios/project.yml') }}-${{ hashFiles('package.json') }}
+          restore-keys: |
+            ${{ runner.os }}-deriveddata-${{ hashFiles('ios/Podfile') }}-
+            ${{ runner.os }}-deriveddata-
 
       - name: Install CocoaPods
         working-directory: ios
@@ -371,7 +389,10 @@ jobs:
     name: iOS build (iPad)
     runs-on: macos-15
     needs: ios-build
-    timeout-minutes: 30
+    # Same reasoning as ios-build, but slightly shorter — by the
+    # time this runs the DerivedData cache from ios-build's run is
+    # warm, so the rebuild for iPad simulator slice is faster.
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@v4
 
@@ -418,6 +439,15 @@ jobs:
             ios/Pods
             ~/.cocoapods
           key: ${{ runner.os }}-pods-${{ hashFiles('ios/Podfile') }}-${{ hashFiles('package.json') }}
+
+      - name: Restore DerivedData cache (warm from ios-build)
+        uses: actions/cache@v4
+        with:
+          path: ~/Library/Developer/Xcode/DerivedData
+          key: ${{ runner.os }}-deriveddata-${{ hashFiles('ios/Podfile') }}-${{ hashFiles('ios/project.yml') }}-${{ hashFiles('package.json') }}
+          restore-keys: |
+            ${{ runner.os }}-deriveddata-${{ hashFiles('ios/Podfile') }}-
+            ${{ runner.os }}-deriveddata-
 
       - name: Install CocoaPods
         working-directory: ios
