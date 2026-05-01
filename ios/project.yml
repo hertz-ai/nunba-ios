@@ -24,7 +24,7 @@ name: NunbaCompanion
 options:
   bundleIdPrefix: com.hertzai
   deploymentTarget:
-    iOS: '15.0'
+    iOS: '15.1'
   developmentLanguage: en
   createIntermediateGroups: true
   generateEmptyDirectories: true
@@ -36,7 +36,7 @@ configs:
 settings:
   base:
     SWIFT_VERSION: '5.9'
-    IPHONEOS_DEPLOYMENT_TARGET: '15.0'
+    IPHONEOS_DEPLOYMENT_TARGET: '15.1'
     TARGETED_DEVICE_FAMILY: '1,2'  # iPhone (1) + iPad (2) — universal
     ENABLE_BITCODE: false
     SUPPORTS_MACCATALYST: false
@@ -64,7 +64,7 @@ targets:
   NunbaCompanion:
     type: application
     platform: iOS
-    deploymentTarget: '15.0'
+    deploymentTarget: '15.1'
     sources:
       - path: NunbaCompanion
         excludes:
@@ -97,7 +97,7 @@ targets:
   NunbaCompanionTests:
     type: bundle.unit-test
     platform: iOS
-    deploymentTarget: '15.0'
+    deploymentTarget: '15.1'
     sources:
       - NunbaCompanionTests
     dependencies:
@@ -112,7 +112,7 @@ targets:
   NunbaCompanionUITests:
     type: bundle.ui-testing
     platform: iOS
-    deploymentTarget: '15.0'
+    deploymentTarget: '15.1'
     sources:
       - NunbaCompanionUITests
     dependencies:
