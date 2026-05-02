@@ -176,6 +176,11 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: hertz-ai/Hevolve_React_Native
+          # Pinned to the branch we vendored from. The Android
+          # repo's default branch is 'develop' which has different
+          # content; using that triggers spurious drift. Manifest's
+          # synced_from_commit (a64e3878) lives on this branch.
+          ref: CameraOrientationUpdate
           token: ${{ secrets.ANDROID_REPO_TOKEN }}
           path: Hevolve_React_Native
           # Shallow clone — we only need the working tree, not history.

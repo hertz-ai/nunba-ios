@@ -33,10 +33,9 @@ class AppDelegate: RCTAppDelegate {
     //   [User Defaults] setting new value 1 for key RCT_enableDev
     // Setting it to false here forces production-style behavior:
     // load main.jsbundle from the .app bundle, no packager probe.
-    if let provider = RCTBundleURLProvider.sharedSettings() {
-      provider.enableDev = false
-      provider.enableMinification = true
-    }
+    let provider = RCTBundleURLProvider.sharedSettings()
+    provider.enableDev = false
+    provider.enableMinification = true
     UserDefaults.standard.set(false, forKey: "RCT_enableDev")
     UserDefaults.standard.set(true, forKey: "RCT_enableMinification")
 
