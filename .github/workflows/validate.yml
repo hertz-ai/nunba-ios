@@ -363,15 +363,8 @@ jobs:
           # there's only one in simctl's device tree (the
           # arm64/x86_64 split is a destination thing, not a
           # device thing).
-          UDID=$(xcrun simctl list devices available --json \
-            | python3 -c "
-import json,sys
-data=json.load(sys.stdin)
-for k,v in data['devices'].items():
-    for r in v:
-        if r['name']=='${NAME}' and r.get('isAvailable',True):
-            print(r['udid']); sys.exit(0)
-")
+          UDID=$(xcrun simctl list devices available "$NAME" \
+            | grep -oE '[0-9A-F-]{36}' | head -1)
           if [ -z "$UDID" ]; then
             echo "::error::Could not resolve UDID for $NAME"
             xcrun simctl list devices available | head -50
