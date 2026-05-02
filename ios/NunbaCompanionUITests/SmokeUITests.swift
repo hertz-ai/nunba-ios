@@ -23,58 +23,19 @@ final class SmokeUITests: XCTestCase {
   override func setUp() {
     super.setUp()
     continueAfterFailure = false
-
-    // Auto-dismiss every system permission alert (Speech
-    // Recognition, Microphone, Notifications, etc) so they don't
-    // hover above the JS-rendered "Nunba Companion" text and
-    // block XCUI from finding it. Tap "Allow" if present, else
-    // "OK", else the first button — gets us past the alert
-    // without locking grants.
-    addUIInterruptionMonitor(withDescription: "System permission alerts") { alert in
-      let buttons = ["Allow", "OK", "Don't Allow", "Allow While Using App", "Allow Once"]
-      for label in buttons {
-        let btn = alert.buttons[label]
-        if btn.exists {
-          btn.tap()
-          return true
-        }
-      }
-      // Fallback: tap the first available button.
-      if alert.buttons.count > 0 {
-        alert.buttons.element(boundBy: 0).tap()
-        return true
-      }
-      return false
-    }
   }
 
   /// Boot the app, wait for the RN root, snapshot.
-  /// "Nunba Companion" appears in the auth-loading screen on first
-  /// render. After the OnboardingModule.getAccessToken callback
-  /// resolves (no token in CI), the app navigates to SignUpCombined.
-  /// `waitForExistence` returns true on first match — catching the
-  /// auth-loading screen in its brief render window is sufficient.
+  /// Combines a polled SpringBoard alert dismiss with the
+  /// "Nunba Companion" text wait — a single waitForExistence isn't
+  /// reliable because system alerts (Speech Recognition, etc.) can
+  /// pop up mid-launch and stop XCUI from recognising the text.
   func test_appLaunches_andRendersRoot() throws {
     let app = XCUIApplication()
     app.launch()
 
-    // Force UIInterruptionMonitor evaluation — it only fires on
-    // app interaction, not on plain query reads. Tapping the
-    // (1, 1) coordinate is innocuous: hits a SafeAreaView edge
-    // that's not interactive but counts as an "interaction" for
-    // purposes of dispatching pending interruption handlers.
-    app.coordinate(withNormalizedOffset: CGVector(dx: 0.01, dy: 0.01)).tap()
+    let appeared = waitForRootText(app, timeout: 60)
 
-    // Generous boot window. On a cold simulator, RN's first launch
-    // can take 8-10s to compile the JS bundle. Real device is faster.
-    let bootDeadline: TimeInterval = 45
-
-    let title = app.staticTexts["Nunba Companion"].firstMatch
-    let appeared = title.waitForExistence(timeout: bootDeadline)
-
-    // Always attach a screenshot — including on failure, so we can
-    // see what the app actually showed (red error screen, blank,
-    // SignUp screen with different copy, etc).
     let screenshot = XCUIScreen.main.screenshot()
     let attachment = XCTAttachment(screenshot: screenshot)
     attachment.name = appeared
@@ -84,17 +45,12 @@ final class SmokeUITests: XCTestCase {
     add(attachment)
 
     if !appeared {
-      // Dump the entire accessibility hierarchy so we can see what
-      // text IS present. RN exposes most rendered text as
-      // staticTexts[] on iOS. If the app launched and rendered at
-      // all, this dump will show it.
       let hierarchy = app.debugDescription
       let hierAttachment = XCTAttachment(string: hierarchy)
       hierAttachment.name = "ui-hierarchy-on-failure"
       hierAttachment.lifetime = .keepAlways
       add(hierAttachment)
 
-      // Also dump every staticText label for quick scan in CI logs.
       let allStaticTexts = app.staticTexts.allElementsBoundByIndex.map { $0.label }
       let textsAttachment = XCTAttachment(string: allStaticTexts.joined(separator: "\n"))
       textsAttachment.name = "all-static-texts-on-failure"
@@ -109,9 +65,8 @@ final class SmokeUITests: XCTestCase {
 
     XCTAssertTrue(
       appeared,
-      "Expected 'Nunba Companion' text to render within \(bootDeadline)s — " +
-      "app may have crashed on boot, the JS bundle failed to load, or " +
-      "the auth-loading screen never rendered. See attached screenshot + UI hierarchy."
+      "Expected 'Nunba Companion' text to render within 60s. " +
+      "See attached screenshot + UI hierarchy."
     )
   }
 
@@ -121,21 +76,14 @@ final class SmokeUITests: XCTestCase {
     let app = XCUIApplication()
 
     app.launch()
-    triggerInterruptionMonitor(app)
-    XCTAssertTrue(
-      app.staticTexts["Nunba Companion"].firstMatch.waitForExistence(timeout: 45),
-      "First launch failed"
-    )
+    XCTAssertTrue(waitForRootText(app, timeout: 60), "First launch failed")
 
     app.terminate()
 
     // Second cold launch — RN bundle should be cached, faster.
     app.launch()
-    triggerInterruptionMonitor(app)
-    XCTAssertTrue(
-      app.staticTexts["Nunba Companion"].firstMatch.waitForExistence(timeout: 30),
-      "Second launch failed — possible state-leak or AppDelegate idempotency bug"
-    )
+    XCTAssertTrue(waitForRootText(app, timeout: 45),
+                  "Second launch failed — possible state-leak or AppDelegate idempotency bug")
   }
 
   /// App stays running for 5s after the initial render. Catches
@@ -145,12 +93,8 @@ final class SmokeUITests: XCTestCase {
   func test_appStaysAlive_fiveSecondsAfterRender() throws {
     let app = XCUIApplication()
     app.launch()
-    triggerInterruptionMonitor(app)
 
-    XCTAssertTrue(
-      app.staticTexts["Nunba Companion"].firstMatch.waitForExistence(timeout: 45),
-      "Initial render failed"
-    )
+    XCTAssertTrue(waitForRootText(app, timeout: 60), "Initial render failed")
 
     // Soak for 5s. If any background queue (Autobahn reconnect timer,
     // PeerLink crypto, FleetCommand event emitter) crashes, the app
@@ -174,11 +118,7 @@ final class SmokeUITests: XCTestCase {
   func test_appHandlesBackgroundResume() throws {
     let app = XCUIApplication()
     app.launch()
-    triggerInterruptionMonitor(app)
-    XCTAssertTrue(
-      app.staticTexts["Nunba Companion"].firstMatch.waitForExistence(timeout: 45),
-      "Initial render failed"
-    )
+    XCTAssertTrue(waitForRootText(app, timeout: 60), "Initial render failed")
 
     // Background
     XCUIDevice.shared.press(.home)
@@ -200,11 +140,43 @@ final class SmokeUITests: XCTestCase {
     return "\(device.model)-iOS\(device.systemVersion)"
   }
 
-  /// UIInterruptionMonitor only fires when the test code interacts
-  /// with the app — not on plain query reads. A no-op tap at the
-  /// near-corner of the screen flushes any pending alerts that
-  /// queued up between launch and the first real assertion.
-  private func triggerInterruptionMonitor(_ app: XCUIApplication) {
-    app.coordinate(withNormalizedOffset: CGVector(dx: 0.01, dy: 0.01)).tap()
+  /// Poll for "Nunba Companion" StaticText while also dismissing any
+  /// SpringBoard system alerts that pop up mid-launch (Speech
+  /// Recognition, Microphone, Notifications). UIInterruptionMonitor
+  /// is unreliable for alerts that appear DURING a wait — they
+  /// require a fresh app interaction to fire, which polling provides.
+  ///
+  /// Returns true as soon as the text is visible OR the polling
+  /// succeeds in dismissing alerts and the text appears next tick.
+  private func waitForRootText(_ app: XCUIApplication, timeout: TimeInterval) -> Bool {
+    let title = app.staticTexts["Nunba Companion"].firstMatch
+    let springboard = XCUIApplication(bundleIdentifier: "com.apple.springboard")
+    let allowLabels = ["Allow", "OK", "Allow While Using App", "Allow Once"]
+    let denyLabels = ["Don't Allow"]
+
+    let deadline = Date(timeIntervalSinceNow: timeout)
+    while Date() < deadline {
+      // Fast path: text is in the a11y tree — done. We don't gate
+      // on isHittable because it returns false when an alert is on
+      // top, which is exactly the situation we're trying to recover
+      // from in the dismiss loop below.
+      if title.exists {
+        return true
+      }
+
+      // Dismiss any SpringBoard alert by tapping the most permissive
+      // button we can find. Loop through likely labels.
+      for label in allowLabels + denyLabels {
+        let btn = springboard.buttons[label]
+        if btn.exists {
+          btn.tap()
+          break
+        }
+      }
+
+      Thread.sleep(forTimeInterval: 0.5)
+    }
+    // One last check after timeout.
+    return title.exists
   }
 }
