@@ -383,6 +383,26 @@ jobs:
                          --report junit \
                          --report-path ../test-reports/xctest-iphone.xml
 
+      - name: Dump iPhone simulator console (NunbaCompanion subsystem)
+        if: always()
+        run: |
+          # Find the booted device (xcodebuild auto-booted it during
+          # the test step). Pull recent logs from the NunbaCompanion
+          # process so we can see AppDelegate NSLogs (bundleURL,
+          # APNs registration) + RN bridge errors.
+          BOOTED=$(xcrun simctl list devices booted 2>/dev/null | grep -oE '[A-F0-9-]{36}' | head -1)
+          if [ -z "$BOOTED" ]; then
+            echo "(no booted simulator)"
+            exit 0
+          fi
+          echo "── booted device: $BOOTED ──"
+          # last 15 minutes covers the whole test step. predicate
+          # filters to our process + RN core.
+          xcrun simctl spawn "$BOOTED" log show --last 15m \
+            --predicate 'processImagePath CONTAINS "NunbaCompanion"' \
+            --style compact 2>/dev/null \
+            | head -500 || echo "(log show failed)"
+
       - name: Extract iPhone screenshots + UI hierarchy from .xcresult
         if: always()
         run: |

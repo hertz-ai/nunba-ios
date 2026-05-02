@@ -29,7 +29,6 @@ import {
   DeviceEventEmitter,
   NativeModules,
   SafeAreaView,
-  StatusBar,
   StyleSheet,
   Text,
   View,
@@ -351,7 +350,6 @@ function App(): React.JSX.Element {
   if (!authReady) {
     return (
       <SafeAreaView style={styles.root}>
-        <StatusBar barStyle="light-content" />
         <View style={[styles.center, styles.root]}>
           <Text style={styles.title}>Nunba Companion</Text>
           <ActivityIndicator color="#6B63F4" />
@@ -362,7 +360,6 @@ function App(): React.JSX.Element {
 
   return (
     <NavigationContainer linking={linking}>
-      <StatusBar barStyle="light-content" />
       <Stack.Navigator
         initialRouteName={isAuthed ? 'MainScreen' : 'SignUpCombined'}
         screenOptions={{

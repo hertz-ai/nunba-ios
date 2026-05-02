@@ -49,20 +49,18 @@ class AppDelegate: RCTAppDelegate {
 
   override func bundleURL() -> URL? {
     #if DEBUG
-    // Use the fallback overload — probes the packager and falls
-    // back to the embedded main.jsbundle when Metro is unreachable.
-    // Without this fallback, CI runs (no Metro) hit a red error
-    // screen and UI tests time out waiting for "Nunba Companion"
-    // text. FORCE_BUNDLING=true in the workflow ensures the
-    // fallback bundle is actually present in the .app.
-    RCTBundleURLProvider.sharedSettings().jsBundleURL(
+    let url = RCTBundleURLProvider.sharedSettings().jsBundleURL(
       forBundleRoot: "index",
       fallbackURLProvider: {
         Bundle.main.url(forResource: "main", withExtension: "jsbundle")
       }
     )
+    NSLog("[AppDelegate] bundleURL (DEBUG) -> %@", url?.absoluteString ?? "nil")
+    return url
     #else
-    Bundle.main.url(forResource: "main", withExtension: "jsbundle")
+    let url = Bundle.main.url(forResource: "main", withExtension: "jsbundle")
+    NSLog("[AppDelegate] bundleURL (RELEASE) -> %@", url?.absoluteString ?? "nil")
+    return url
     #endif
   }
 
