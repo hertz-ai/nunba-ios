@@ -367,10 +367,25 @@ jobs:
         timeout-minutes: 40
         run: |
           set -o pipefail
-          mkdir -p ../test-reports
-          # xcodebuild auto-boots the simulator named in -destination.
-          # The internal boot path retries + recovers from
-          # CoreSimulator hangs better than raw simctl bootstatus.
+          mkdir -p ../test-reports ../artifacts
+          # Start a background log streamer BEFORE xcodebuild boots
+          # the simulator. simctl spawn waits for the named device to
+          # boot, then streams logs filtered to the NunbaCompanion
+          # process. Without this, the post-test 'Dump simulator
+          # console' step finds no booted device because xcodebuild
+          # shuts the sim down after testing.
+          DEV_ID=$(xcrun simctl list devices available --json \
+            | python3 -c "import json,sys; data=json.load(sys.stdin); \
+                          rs=[r for k,v in data['devices'].items() for r in v if r['name']=='${IPHONE_SIM_NAME}']; \
+                          print(rs[0]['udid'] if rs else '')")
+          if [ -n "$DEV_ID" ]; then
+            echo "Streaming logs from $DEV_ID to ../artifacts/sim-console.log"
+            xcrun simctl spawn "$DEV_ID" log stream \
+              --predicate 'processImagePath CONTAINS "NunbaCompanion"' \
+              --style compact \
+              > ../artifacts/sim-console.log 2>&1 &
+            echo $! > /tmp/log_streamer.pid
+          fi
           xcodebuild test-without-building \
             -workspace NunbaCompanion.xcworkspace \
             -scheme NunbaCompanion \
@@ -381,27 +396,14 @@ jobs:
             COMPILER_INDEX_STORE_ENABLE=NO \
             | xcbeautify --renderer github-actions \
                          --report junit \
-                         --report-path ../test-reports/xctest-iphone.xml
-
-      - name: Dump iPhone simulator console (NunbaCompanion subsystem)
-        if: always()
-        run: |
-          # Find the booted device (xcodebuild auto-booted it during
-          # the test step). Pull recent logs from the NunbaCompanion
-          # process so we can see AppDelegate NSLogs (bundleURL,
-          # APNs registration) + RN bridge errors.
-          BOOTED=$(xcrun simctl list devices booted 2>/dev/null | grep -oE '[A-F0-9-]{36}' | head -1)
-          if [ -z "$BOOTED" ]; then
-            echo "(no booted simulator)"
-            exit 0
+                         --report-path ../test-reports/xctest-iphone.xml || TEST_EXIT=$?
+          # Kill log streamer and surface the captured logs.
+          if [ -f /tmp/log_streamer.pid ]; then
+            kill -TERM "$(cat /tmp/log_streamer.pid)" 2>/dev/null || true
           fi
-          echo "── booted device: $BOOTED ──"
-          # last 15 minutes covers the whole test step. predicate
-          # filters to our process + RN core.
-          xcrun simctl spawn "$BOOTED" log show --last 15m \
-            --predicate 'processImagePath CONTAINS "NunbaCompanion"' \
-            --style compact 2>/dev/null \
-            | head -500 || echo "(log show failed)"
+          echo "── captured simulator console (last 500 lines) ──"
+          tail -500 ../artifacts/sim-console.log 2>/dev/null || echo "(no log captured)"
+          exit ${TEST_EXIT:-0}
 
       - name: Extract iPhone screenshots + UI hierarchy from .xcresult
         if: always()
@@ -461,6 +463,7 @@ jobs:
             artifacts/iphone-screenshots/
             artifacts/iphone-attachments/
             artifacts/iphone-results.json
+            artifacts/sim-console.log
           retention-days: 14
 
       - name: Publish XCTest summary
