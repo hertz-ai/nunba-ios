@@ -253,6 +253,7 @@ function PendingNativeDeps({route}: any) {
 function LoadingScreen() {
   return (
     <View style={[styles.center, styles.root]}>
+      <Text style={styles.title}>Nunba Companion</Text>
       <ActivityIndicator color="#6B63F4" size="large" />
     </View>
   );
