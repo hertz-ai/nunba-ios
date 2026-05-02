@@ -48,19 +48,32 @@ class AppDelegate: RCTAppDelegate {
   }
 
   override func bundleURL() -> URL? {
+    // Prefer the embedded bundle when present. CI runs (no Metro)
+    // hit RCTBundleURLProvider's "Connect to Metro" placeholder
+    // because the dev path tries the packager first and either
+    // hangs or thinks localhost:8081 is reachable; the fallback
+    // block is documented to be invoked but isn't actually used in
+    // the RN 0.81 path on macos-15 simulators. Bypassing the
+    // dev-server probe entirely fixes that.
+    //
+    // For local dev, manually delete ios/main.jsbundle (it's
+    // gitignored) — the absence of the embedded bundle drops us
+    // into the Metro-probing branch as before.
+    if let embedded = Bundle.main.url(forResource: "main", withExtension: "jsbundle") {
+      NSLog("[AppDelegate] bundleURL -> embedded %@", embedded.absoluteString)
+      return embedded
+    }
+
     #if DEBUG
     let url = RCTBundleURLProvider.sharedSettings().jsBundleURL(
       forBundleRoot: "index",
-      fallbackURLProvider: {
-        Bundle.main.url(forResource: "main", withExtension: "jsbundle")
-      }
+      fallbackURLProvider: { nil }
     )
-    NSLog("[AppDelegate] bundleURL (DEBUG) -> %@", url?.absoluteString ?? "nil")
+    NSLog("[AppDelegate] bundleURL -> Metro %@", url?.absoluteString ?? "nil")
     return url
     #else
-    let url = Bundle.main.url(forResource: "main", withExtension: "jsbundle")
-    NSLog("[AppDelegate] bundleURL (RELEASE) -> %@", url?.absoluteString ?? "nil")
-    return url
+    NSLog("[AppDelegate] bundleURL -> nil (release build, no embedded bundle)")
+    return nil
     #endif
   }
 
