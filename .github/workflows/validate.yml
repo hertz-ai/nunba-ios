@@ -335,14 +335,14 @@ jobs:
             COMPILER_INDEX_STORE_ENABLE=NO \
             | xcbeautify --renderer github-actions
 
-      - name: Pick iPhone device name + reset simulator service
-        # Raw 'simctl boot' is unreliable on macos-15 (hangs >10min
-        # in some daemon states). Restart the CoreSimulator daemon,
-        # then let xcodebuild's internal boot path handle it via
-        # -destination — that's the only approach that's been
-        # observed to actually finish booting on this runner image.
-        # System permission alerts (Speech Recognition etc.) are
-        # auto-dismissed by UIInterruptionMonitor in SmokeUITests.
+      - name: Resolve iPhone simulator UDID (arm64-specific)
+        # The runner has multiple destinations with the same name
+        # (arm64 + x86_64 builds of iPhone 16). xcodebuild's
+        # name-based -destination matches the FIRST one, which is
+        # arm64 on Apple Silicon runners. We need the SAME UDID for
+        # both the test step and the side-channel log streamer —
+        # otherwise the streamer connects to the unbooted x86_64
+        # twin and captures nothing.
         run: |
           set -e
           sudo pkill -9 -f com.apple.CoreSimulator.CoreSimulatorService || true
@@ -359,8 +359,27 @@ jobs:
             xcrun simctl list devices available | head -50
             exit 1
           fi
-          echo "Selected $NAME"
+          # Find the first available UDID matching this exact name —
+          # there's only one in simctl's device tree (the
+          # arm64/x86_64 split is a destination thing, not a
+          # device thing).
+          UDID=$(xcrun simctl list devices available --json \
+            | python3 -c "
+import json,sys
+data=json.load(sys.stdin)
+for k,v in data['devices'].items():
+    for r in v:
+        if r['name']=='${NAME}' and r.get('isAvailable',True):
+            print(r['udid']); sys.exit(0)
+")
+          if [ -z "$UDID" ]; then
+            echo "::error::Could not resolve UDID for $NAME"
+            xcrun simctl list devices available | head -50
+            exit 1
+          fi
+          echo "Selected $NAME ($UDID)"
           echo "IPHONE_SIM_NAME=$NAME" >> $GITHUB_ENV
+          echo "IPHONE_SIM_ID=$UDID" >> $GITHUB_ENV
 
       - name: Run XCTests + UI smoke tests on iPhone simulator
         working-directory: ios
@@ -368,41 +387,49 @@ jobs:
         run: |
           set -o pipefail
           mkdir -p ../test-reports ../artifacts
-          # Start a background log streamer BEFORE xcodebuild boots
-          # the simulator. simctl spawn waits for the named device to
-          # boot, then streams logs filtered to the NunbaCompanion
-          # process. Without this, the post-test 'Dump simulator
-          # console' step finds no booted device because xcodebuild
-          # shuts the sim down after testing.
-          DEV_ID=$(xcrun simctl list devices available --json \
-            | python3 -c "import json,sys; data=json.load(sys.stdin); \
-                          rs=[r for k,v in data['devices'].items() for r in v if r['name']=='${IPHONE_SIM_NAME}']; \
-                          print(rs[0]['udid'] if rs else '')")
-          if [ -n "$DEV_ID" ]; then
-            echo "Streaming logs from $DEV_ID to ../artifacts/sim-console.log"
-            xcrun simctl spawn "$DEV_ID" log stream \
-              --predicate 'processImagePath CONTAINS "NunbaCompanion"' \
-              --style compact \
-              > ../artifacts/sim-console.log 2>&1 &
-            echo $! > /tmp/log_streamer.pid
-          fi
+          # Pre-boot the EXACT device xcodebuild will use, then start
+          # a background log streamer scoped to the NunbaCompanion
+          # process. This way the streamer + xcodebuild are
+          # guaranteed to agree on which simulator is booted.
+          echo "Pre-booting $IPHONE_SIM_ID"
+          xcrun simctl boot "$IPHONE_SIM_ID" 2>/dev/null || true
+          # bootstatus has hung in past runs; cap it at 5 min and
+          # let xcodebuild deal with any further wait.
+          timeout 300 xcrun simctl bootstatus "$IPHONE_SIM_ID" -b 2>&1 \
+            | tail -5 || echo "(bootstatus timed out — xcodebuild will retry)"
+          echo "Streaming logs from $IPHONE_SIM_ID to ../artifacts/sim-console.log"
+          # Stream with no predicate filter — first run with rich
+          # NSLogs from AppDelegate shouldn't be filtered out, and
+          # we need to see RN bridge errors which may log under a
+          # different process. Trim later via grep on the saved file.
+          xcrun simctl spawn "$IPHONE_SIM_ID" log stream \
+            --style compact \
+            --level=debug \
+            > ../artifacts/sim-console.log 2>&1 &
+          STREAMER_PID=$!
+          echo $STREAMER_PID > /tmp/log_streamer.pid
           xcodebuild test-without-building \
             -workspace NunbaCompanion.xcworkspace \
             -scheme NunbaCompanion \
             -configuration Debug \
             -sdk iphonesimulator \
-            -destination "platform=iOS Simulator,name=${IPHONE_SIM_NAME},OS=latest" \
+            -destination "platform=iOS Simulator,id=${IPHONE_SIM_ID}" \
             -resultBundlePath TestResults-iPhone.xcresult \
             COMPILER_INDEX_STORE_ENABLE=NO \
             | xcbeautify --renderer github-actions \
                          --report junit \
                          --report-path ../test-reports/xctest-iphone.xml || TEST_EXIT=$?
           # Kill log streamer and surface the captured logs.
-          if [ -f /tmp/log_streamer.pid ]; then
-            kill -TERM "$(cat /tmp/log_streamer.pid)" 2>/dev/null || true
-          fi
-          echo "── captured simulator console (last 500 lines) ──"
-          tail -500 ../artifacts/sim-console.log 2>/dev/null || echo "(no log captured)"
+          kill -TERM "$STREAMER_PID" 2>/dev/null || true
+          sleep 1
+          echo "── captured simulator console (NunbaCompanion + RN-relevant grep) ──"
+          # Filter to lines that mention our app's bundle id, RN
+          # bridge keywords, or AppDelegate's NSLog prefix.
+          grep -E "AppDelegate|NunbaCompanion|RCTBridge|RCTRedBox|RCTFatal|jsBundle|bundleURL|JavaScript|RNBundle|Could not connect|sourceURL|Bundle URL" \
+               ../artifacts/sim-console.log 2>/dev/null \
+               | head -300 \
+               || echo "(no NunbaCompanion-relevant log lines)"
+          echo "── log file size: $(wc -c < ../artifacts/sim-console.log 2>/dev/null) bytes ──"
           exit ${TEST_EXIT:-0}
 
       - name: Extract iPhone screenshots + UI hierarchy from .xcresult
