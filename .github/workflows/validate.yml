@@ -420,11 +420,17 @@ jobs:
             # Print non-binary attachments (UI hierarchy + staticTexts)
             # straight into the build log so we don't need to download
             # the artifact zip to diagnose smoke-test failures.
-            for f in artifacts/iphone-attachments/*.txt artifacts/iphone-attachments/all-static-texts*.* artifacts/iphone-attachments/ui-hierarchy*.* 2>/dev/null; do
+            shopt -s nullglob
+            for f in artifacts/iphone-attachments/*.txt \
+                     artifacts/iphone-attachments/all-static-texts* \
+                     artifacts/iphone-attachments/ui-hierarchy* \
+                     artifacts/iphone-attachments/*.json; do
               [ -f "$f" ] || continue
               echo "── $(basename "$f") ──"
               cat "$f" || true
+              echo
             done
+            shopt -u nullglob
           fi
 
       - name: Upload iPhone test artifacts
