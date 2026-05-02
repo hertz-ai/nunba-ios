@@ -28,11 +28,15 @@ import {
   AppState,
   DeviceEventEmitter,
   NativeModules,
-  SafeAreaView,
   StyleSheet,
   Text,
   View,
 } from 'react-native';
+// Use the third-party SafeAreaView — react-native's built-in one
+// is deprecated in 0.81 + React 19 and renders no children in
+// some host configurations (the symptom we hit: RN tree mounts an
+// outer wrapper but Text/ActivityIndicator never show).
+import {SafeAreaView, SafeAreaProvider} from 'react-native-safe-area-context';
 import {NavigationContainer, LinkingOptions} from '@react-navigation/native';
 import {createNativeStackNavigator} from '@react-navigation/native-stack';
 
@@ -470,4 +474,15 @@ const styles = StyleSheet.create({
   hint: {color: '#6B63F4', fontSize: 13, textAlign: 'center'},
 });
 
-export default App;
+// SafeAreaProvider must wrap any tree that uses SafeAreaView
+// (or useSafeAreaInsets) from react-native-safe-area-context.
+// Required since 0.81/19 dropped the legacy react-native version.
+function AppRoot(): React.JSX.Element {
+  return (
+    <SafeAreaProvider>
+      <App />
+    </SafeAreaProvider>
+  );
+}
+
+export default AppRoot;
