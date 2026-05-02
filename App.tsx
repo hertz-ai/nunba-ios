@@ -303,7 +303,13 @@ function withGuards<P extends object>(
 
 // ─── App root ────────────────────────────────────────────────────
 
+// DIAGNOSTIC: tracer logs for CI smoke debugging. console.log
+// goes through RN's logger to NSLog, visible in our captured
+// simulator console (filterable via grep on NunbaCompanion[).
+console.log('[App.tsx] module evaluated');
+
 function App(): React.JSX.Element {
+  console.log('[App.tsx] render called');
   // Auth gating — show signup until token is set.
   // Flag is set on app launch from OnboardingModule.getAccessToken.
   const [authReady, setAuthReady] = useState(false);
