@@ -335,21 +335,26 @@ jobs:
             COMPILER_INDEX_STORE_ENABLE=NO \
             | xcbeautify --renderer github-actions
 
-      - name: Pick iPhone device name + reset simulator service
-        # Two prior runs (iPhone 17 then iPhone 16) hung indefinitely
-        # at `xcrun simctl bootstatus` on the macos-15 / Xcode 16
-        # image. The CoreSimulatorService daemon was apparently in a
-        # wedged state. Restart it before doing anything else, then
-        # let xcodebuild handle the boot via -destination — its
-        # internal boot path is more resilient than raw simctl.
+      - name: Boot iPhone simulator + pre-grant permissions
+        # Three prior failure modes addressed in one step:
+        #   1. CoreSimulator daemon wedging on macos-15 — fixed by
+        #      restarting the daemon up front.
+        #   2. iPhone 17 boot hangs — fixed by preferring iPhone 16
+        #      (known-good on the current runner image).
+        #   3. Speech-recognition permission alert blocking the UI
+        #      smoke test — fixed by pre-granting via simctl privacy.
+        #      The auth-loading screen mounts before any speech UI,
+        #      so the alert was being triggered by an over-eager
+        #      module init (likely SpeechRecognizerModule). The
+        #      alert hovers above the JS-rendered "Nunba Companion"
+        #      text and prevents XCUI from finding it.
+        # Daemon restart + 10-min boot cap matches the auto-boot
+        # behavior that already worked in run 25237572803 (took
+        # ~30s to boot once the daemon was healthy).
         run: |
           set -e
-          # Restart the CoreSimulator daemon. Cleared the boot-hang
-          # in field reports; harmless if the daemon was healthy.
           sudo pkill -9 -f com.apple.CoreSimulator.CoreSimulatorService || true
           sleep 2
-          # Pick a device NAME (not ID) so xcodebuild can match by
-          # name + OS=latest and pick whichever runtime boots cleanly.
           NAME=""
           for v in 16 15 17 18; do
             if xcrun simctl list devices available | grep -qE "iPhone $v \("; then
@@ -363,7 +368,22 @@ jobs:
             exit 1
           fi
           echo "Selected $NAME"
+          DEVICE_ID=$(xcrun simctl list devices available | grep -E "$NAME \(" | head -1 | grep -oE '[A-F0-9-]{36}')
+          echo "Booting $NAME ($DEVICE_ID)"
+          xcrun simctl boot "$DEVICE_ID" || true
+          if ! timeout 600 xcrun simctl bootstatus "$DEVICE_ID" -b; then
+            echo "::error::Simulator boot timed out after 10 min"
+            exit 1
+          fi
+          # Pre-grant every privacy service so system alerts don't
+          # block UI smoke tests. Bundle ID matches Info.plist's
+          # CFBundleIdentifier resolved at build time.
+          BUNDLE_ID=com.hertzai.nunbacompanion
+          for service in speech-recognition microphone camera photos location contacts calendar reminders motion media-library; do
+            xcrun simctl privacy "$DEVICE_ID" grant "$service" "$BUNDLE_ID" 2>/dev/null || true
+          done
           echo "IPHONE_SIM_NAME=$NAME" >> $GITHUB_ENV
+          echo "IPHONE_SIM_ID=$DEVICE_ID" >> $GITHUB_ENV
 
       - name: Run XCTests + UI smoke tests on iPhone simulator
         working-directory: ios
@@ -379,7 +399,7 @@ jobs:
             -scheme NunbaCompanion \
             -configuration Debug \
             -sdk iphonesimulator \
-            -destination "platform=iOS Simulator,name=${IPHONE_SIM_NAME},OS=latest" \
+            -destination "platform=iOS Simulator,id=${IPHONE_SIM_ID}" \
             -resultBundlePath TestResults-iPhone.xcresult \
             COMPILER_INDEX_STORE_ENABLE=NO \
             | xcbeautify --renderer github-actions \
@@ -555,10 +575,11 @@ jobs:
             sleep 30
           done
 
-      - name: Pick iPad device name + reset simulator service
-        # See iPhone job for rationale: explicit simctl boot was
-        # hanging on macos-15. Restart CoreSimulator daemon and let
-        # xcodebuild auto-boot the named device via -destination.
+      - name: Boot iPad simulator + pre-grant permissions
+        # Mirror iPhone job: daemon restart, explicit boot with
+        # 10-min cap, pre-grant all privacy services so the speech-
+        # recognition alert (and any other system permission alert)
+        # doesn't block UI smoke tests on iPad.
         run: |
           set -e
           sudo pkill -9 -f com.apple.CoreSimulator.CoreSimulatorService || true
@@ -571,21 +592,34 @@ jobs:
             'iPad Pro'
             'iPad'
           )
+          DEVICE_ID=""
           NAME=""
           for pattern in "${PATTERNS[@]}"; do
-            CANDIDATE=$(xcrun simctl list devices available | grep -E "$pattern" | head -1 | sed -E 's/^[[:space:]]*([^(]+) \(.*$/\1/' | sed 's/[[:space:]]*$//' || true)
-            if [ -n "$CANDIDATE" ]; then
-              NAME="$CANDIDATE"
-              echo "Matched pattern: $pattern -> $NAME"
+            line=$(xcrun simctl list devices available | grep -E "$pattern" | head -1 || true)
+            if [ -n "$line" ]; then
+              DEVICE_ID=$(echo "$line" | grep -oE '[A-F0-9-]{36}')
+              NAME=$(echo "$line" | sed -E 's/^[[:space:]]*([^(]+) \(.*$/\1/' | sed 's/[[:space:]]*$//')
+              echo "Matched pattern: $pattern -> $NAME ($DEVICE_ID)"
               break
             fi
           done
-          if [ -z "$NAME" ]; then
+          if [ -z "$DEVICE_ID" ]; then
             echo "::error::No iPad simulator found on runner"
             xcrun simctl list devices available | head -50
             exit 1
           fi
+          echo "Booting $NAME ($DEVICE_ID)"
+          xcrun simctl boot "$DEVICE_ID" || true
+          if ! timeout 600 xcrun simctl bootstatus "$DEVICE_ID" -b; then
+            echo "::error::iPad simulator boot timed out after 10 min"
+            exit 1
+          fi
+          BUNDLE_ID=com.hertzai.nunbacompanion
+          for service in speech-recognition microphone camera photos location contacts calendar reminders motion media-library; do
+            xcrun simctl privacy "$DEVICE_ID" grant "$service" "$BUNDLE_ID" 2>/dev/null || true
+          done
           echo "IPAD_SIM_NAME=$NAME" >> $GITHUB_ENV
+          echo "IPAD_SIM_ID=$DEVICE_ID" >> $GITHUB_ENV
 
       - name: Build + test on iPad simulator
         working-directory: ios
@@ -598,7 +632,7 @@ jobs:
             -scheme NunbaCompanion \
             -configuration Debug \
             -sdk iphonesimulator \
-            -destination "platform=iOS Simulator,name=${IPAD_SIM_NAME},OS=latest" \
+            -destination "platform=iOS Simulator,id=${IPAD_SIM_ID}" \
             -resultBundlePath TestResults-iPad.xcresult \
             COMPILER_INDEX_STORE_ENABLE=NO \
             | xcbeautify --renderer github-actions \
