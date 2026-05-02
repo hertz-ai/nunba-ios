@@ -23,6 +23,29 @@ final class SmokeUITests: XCTestCase {
   override func setUp() {
     super.setUp()
     continueAfterFailure = false
+
+    // Auto-dismiss every system permission alert (Speech
+    // Recognition, Microphone, Notifications, etc) so they don't
+    // hover above the JS-rendered "Nunba Companion" text and
+    // block XCUI from finding it. Tap "Allow" if present, else
+    // "OK", else the first button — gets us past the alert
+    // without locking grants.
+    addUIInterruptionMonitor(withDescription: "System permission alerts") { alert in
+      let buttons = ["Allow", "OK", "Don't Allow", "Allow While Using App", "Allow Once"]
+      for label in buttons {
+        let btn = alert.buttons[label]
+        if btn.exists {
+          btn.tap()
+          return true
+        }
+      }
+      // Fallback: tap the first available button.
+      if alert.buttons.count > 0 {
+        alert.buttons.element(boundBy: 0).tap()
+        return true
+      }
+      return false
+    }
   }
 
   /// Boot the app, wait for the RN root, snapshot.
@@ -34,6 +57,13 @@ final class SmokeUITests: XCTestCase {
   func test_appLaunches_andRendersRoot() throws {
     let app = XCUIApplication()
     app.launch()
+
+    // Force UIInterruptionMonitor evaluation — it only fires on
+    // app interaction, not on plain query reads. Tapping the
+    // (1, 1) coordinate is innocuous: hits a SafeAreaView edge
+    // that's not interactive but counts as an "interaction" for
+    // purposes of dispatching pending interruption handlers.
+    app.coordinate(withNormalizedOffset: CGVector(dx: 0.01, dy: 0.01)).tap()
 
     // Generous boot window. On a cold simulator, RN's first launch
     // can take 8-10s to compile the JS bundle. Real device is faster.
@@ -91,8 +121,9 @@ final class SmokeUITests: XCTestCase {
     let app = XCUIApplication()
 
     app.launch()
+    triggerInterruptionMonitor(app)
     XCTAssertTrue(
-      app.staticTexts["Nunba Companion"].firstMatch.waitForExistence(timeout: 30),
+      app.staticTexts["Nunba Companion"].firstMatch.waitForExistence(timeout: 45),
       "First launch failed"
     )
 
@@ -100,8 +131,9 @@ final class SmokeUITests: XCTestCase {
 
     // Second cold launch — RN bundle should be cached, faster.
     app.launch()
+    triggerInterruptionMonitor(app)
     XCTAssertTrue(
-      app.staticTexts["Nunba Companion"].firstMatch.waitForExistence(timeout: 20),
+      app.staticTexts["Nunba Companion"].firstMatch.waitForExistence(timeout: 30),
       "Second launch failed — possible state-leak or AppDelegate idempotency bug"
     )
   }
@@ -113,9 +145,10 @@ final class SmokeUITests: XCTestCase {
   func test_appStaysAlive_fiveSecondsAfterRender() throws {
     let app = XCUIApplication()
     app.launch()
+    triggerInterruptionMonitor(app)
 
     XCTAssertTrue(
-      app.staticTexts["Nunba Companion"].firstMatch.waitForExistence(timeout: 30),
+      app.staticTexts["Nunba Companion"].firstMatch.waitForExistence(timeout: 45),
       "Initial render failed"
     )
 
@@ -141,8 +174,9 @@ final class SmokeUITests: XCTestCase {
   func test_appHandlesBackgroundResume() throws {
     let app = XCUIApplication()
     app.launch()
+    triggerInterruptionMonitor(app)
     XCTAssertTrue(
-      app.staticTexts["Nunba Companion"].firstMatch.waitForExistence(timeout: 30),
+      app.staticTexts["Nunba Companion"].firstMatch.waitForExistence(timeout: 45),
       "Initial render failed"
     )
 
@@ -164,5 +198,13 @@ final class SmokeUITests: XCTestCase {
   private func deviceLabel() -> String {
     let device = UIDevice.current
     return "\(device.model)-iOS\(device.systemVersion)"
+  }
+
+  /// UIInterruptionMonitor only fires when the test code interacts
+  /// with the app — not on plain query reads. A no-op tap at the
+  /// near-corner of the screen flushes any pending alerts that
+  /// queued up between launch and the first real assertion.
+  private func triggerInterruptionMonitor(_ app: XCUIApplication) {
+    app.coordinate(withNormalizedOffset: CGVector(dx: 0.01, dy: 0.01)).tap()
   }
 }
