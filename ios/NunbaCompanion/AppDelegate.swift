@@ -22,6 +22,24 @@ class AppDelegate: RCTAppDelegate {
     _ application: UIApplication,
     didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]? = nil
   ) -> Bool {
+    // Disable RN dev mode at the RCTBundleURLProvider level BEFORE
+    // super.application is invoked. Without this, Debug builds set
+    // RCT_enableDev=1 in NSUserDefaults, which makes RN ignore our
+    // bundleURL() override and try to fetch from Metro at
+    // localhost:8081 — failing in CI and showing the "Connect to
+    // Metro to develop JavaScript" placeholder forever.
+    //
+    // The simulator console captured this in run 25244593266:
+    //   [User Defaults] setting new value 1 for key RCT_enableDev
+    // Setting it to false here forces production-style behavior:
+    // load main.jsbundle from the .app bundle, no packager probe.
+    if let provider = RCTBundleURLProvider.sharedSettings() {
+      provider.enableDev = false
+      provider.enableMinification = true
+    }
+    UserDefaults.standard.set(false, forKey: "RCT_enableDev")
+    UserDefaults.standard.set(true, forKey: "RCT_enableMinification")
+
     self.moduleName = "NunbaCompanion"
     self.dependencyProvider = RCTAppDependencyProvider()
     self.initialProps = [:]
