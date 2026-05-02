@@ -39,9 +39,26 @@ target 'NunbaCompanion' do
     # warnings from older transitive pods that still ship 12.0/13.0
     # default targets, and guarantees ReactAppDependencyProvider
     # codegen pod resolves cleanly.
+    #
+    # Also force RCT_DEV=0 across React Native pods so the #if RCT_DEV
+    # blocks (RCTBundleURLProvider.setDefaults setting enableDev=YES,
+    # the dev menu, the "Connect to Metro" placeholder, the packager
+    # probe) are eliminated at preprocess time. CI runs with no
+    # Metro; runtime overrides via NSUserDefaults are racy and the
+    # volatile domain RN writes from setDefaults wins. Compile-time
+    # is the only reliable fix.
     installer.pods_project.targets.each do |target|
       target.build_configurations.each do |config|
         config.build_settings['IPHONEOS_DEPLOYMENT_TARGET'] = '15.1'
+        if target.name.start_with?('React') ||
+           target.name == 'RCTRequired' ||
+           target.name == 'RCTTypeSafety' ||
+           target.name.start_with?('FBReact')
+          existing = config.build_settings['GCC_PREPROCESSOR_DEFINITIONS'] || ['$(inherited)']
+          existing = [existing] if existing.is_a?(String)
+          existing << 'RCT_DEV=0'
+          config.build_settings['GCC_PREPROCESSOR_DEFINITIONS'] = existing
+        end
       end
     end
   end
