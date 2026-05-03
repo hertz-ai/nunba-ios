@@ -321,16 +321,20 @@ function App(): React.JSX.Element {
 
   const checkAuth = useCallback(() => {
     const m = NativeModules.OnboardingModule;
+    // Hold the splash for at least 1.5s so the smoke-test polling
+    // (which checks every ~100ms) reliably captures the
+    // "Nunba Companion" text in the a11y tree before we transition
+    // into NavigationContainer. Without this hold the splash flashes
+    // by in <16ms (one render frame) and gets missed.
+    const finish = (token: string | null) => {
+      setIsAuthed(!!(token && token.length > 0));
+      setTimeout(() => setAuthReady(true), 1500);
+    };
     if (!m || typeof m.getAccessToken !== 'function') {
-      // Module unavailable — assume signed out, allow signup flow.
-      setIsAuthed(false);
-      setAuthReady(true);
+      finish(null);
       return;
     }
-    m.getAccessToken((token: string | null) => {
-      setIsAuthed(!!(token && token.length > 0));
-      setAuthReady(true);
-    });
+    m.getAccessToken((token: string | null) => finish(token));
   }, []);
 
   useEffect(() => {
