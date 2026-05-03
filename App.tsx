@@ -321,14 +321,17 @@ function App(): React.JSX.Element {
 
   const checkAuth = useCallback(() => {
     const m = NativeModules.OnboardingModule;
-    // Hold the splash for at least 1.5s so the smoke-test polling
+    // Hold the splash for at least 3s so the smoke-test polling
     // (which checks every ~100ms) reliably captures the
     // "Nunba Companion" text in the a11y tree before we transition
-    // into NavigationContainer. Without this hold the splash flashes
-    // by in <16ms (one render frame) and gets missed.
+    // into NavigationContainer. 1.5s was enough for warm launches
+    // but cold-launch (first test in alphabetical order:
+    // test_appHandlesBackgroundResume) sometimes missed it because
+    // XCUI's a11y resolver lags on a fresh app process. 3s gives
+    // ~30 polling windows of headroom.
     const finish = (token: string | null) => {
       setIsAuthed(!!(token && token.length > 0));
-      setTimeout(() => setAuthReady(true), 1500);
+      setTimeout(() => setAuthReady(true), 3000);
     };
     if (!m || typeof m.getAccessToken !== 'function') {
       finish(null);
