@@ -115,22 +115,50 @@ final class SmokeUITests: XCTestCase {
   /// App handles backgrounding without crashing on resume. Common
   /// regression: AppDelegate's WAMP connection or scene lifecycle
   /// fights iOS's app-lifecycle assertions.
+  ///
+  /// Flake fix (#223): the previous version used `sleep(2)` between
+  /// state transitions and asserted on `app.state` immediately
+  /// after.  On slow simulators the transition takes 3-5 s
+  /// (especially after a heavy launch with WAMP + native module
+  /// init), so the assertion fires before iOS's lifecycle queue has
+  /// processed the home-press / activate.  Now polls with a deadline
+  /// so we don't fail-fast on transient state mismatches.
   func test_appHandlesBackgroundResume() throws {
     let app = XCUIApplication()
     app.launch()
     XCTAssertTrue(waitForRootText(app, timeout: 60), "Initial render failed")
 
-    // Background
+    // Background — press home then poll for the state transition.
     XCUIDevice.shared.press(.home)
-    sleep(2)
-    XCTAssertEqual(app.state, .runningBackground,
-                   "App did not transition to background")
+    XCTAssertTrue(
+      waitForAppState(app, .runningBackground, timeout: 10),
+      "App did not transition to background within 10s of home-press")
 
-    // Resume
+    // Resume — activate then poll for the state transition.
     app.activate()
-    sleep(2)
-    XCTAssertEqual(app.state, .runningForeground,
-                   "App did not return to foreground after activate")
+    XCTAssertTrue(
+      waitForAppState(app, .runningForeground, timeout: 10),
+      "App did not return to foreground within 10s of activate")
+  }
+
+  /// Poll-with-deadline helper for XCUITest lifecycle assertions.
+  /// Returns true the moment `app.state == target`; false if the
+  /// timeout elapses without a match.  250 ms granularity balances
+  /// CPU cost against test latency — the transition typically lands
+  /// in 1-3 s on a warm simulator, 3-5 s on a cold one.
+  private func waitForAppState(
+    _ app: XCUIApplication,
+    _ target: XCUIApplication.State,
+    timeout: TimeInterval = 10
+  ) -> Bool {
+    let deadline = Date(timeIntervalSinceNow: timeout)
+    while Date() < deadline {
+      if app.state == target {
+        return true
+      }
+      Thread.sleep(forTimeInterval: 0.25)
+    }
+    return false
   }
 
   // MARK: - Helpers
@@ -140,27 +168,36 @@ final class SmokeUITests: XCTestCase {
     return "\(device.model)-iOS\(device.systemVersion)"
   }
 
-  /// Poll for "Nunba Companion" StaticText while also dismissing any
-  /// SpringBoard system alerts that pop up mid-launch (Speech
-  /// Recognition, Microphone, Notifications). UIInterruptionMonitor
-  /// is unreliable for alerts that appear DURING a wait — they
-  /// require a fresh app interaction to fire, which polling provides.
+  /// Wait for the app to be in a "rendered root" state, dismissing
+  /// any SpringBoard alerts (Speech Recognition, Microphone,
+  /// Notifications) along the way.
   ///
-  /// Returns true as soon as the text is visible OR the polling
-  /// succeeds in dismissing alerts and the text appears next tick.
+  /// Two acceptance signals — match either:
+  ///   1. The "root-loaded" accessibility identifier (rendered by
+  ///      App.tsx post-authReady, persists for the full app
+  ///      lifetime).  Stable: not bound to splash-hold timing.
+  ///   2. "Nunba Companion" StaticText (rendered during splash
+  ///      and inside the LoadingScreen).  Compatibility fallback
+  ///      for older builds prior to the root-loaded marker.
+  ///
+  /// UIInterruptionMonitor is unreliable for alerts that appear
+  /// DURING a wait — they require a fresh app interaction to fire,
+  /// which polling provides.
   private func waitForRootText(_ app: XCUIApplication, timeout: TimeInterval) -> Bool {
-    let title = app.staticTexts["Nunba Companion"].firstMatch
+    let rootMarker = app.staticTexts["root-loaded"].firstMatch
+    let splashTitle = app.staticTexts["Nunba Companion"].firstMatch
     let springboard = XCUIApplication(bundleIdentifier: "com.apple.springboard")
     let allowLabels = ["Allow", "OK", "Allow While Using App", "Allow Once"]
     let denyLabels = ["Don't Allow"]
 
     let deadline = Date(timeIntervalSinceNow: timeout)
     while Date() < deadline {
-      // Fast path: text is in the a11y tree — done. We don't gate
-      // on isHittable because it returns false when an alert is on
-      // top, which is exactly the situation we're trying to recover
-      // from in the dismiss loop below.
-      if title.exists {
+      // Fast path: either signal indicates the app has rendered
+      // its root.  We don't gate on isHittable because it returns
+      // false when an alert is on top, which is exactly the
+      // situation we're trying to recover from in the dismiss loop
+      // below.
+      if rootMarker.exists || splashTitle.exists {
         return true
       }
 
@@ -177,6 +214,6 @@ final class SmokeUITests: XCTestCase {
       Thread.sleep(forTimeInterval: 0.5)
     }
     // One last check after timeout.
-    return title.exists
+    return rootMarker.exists || splashTitle.exists
   }
 }

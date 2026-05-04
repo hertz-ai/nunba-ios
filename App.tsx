@@ -231,21 +231,34 @@ const linking: LinkingOptions<RootStackParamList> = {
 };
 
 // ─── Placeholder fallback for screens with pending native deps ───
+// User-facing copy ONLY — no internal references to PORT_MANIFEST or
+// "Phase 5".  See review-2026-05-04 § 3 CRITICAL: shipping doc-internal
+// language to end-users invites App Store rejection and looks like a
+// half-finished feature in the wild.  When the native dep lands, the
+// route swaps to the real component and this screen disappears.
+
+const PENDING_FRIENDLY_TITLES: Record<string, string> = {
+  QRScanner: 'Scan QR Code',
+  CreateMissedConnection: 'Missed Connections',
+  MissedConnectionDetail: 'Missed Connections',
+  MissedConnectionsMap: 'Encounters Map',
+};
+
+const PENDING_BLURB: Record<string, string> = {
+  QRScanner: 'QR pairing is rolling out soon. We\'re polishing the camera flow on iOS.',
+  CreateMissedConnection: 'Missed Connections are coming to iOS. We\'ll let you know the moment they\'re live.',
+  MissedConnectionDetail: 'Missed Connections are coming to iOS. We\'ll let you know the moment they\'re live.',
+  MissedConnectionsMap: 'Map view of nearby encounters is coming soon to iOS.',
+};
 
 function PendingNativeDeps({route}: any) {
+  const friendlyTitle = PENDING_FRIENDLY_TITLES[route.name] || 'Coming Soon';
+  const blurb = PENDING_BLURB[route.name] || 'This feature is on its way to iOS.';
   return (
     <SafeAreaView style={styles.root}>
       <View style={styles.center}>
-        <Text style={styles.title}>{route.name}</Text>
-        <Text style={styles.subtitle}>
-          Pending native dependency. Track in docs/PORT_MANIFEST.md
-          (Phase 5: Tier-2 native).
-        </Text>
-        <Text style={styles.hint}>
-          {route.name === 'QRScanner'
-            ? 'Needs CoreCamera / AVFoundation wrapper.'
-            : 'Needs react-native-maps + MapKit configuration.'}
-        </Text>
+        <Text style={styles.title}>{friendlyTitle}</Text>
+        <Text style={styles.subtitle}>{blurb}</Text>
       </View>
     </SafeAreaView>
   );
@@ -257,7 +270,7 @@ function LoadingScreen() {
   return (
     <View style={[styles.center, styles.root]}>
       <Text style={styles.title}>Nunba Companion</Text>
-      <ActivityIndicator color="#6B63F4" size="large" />
+      <ActivityIndicator color="#6C63FF" size="large" />
     </View>
   );
 }
@@ -321,22 +334,32 @@ function App(): React.JSX.Element {
 
   const checkAuth = useCallback(() => {
     const m = NativeModules.OnboardingModule;
-    // Hold the splash for at least 3s so the smoke-test polling
-    // (which checks every ~100ms) reliably captures the
-    // "Nunba Companion" text in the a11y tree before we transition
-    // into NavigationContainer. 1.5s was enough for warm launches
-    // but cold-launch (first test in alphabetical order:
-    // test_appHandlesBackgroundResume) sometimes missed it because
-    // XCUI's a11y resolver lags on a fresh app process. 3s gives
-    // ~30 polling windows of headroom.
+    // Splash hold tuned for awesome cold-launch UX: 1500ms is enough
+    // for the user to see the brand without feeling like the app is
+    // slow.  The smoke-test contract is now decoupled from this
+    // timing — we render a stable accessibilityIdentifier
+    // ("root-loaded") post-auth-resolution, so SmokeUITests can wait
+    // for the IDENTIFIER instead of racing the splash text.  See
+    // review-2026-05-04 § 3 CRITICAL: 1.5s → 3s in two consecutive
+    // commits chasing flake was a band-aid; the real fix is below.
+    //
+    // Auth-callback timeout: native modules can wedge on first launch
+    // (cold-start race, simulator quirks).  Without a bound, the
+    // splash hangs forever.  5 seconds is the upper bound after which
+    // we assume "no token" and proceed to SignUp screen — the user
+    // can always sign in from there.
+    let called = false;
     const finish = (token: string | null) => {
+      if (called) return;
+      called = true;
       setIsAuthed(!!(token && token.length > 0));
-      setTimeout(() => setAuthReady(true), 3000);
+      setTimeout(() => setAuthReady(true), 1500);
     };
     if (!m || typeof m.getAccessToken !== 'function') {
       finish(null);
       return;
     }
+    setTimeout(() => finish(null), 5000); // hard upper bound
     m.getAccessToken((token: string | null) => finish(token));
   }, []);
 
@@ -369,7 +392,7 @@ function App(): React.JSX.Element {
       <SafeAreaView style={styles.root}>
         <View style={[styles.center, styles.root]}>
           <Text style={styles.title}>Nunba Companion</Text>
-          <ActivityIndicator color="#6B63F4" />
+          <ActivityIndicator color="#6C63FF" />
         </View>
       </SafeAreaView>
     );
@@ -377,6 +400,17 @@ function App(): React.JSX.Element {
 
   return (
     <NavigationContainer linking={linking}>
+      {/* Stable accessibility marker for the smoke test.  Decouples
+          XCUITests from splash-hold timing: SmokeUITests.swift can
+          wait for app.staticTexts["root-loaded"] / the
+          accessibilityIdentifier="root-loaded" with no race against
+          when authReady flips.  Zero-sized so it never affects
+          layout. */}
+      <Text
+        accessibilityIdentifier="root-loaded"
+        style={{height: 0, width: 0, opacity: 0}}>
+        NunbaCompanionReady
+      </Text>
       <Stack.Navigator
         initialRouteName={isAuthed ? 'MainScreen' : 'SignUpCombined'}
         screenOptions={{
