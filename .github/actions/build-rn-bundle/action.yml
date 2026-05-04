@@ -1,0 +1,58 @@
+name: 'Build RN bundle + Hermes bytecode'
+description: >
+  Single source of truth for the JS bundle + Hermes bytecode compile
+  step.  Used by both the iPhone and iPad smoke-test jobs in
+  validate.yml — previously duplicated verbatim across the two jobs,
+  which let drift creep in (e.g. iPhone pod install used
+  --repo-update, iPad did not — copy-paste introduced a real semantic
+  difference).  Extracting this composite action collapses the two
+  copies to one.
+
+  Two-step: emit JS bundle, then compile to Hermes bytecode in place.
+  Without the bytecode step, Hermes parses raw JS at startup which on
+  a simulator with our 280-file vendored tree takes >60s and causes
+  UI smoke tests to time out at the "Connect to Metro to develop
+  JavaScript" placeholder.  hermesc replaces the JS bundle in place
+  so the .app's main.jsbundle is bytecode (Hermes loads it
+  instantly).
+
+inputs:
+  platform:
+    description: 'React Native platform target (ios / android)'
+    required: false
+    default: 'ios'
+  entry-file:
+    description: 'JS entry file for the bundle'
+    required: false
+    default: 'index.js'
+  bundle-output:
+    description: 'Path to write the JS bundle to (also where bytecode is written in place)'
+    required: false
+    default: 'ios/main.jsbundle'
+  assets-dest:
+    description: 'Path to write bundled assets to'
+    required: false
+    default: 'ios'
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Pre-bundle JS + Hermes bytecode for simulator
+      shell: bash
+      run: |
+        set -e
+        npx react-native bundle \
+          --platform ${{ inputs.platform }} \
+          --dev false \
+          --entry-file ${{ inputs.entry-file }} \
+          --bundle-output ${{ inputs.bundle-output }} \
+          --assets-dest ${{ inputs.assets-dest }}
+        HERMESC=node_modules/react-native/sdks/hermesc/osx-bin/hermesc
+        if [ -x "$HERMESC" ]; then
+          chmod +x "$HERMESC"
+          "$HERMESC" -emit-binary -out ${{ inputs.bundle-output }}.hbc ${{ inputs.bundle-output }}
+          mv ${{ inputs.bundle-output }}.hbc ${{ inputs.bundle-output }}
+          echo "Compiled to Hermes bytecode: $(file ${{ inputs.bundle-output }} | head -1)"
+        else
+          echo "::warning::hermesc not found at $HERMESC — shipping raw JS (slower startup)"
+        fi

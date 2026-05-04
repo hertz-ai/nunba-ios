@@ -254,31 +254,8 @@ jobs:
       - name: Install JS dependencies
         run: yarn install --frozen-lockfile || yarn install
 
-      - name: Pre-bundle JS + Hermes bytecode for simulator
-        # Two-step: emit JS bundle, then compile to Hermes bytecode.
-        # Without the bytecode step, Hermes parses raw JS at startup
-        # which on a simulator with our 280-file vendored tree takes
-        # >60s and causes UI smoke tests to time out at the
-        # "Connect to Metro to develop JavaScript" placeholder.
-        # hermesc replaces the JS bundle in place so the .app's
-        # main.jsbundle is bytecode (Hermes loads it instantly).
-        run: |
-          set -e
-          npx react-native bundle \
-            --platform ios \
-            --dev false \
-            --entry-file index.js \
-            --bundle-output ios/main.jsbundle \
-            --assets-dest ios
-          HERMESC=node_modules/react-native/sdks/hermesc/osx-bin/hermesc
-          if [ -x "$HERMESC" ]; then
-            chmod +x "$HERMESC"
-            "$HERMESC" -emit-binary -out ios/main.jsbundle.hbc ios/main.jsbundle
-            mv ios/main.jsbundle.hbc ios/main.jsbundle
-            echo "Compiled to Hermes bytecode: $(file ios/main.jsbundle | head -1)"
-          else
-            echo "::warning::hermesc not found at $HERMESC — shipping raw JS (slower startup)"
-          fi
+      - name: Build RN bundle + Hermes bytecode
+        uses: ./.github/actions/build-rn-bundle
 
       - name: Generate Xcode project
         working-directory: ios
@@ -558,31 +535,8 @@ jobs:
       - name: Install JS dependencies
         run: yarn install --frozen-lockfile || yarn install
 
-      - name: Pre-bundle JS + Hermes bytecode for simulator
-        # Two-step: emit JS bundle, then compile to Hermes bytecode.
-        # Without the bytecode step, Hermes parses raw JS at startup
-        # which on a simulator with our 280-file vendored tree takes
-        # >60s and causes UI smoke tests to time out at the
-        # "Connect to Metro to develop JavaScript" placeholder.
-        # hermesc replaces the JS bundle in place so the .app's
-        # main.jsbundle is bytecode (Hermes loads it instantly).
-        run: |
-          set -e
-          npx react-native bundle \
-            --platform ios \
-            --dev false \
-            --entry-file index.js \
-            --bundle-output ios/main.jsbundle \
-            --assets-dest ios
-          HERMESC=node_modules/react-native/sdks/hermesc/osx-bin/hermesc
-          if [ -x "$HERMESC" ]; then
-            chmod +x "$HERMESC"
-            "$HERMESC" -emit-binary -out ios/main.jsbundle.hbc ios/main.jsbundle
-            mv ios/main.jsbundle.hbc ios/main.jsbundle
-            echo "Compiled to Hermes bytecode: $(file ios/main.jsbundle | head -1)"
-          else
-            echo "::warning::hermesc not found at $HERMESC — shipping raw JS (slower startup)"
-          fi
+      - name: Build RN bundle + Hermes bytecode
+        uses: ./.github/actions/build-rn-bundle
 
       - name: Generate Xcode project
         working-directory: ios
