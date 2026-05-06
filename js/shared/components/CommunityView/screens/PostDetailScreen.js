@@ -24,6 +24,7 @@ import {
 } from 'react-native-responsive-screen';
 import { colors, borderRadius, shadows, fontSize, fontWeight, spacing } from '../../../theme/colors';
 import { postsApi, feedApi, shareApi } from '../../../services/socialApi';
+import MentionInput from '../../shared/MentionInput';
 
 const PostDetailScreen = () => {
   const navigation = useNavigation();
@@ -327,12 +328,15 @@ const PostDetailScreen = () => {
           </View>
         )}
         <View style={s.inputRow}>
-          <TextInput
+          <MentionInput
             style={s.textInput}
             placeholder="Add a comment..."
             placeholderTextColor={colors.textMuted}
             value={newComment}
             onChangeText={setNewComment}
+            scope={{
+              community_id: post?.community_id,
+            }}
             multiline
           />
           <TouchableOpacity

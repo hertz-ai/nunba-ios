@@ -36,6 +36,9 @@ import SearchScreen from '../screens/SearchScreen';
 import NotificationsScreen from '../screens/NotificationsScreen';
 import CommunitiesScreen from '../screens/CommunitiesScreen';
 import CommunityDetailScreen from '../screens/CommunityDetailScreen';
+import FriendsScreen from '../screens/FriendsScreen';
+import InvitesScreen from '../screens/InvitesScreen';
+import CallChannelScreen from '../screens/CallChannelScreen';
 import ProfileScreen from '../screens/ProfileScreen';
 import RecipesScreen from '../screens/RecipesScreen';
 import RecipeDetailScreen from '../screens/RecipeDetailScreen';
@@ -161,6 +164,9 @@ const HomeRoutes = () => {
       <Stack.Screen name="Notifications" component={NotificationsScreen} options={{headerShown: false}} />
       <Stack.Screen name="Communities" component={CommunitiesScreen} options={{headerShown: false}} />
       <Stack.Screen name="CommunityDetail" component={CommunityDetailScreen} options={{headerShown: false}} />
+      <Stack.Screen name="Friends" component={FriendsScreen} options={{headerShown: false}} />
+      <Stack.Screen name="Invites" component={InvitesScreen} options={{headerShown: false, presentation: 'modal'}} />
+      <Stack.Screen name="CallChannel" component={CallChannelScreen} options={{headerShown: false, presentation: 'fullScreenModal'}} />
       <Stack.Screen name="Profile" component={ProfileScreen} options={{headerShown: false, animation: 'slide_from_bottom'}} />
       <Stack.Screen name="Recipes" component={RecipesScreen} options={{headerShown: false}} />
       <Stack.Screen name="RecipeDetail" component={RecipeDetailScreen} options={{headerShown: false}} />

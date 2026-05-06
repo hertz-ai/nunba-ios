@@ -1,11 +1,27 @@
 import { NativeModules } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import endpointResolver from './endpointResolver';
 
-// Base URLs — configurable via AsyncStorage ('hevolve_api_base')
-// Default: production. Override at runtime via settings.
-// All URL vars are `let` so the async resolver can update them before first API call.
+// #263 — Deploy-mode-aware base URL resolution.
+//
+// Previously: a hardcoded `https://mailer.hertzai.com` default that
+// only got refreshed on module init from AsyncStorage.  Effect: a
+// Nunba bundled or regional user with a local HARTOS instance had
+// every social call fly past localhost to the cloud, defeating the
+// point of running HARTOS locally.
+//
+// Now: every request lazily calls `endpointResolver.getApiBaseUrl()`
+// which knows about local PeerLink peers, LAN, regional, and cloud
+// (with a 30s in-memory cache so the resolver isn't hot per-request).
+//
+// `_apiBase` is kept as a fallback for the legacy CODING/INTELLIGENCE/
+// BUILDS/IP/GOALS namespaces below — those routes don't have
+// endpointResolver-aware paths yet (they're cloud-only services in
+// the current architecture), so we keep the AsyncStorage-init
+// behavior for them unchanged.  Phase 7e-follow-up can thread
+// endpointResolver through those too once their server side gains
+// per-deploy-mode routing.
 let _apiBase = 'https://mailer.hertzai.com';
-let BASE_URL = `${_apiBase}/api/social`;
 let CODING_BASE_URL = `${_apiBase}/api/coding`;
 let INTELLIGENCE_BASE_URL = `${_apiBase}/api/v1/intelligence`;
 let BUILDS_BASE_URL = `${_apiBase}/api/v1/builds`;
@@ -17,7 +33,6 @@ let GOALS_BASE_URL = `${_apiBase}/api/goals`;
     const custom = await AsyncStorage.getItem('hevolve_api_base');
     if (custom) {
       _apiBase = custom;
-      BASE_URL = `${_apiBase}/api/social`;
       CODING_BASE_URL = `${_apiBase}/api/coding`;
       INTELLIGENCE_BASE_URL = `${_apiBase}/api/v1/intelligence`;
       BUILDS_BASE_URL = `${_apiBase}/api/v1/builds`;
@@ -26,6 +41,19 @@ let GOALS_BASE_URL = `${_apiBase}/api/goals`;
     }
   } catch (_) {}
 })();
+
+// #263 — resolve the social-API base lazily on each request.  The
+// resolver caches 30s internally so the cost is one AsyncStorage +
+// one PeerLink probe every half-minute, not per call.
+const _resolveSocialBase = async () => {
+  try {
+    const base = await endpointResolver.getApiBaseUrl();
+    if (base) return `${base}/api/social`;
+  } catch (_) {
+    // Fall through to legacy base.
+  }
+  return `${_apiBase}/api/social`;
+};
 
 const getUserId = () =>
   new Promise((resolve, reject) => {
@@ -38,7 +66,7 @@ const getUserId = () =>
     }
   });
 
-const buildUrl = (path, params, base = BASE_URL) => {
+const buildUrl = (path, params, base) => {
   let url = `${base}${path}`;
   if (params && Object.keys(params).length > 0) {
     const query = Object.keys(params)
@@ -72,15 +100,21 @@ const getHeaders = async () => {
 };
 
 const get = async (path, params) => {
-  const headers = await getHeaders();
-  const url = buildUrl(path, params);
+  const [headers, base] = await Promise.all([
+    getHeaders(),
+    _resolveSocialBase(),
+  ]);
+  const url = buildUrl(path, params, base);
   const response = await fetch(url, { method: 'GET', headers });
   return response.json();
 };
 
 const post = async (path, body) => {
-  const headers = await getHeaders();
-  const url = buildUrl(path);
+  const [headers, base] = await Promise.all([
+    getHeaders(),
+    _resolveSocialBase(),
+  ]);
+  const url = buildUrl(path, undefined, base);
   const response = await fetch(url, {
     method: 'POST',
     headers,
@@ -90,8 +124,11 @@ const post = async (path, body) => {
 };
 
 const patch = async (path, body) => {
-  const headers = await getHeaders();
-  const url = buildUrl(path);
+  const [headers, base] = await Promise.all([
+    getHeaders(),
+    _resolveSocialBase(),
+  ]);
+  const url = buildUrl(path, undefined, base);
   const response = await fetch(url, {
     method: 'PATCH',
     headers,
@@ -101,8 +138,11 @@ const patch = async (path, body) => {
 };
 
 const del = async (path) => {
-  const headers = await getHeaders();
-  const url = buildUrl(path);
+  const [headers, base] = await Promise.all([
+    getHeaders(),
+    _resolveSocialBase(),
+  ]);
+  const url = buildUrl(path, undefined, base);
   const response = await fetch(url, { method: 'DELETE', headers });
   return response.json();
 };
@@ -783,6 +823,178 @@ export const providerApi = {
     adminPost(`/providers/${providerId}/enable`, { enabled }),
   setApiKey: (providerId, apiKey) =>
     adminPost(`/providers/${providerId}/api-key`, { api_key: apiKey }),
+};
+
+// ─────────────────────────────────────────────────────────────────
+// Phase 7+ — social platform expansion (plan: sunny-gliding-eich.md)
+// All submodules below are flag-gated server-side; client calls are
+// safe to make even when the flag is off (server returns []).
+// ─────────────────────────────────────────────────────────────────
+
+// mentionsApi — used by the shared MentionInput composer.
+// Server endpoint: GET /api/social/users/autocomplete (Phase 7a.3).
+export const mentionsApi = {
+  autocomplete: (q, scope = {}) =>
+    get('/users/autocomplete', { q, ...scope }),
+  // Future endpoints (Phase 7b+):
+  // list: (params) => get('/mentions', params),
+  // markRead: (ids) => post('/mentions/read', { ids }),
+};
+
+// friendsApi — symmetric stateful friendship layer (Phase 7c.1).
+// Coexists with the existing one-direction usersApi.follow / unfollow.
+// Flag-gated server-side (friends_v2); reads return [] when off, writes
+// return 503 — so the UI can call these even before the flag is on.
+export const friendsApi = {
+  sendRequest: (target_user_id) =>
+    post('/friends/request', { target_user_id }),
+  accept: (friendship_id) =>
+    post(`/friends/request/${friendship_id}/accept`),
+  reject: (friendship_id) =>
+    post(`/friends/request/${friendship_id}/reject`),
+  cancel: (friendship_id) =>
+    post(`/friends/request/${friendship_id}/cancel`),
+  unfriend: (user_id) =>
+    post(`/friends/${user_id}/unfriend`),
+  list: (status = 'active') =>
+    get('/friends', { status }),
+  listPending: () => get('/friends', { status: 'pending' }),
+  listBlocks: () => get('/friends/blocks'),
+  block: (user_id, reason) =>
+    post(`/friends/${user_id}/block`, reason ? { reason } : undefined),
+  unblock: (user_id) => post(`/friends/${user_id}/unblock`),
+};
+
+// callsApi (Phase 7d) — voice/video/screen-share rooms.
+// Server flag-gated by `calls_v1`; off → 503.  See Plan E.4.
+//
+// Token-mode return shape:
+//   { mode: 'livekit',         url, token, metadata, expires_at }
+//   { mode: 'livekit_pending', url, token: '', reason }   ← infra not ready
+//   { mode: 'p2p_mesh',        call_id, reason }          ← flat/Nunba/regional
+export const callsApi = {
+  start: ({ parent_kind, parent_id, kind = 'voice', title, settings } = {}) =>
+    post('/calls', { parent_kind, parent_id, kind, title, settings }),
+  get: (call_id) => get(`/calls/${call_id}`),
+  token: (call_id, opts = {}) => post(`/calls/${call_id}/token`, opts),
+  join: (call_id, opts = {}) => post(`/calls/${call_id}/join`, opts),
+  leave: (call_id) => post(`/calls/${call_id}/leave`, {}),
+  end: (call_id) => post(`/calls/${call_id}/end`, {}),
+  participants: (call_id, include_left = false) =>
+    get(`/calls/${call_id}/participants`,
+        include_left ? { include_left: 'true' } : undefined),
+  addAgent: (call_id, agent_id) =>
+    post(`/calls/${call_id}/agents`, { agent_id }),
+};
+
+// agentGrantsApi (Phase 7d) — owner-issued grants for agents to join
+// communities / conversations / calls.  Plan E.4 + K.3.
+export const agentGrantsApi = {
+  create: ({ agent_id, parent_kind, parent_id, scope } = {}) =>
+    post('/agent-grants', { agent_id, parent_kind, parent_id, scope }),
+  revoke: (grant_id) => del(`/agent-grants/${grant_id}`),
+};
+
+// conversationsApi — internal DM/group chat (Phase 7c.3).
+// Distinct from channelsApi (the legacy 31-channel external adapter).
+// Flag-gated server-side (`conversations`); reads return [] when off,
+// writes return 503.
+//
+// Idempotent DM creation: passing { kind: 'dm', member_ids: [otherId] }
+// twice for the same pair returns the existing conversation row.
+//
+// Mention dispatch: messages run through MentionService server-side, so
+// @-mentioning an agent in a conversation triggers the same agentic_router
+// dispatch path post/comment mentions use (Phase 7b).
+export const conversationsApi = {
+  list: (include_archived = false, limit = 50) =>
+    get('/conversations', {
+      include_archived: include_archived ? 'true' : 'false', limit }),
+  create: ({ kind, member_ids, title } = {}) =>
+    post('/conversations', { kind, member_ids, title }),
+  get: (conv_id) => get(`/conversations/${conv_id}`),
+  messages: (conv_id, { before, limit = 50 } = {}) =>
+    get(`/conversations/${conv_id}/messages`,
+        before ? { before, limit } : { limit }),
+  send: (conv_id, content, { thread_root_id, metadata } = {}) =>
+    post(`/conversations/${conv_id}/messages`,
+         { content, thread_root_id, metadata }),
+  edit: (conv_id, message_id, content) =>
+    patch(`/conversations/${conv_id}/messages/${message_id}`, { content }),
+  delete: (conv_id, message_id) =>
+    del(`/conversations/${conv_id}/messages/${message_id}`),
+  addMember: (conv_id, user_id) =>
+    post(`/conversations/${conv_id}/members`, { user_id }),
+  removeMember: (conv_id, user_id) =>
+    del(`/conversations/${conv_id}/members/${user_id}`),
+  // Phase 7c.7 — typing + read-receipt.  Both fire WAMP broadcasts;
+  // typing is not persisted, read-receipt updates memberships row.
+  typing: (conv_id) => post(`/conversations/${conv_id}/typing`),
+  markRead: (conv_id, message_id) =>
+    post(`/conversations/${conv_id}/read-receipt`,
+         message_id ? { message_id } : {}),
+};
+
+// reactionsApi — Phase 7c.4 emoji reactions on posts/comments/messages.
+// Polymorphic: caller picks source_kind via the named method.  Toggle
+// semantics: same emoji from same user adds first call, removes second.
+// Flag-gated server-side (`reactions`); reads return [] when off.
+export const reactionsApi = {
+  // Posts
+  forPost: (post_id) => get(`/posts/${post_id}/reactions`),
+  togglePost: (post_id, emoji) =>
+    post(`/posts/${post_id}/reactions`, { emoji }),
+  removePost: (post_id, emoji) =>
+    del(`/posts/${post_id}/reactions/${encodeURIComponent(emoji)}`),
+  // Comments
+  forComment: (comment_id) => get(`/comments/${comment_id}/reactions`),
+  toggleComment: (comment_id, emoji) =>
+    post(`/comments/${comment_id}/reactions`, { emoji }),
+  removeComment: (comment_id, emoji) =>
+    del(`/comments/${comment_id}/reactions/${encodeURIComponent(emoji)}`),
+  // Messages
+  forMessage: (message_id) => get(`/messages/${message_id}/reactions`),
+  toggleMessage: (message_id, emoji) =>
+    post(`/messages/${message_id}/reactions`, { emoji }),
+  removeMessage: (message_id, emoji) =>
+    del(`/messages/${message_id}/reactions/${encodeURIComponent(emoji)}`),
+};
+
+// syncApi — Phase 7c.6 multi-device backfill.  Single endpoint;
+// caller passes the previous cursor and gets back a cursor + deltas.
+// Cold start passes since=null/empty for full backfill.  Designed to
+// be called on app launch + on WAMP "something changed" pings + as a
+// background catch-up timer.
+export const syncApi = {
+  deltas: ({ since, kinds, limit } = {}) => {
+    const params = {};
+    if (since) params.since = since;
+    if (kinds) params.kinds = Array.isArray(kinds) ? kinds.join(',') : kinds;
+    if (limit) params.limit = limit;
+    return get('/sync', Object.keys(params).length ? params : undefined);
+  },
+};
+
+// invitesApi — first-class community + conversation invites (Phase 7c.2).
+// Polymorphic: caller passes parent_kind ('community' | 'conversation')
+// and parent_id; the same endpoints handle both.  Three invite shapes:
+//   1. Targeted user — pass invitee_id
+//   2. Email invite  — pass invitee_email
+//   3. Shareable     — neither; response.invite_code becomes the URL token
+// Flag-gated server-side (invites_v2).
+export const invitesApi = {
+  send: ({ parent_kind, parent_id, invitee_id, invitee_email,
+           role_offered, expires_in_days } = {}) =>
+    post('/invites', {
+      parent_kind, parent_id, invitee_id, invitee_email,
+      role_offered, expires_in_days,
+    }),
+  accept: (invite_id) => post(`/invites/${invite_id}/accept`),
+  reject: (invite_id) => post(`/invites/${invite_id}/reject`),
+  listIncoming: (include_responded = false) =>
+    get('/invites/incoming',
+        include_responded ? { include_responded: 'true' } : undefined),
+  resolveCode: (code) => get(`/invites/code/${code}`),
 };
 
 export default encountersApi;

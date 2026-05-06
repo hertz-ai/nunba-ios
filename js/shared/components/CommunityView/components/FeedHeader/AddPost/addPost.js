@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, Image, TouchableOpacity, TextInput, NativeModules, StyleSheet, PermissionsAndroid, DeviceEventEmitter } from 'react-native';
+import MentionInput from '../../../../shared/MentionInput';
 import Icon from 'react-native-vector-icons/FontAwesome';
 import { useNavigation } from '@react-navigation/native';
 const { ActivityStarterModule, OnboardingModule } = NativeModules;
@@ -91,12 +92,13 @@ export default function addPost() {
             <View style={{ paddingHorizontal: 20, marginTop: 10, height: 250, flex: 1 }}>
                 <Image source={require('./user1.png')} style={{ height: 46, width: 46 }} />
 
-                <TextInput
+                <MentionInput
                     style={{ color: theme === 'dark' ? '#FFF' : "grey", fontSize: 18, paddingTop: 16 }}
                     placeholder="Share your thoughts?"
                     placeholderTextColor={theme === 'dark' ? '#FFF' : "grey"}
                     value={inputValue}
                     onChangeText={handleChangeText}
+                    multiline
                 />
             </View>
             {selectedImage && (

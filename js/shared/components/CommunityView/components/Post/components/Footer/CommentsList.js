@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { View, Text, TextInput, Button, RefreshControl, Animated, ScrollView, KeyboardAvoidingView, TouchableWithoutFeedback, Dimensions, StyleSheet, TouchableOpacity, Image } from 'react-native';
+import MentionInput from '../../../../../shared/MentionInput';
 import Icon from 'react-native-vector-icons/AntDesign';
 import Feather from 'react-native-vector-icons/Feather';
 import { colors } from './colors';
@@ -13,6 +14,12 @@ import {
   widthPercentageToDP as wp,
   heightPercentageToDP as hp,
 } from 'react-native-responsive-screen';
+// #262 — block flow now goes through the canonical HARTOS gateway
+// instead of the legacy direct-DB endpoint at mailer.hertzai.com.
+// Both write to the same Hevolve cloud DB; the gateway adds JWT +
+// friends_v2 flag + tenant_filter + the PeerLink trust-ratchet
+// teardown side-effect (Plan R.5).
+import { friendsApi } from '../../../../../../services/socialApi';
 const CommentsList = ({ route }) => {
   const { userData, userId, updateCommentCount } = route.params;
   const navigation = useNavigation();
@@ -196,30 +203,19 @@ const CommentsList = ({ route }) => {
 
   const blockUser = async () => {
     setIsBottomSheetOpen(false);
-
-    const url = 'https://mailer.hertzai.com/block_user';
-    const payload = {
-      user_id: userId,
-      block_user_id: selectedPost.userID,
-      type_of_activity: 'Block',
-      scope: 'Post'
-    };
-
+    const target = selectedPost?.userID;
+    if (!target) return;
     try {
-      const response = await fetch(url, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(payload)
-      });
-
-      const responseJson = await response.json();
-      console.log(responseJson, 'this id block');
-
+      // #262 — friendsApi.block hits the canonical HARTOS gateway,
+      // which tears down the PeerLink trust ratchet for the pair
+      // (Plan R.5) on top of the DB write the legacy mailer endpoint
+      // performed.  Both store to the same cloud DB.
+      await friendsApi.block(target, 'Post');
     } catch (error) {
       console.error(error);
-      Alert.alert('Error', 'Failed to block user');
+      Alert.alert(
+        'Error',
+        error?.error || error?.message || 'Failed to block user');
     }
   };
 
@@ -505,7 +501,7 @@ const CommentsList = ({ route }) => {
              source={require('./user1.png')}
            />
           </TouchableOpacity>
-          <TextInput
+          <MentionInput
             underlineColorAndroid="transparent"
             style={[styles.inputStyle, { color: theme === 'dark' ? '#FFF' : 'black' }]}
             placeholder={"Add a comment..."}

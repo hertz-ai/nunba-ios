@@ -1,7 +1,11 @@
 import { NativeModules } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import endpointResolver from './endpointResolver';
 
-// Configurable via AsyncStorage('hevolve_api_base'). Default: production.
+// #266 — Deploy-mode-aware base URL resolution.  Lazy per-request
+// via endpointResolver (PeerLink local > LAN > regional > cloud,
+// 30s in-memory cache).  Legacy AsyncStorage path preserved as
+// fallback for the rare case the resolver is unavailable.
 let CHAT_BASE_URL = 'https://mailer.hertzai.com';
 (async () => {
   try {
@@ -9,6 +13,20 @@ let CHAT_BASE_URL = 'https://mailer.hertzai.com';
     if (custom) CHAT_BASE_URL = custom;
   } catch (_) {}
 })();
+
+const _resolveChatBase = async () => {
+  try {
+    const base = await endpointResolver.getApiBaseUrl();
+    if (base) return base;
+  } catch (_) {
+    // Fall through to legacy.
+  }
+  return CHAT_BASE_URL;
+};
+
+export const setBaseUrl = (custom) => {
+  if (custom) CHAT_BASE_URL = custom;
+};
 
 const getUserId = () =>
   new Promise((resolve, reject) => {
@@ -21,8 +39,8 @@ const getUserId = () =>
     }
   });
 
-const buildUrl = (path, params) => {
-  let url = `${CHAT_BASE_URL}${path}`;
+const buildUrl = (path, params, base) => {
+  let url = `${base}${path}`;
   if (params && Object.keys(params).length > 0) {
     const query = Object.keys(params)
       .filter((k) => params[k] !== undefined && params[k] !== null)
@@ -55,15 +73,21 @@ const getHeaders = async () => {
 };
 
 const get = async (path, params) => {
-  const headers = await getHeaders();
-  const url = buildUrl(path, params);
+  const [headers, base] = await Promise.all([
+    getHeaders(),
+    _resolveChatBase(),
+  ]);
+  const url = buildUrl(path, params, base);
   const response = await fetch(url, { method: 'GET', headers });
   return response.json();
 };
 
 const post = async (path, body) => {
-  const headers = await getHeaders();
-  const url = buildUrl(path);
+  const [headers, base] = await Promise.all([
+    getHeaders(),
+    _resolveChatBase(),
+  ]);
+  const url = buildUrl(path, undefined, base);
   const response = await fetch(url, {
     method: 'POST',
     headers,

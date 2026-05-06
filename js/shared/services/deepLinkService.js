@@ -97,6 +97,14 @@ function parseLinkPath(url) {
     const inviteMatch = path.match(/^\/invite\/([A-Za-z0-9_-]+)/);
     if (inviteMatch) return { type: 'invite', code: inviteMatch[1] };
 
+    // Phase 7c.2 — community / conversation invite: /i/:code
+    // Distinct namespace from /invite/ (referrals) so the two
+    // backends never collide.  See Plan F.14 + D.10 wireframe.
+    const communityInviteMatch = path.match(/^\/i\/([A-Za-z0-9_-]+)/);
+    if (communityInviteMatch) {
+      return { type: 'community_invite', code: communityInviteMatch[1] };
+    }
+
     // Campaign: /c/:campaignId
     const campaignMatch = path.match(/^\/c\/([A-Za-z0-9_-]+)/);
     if (campaignMatch) return { type: 'campaign', campaignId: campaignMatch[1] };
@@ -121,6 +129,12 @@ function parseCustomScheme(url) {
     // hevolve://invite/:code
     const inviteMatch = url.match(/^hevolve:\/\/invite\/([A-Za-z0-9_-]+)/);
     if (inviteMatch) return { type: 'invite', code: inviteMatch[1] };
+
+    // Phase 7c.2 — hevolve://i/:code (community/conversation invite)
+    const communityInviteMatch = url.match(/^hevolve:\/\/i\/([A-Za-z0-9_-]+)/);
+    if (communityInviteMatch) {
+      return { type: 'community_invite', code: communityInviteMatch[1] };
+    }
 
     // hevolve://campaign/:id
     const campaignMatch = url.match(/^hevolve:\/\/campaign\/([A-Za-z0-9_-]+)/);
@@ -198,7 +212,10 @@ class DeepLinkService {
     if (!parsed) return null;
 
     // 3. If not authenticated, defer the link
-    if (!this._isAuthenticated && parsed.type !== 'invite') {
+    // Both 'invite' (referral) and 'community_invite' carry codes
+    // safe to capture pre-auth — apply on next signup/login.
+    const safePreAuth = parsed.type === 'invite' || parsed.type === 'community_invite';
+    if (!this._isAuthenticated && !safePreAuth) {
       await AsyncStorage.setItem(STORAGE_KEYS.DEFERRED_LINK, JSON.stringify({ url, parsed, utmData, ts: Date.now() }));
       return { deferred: true, parsed };
     }
@@ -209,12 +226,58 @@ class DeepLinkService {
         return this._handleShareLink(parsed.token, utmData);
       case 'invite':
         return this._handleInviteLink(parsed.code, utmData);
+      case 'community_invite':
+        return this._handleCommunityInviteLink(parsed.code, utmData);
       case 'campaign':
         return this._handleCampaignLink(parsed.campaignId, utmData);
       case 'resource':
         return this._handleResourceLink(parsed.resourceType, parsed.resourceId, utmData);
       default:
         return null;
+    }
+  }
+
+  /**
+   * Phase 7c.2 — community / conversation invite link handler.
+   *
+   * Resolves the invite_code via invitesApi.resolveCode, then either:
+   *   - If authenticated → navigates to the InvitesScreen with the
+   *     resolved row pre-loaded so the user can Accept / Reject.
+   *   - If unauthenticated → stores the code so signup can apply it.
+   *
+   * Different from _handleInviteLink (referrals): this targets the
+   * Phase 7c.2 InviteService backend, NOT the legacy referrals system.
+   */
+  async _handleCommunityInviteLink(code, utmData) {
+    try {
+      // Capture for deferred apply on signup, even when authenticated —
+      // mirrors the share-link consent pattern.  Storing under a
+      // distinct key so it doesn't collide with the referrals code.
+      await AsyncStorage.setItem(
+        STORAGE_KEYS.COMMUNITY_INVITE_CODE || 'community_invite_code',
+        code,
+      );
+      if (utmData) {
+        await this._trackCampaignTouch('community_invite_click', {
+          invite_code: code, ...utmData,
+        });
+      }
+      if (!this._isAuthenticated) {
+        return { type: 'community_invite', code, applied: false };
+      }
+      // Resolve to determine community vs conversation; lazy-import
+      // to keep the cold-start cost off this module's import chain.
+      const { invitesApi } = await import('./socialApi');
+      const r = await invitesApi.resolveCode(code);
+      const data = r?.data || r;
+      // Navigate to the invites screen with the resolved row.
+      return this._navigate('Invites', { resolvedInvite: data });
+    } catch (err) {
+      return {
+        error: err?.response?.status === 404
+          ? 'Invite expired or invalid'
+          : 'Failed to resolve invite',
+      };
     }
   }
 

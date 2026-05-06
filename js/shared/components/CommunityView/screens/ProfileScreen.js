@@ -11,7 +11,7 @@ import * as Animatable from 'react-native-animatable';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
 import { useNavigation, useRoute } from '@react-navigation/native';
-import { usersApi } from '../../../services/socialApi';
+import { usersApi, friendsApi } from '../../../services/socialApi';
 import ContextBridge from '../components/ContextBridge';
 import usePressAnimation from '../../../hooks/usePressAnimation';
 
@@ -82,6 +82,23 @@ const ProfileScreen = () => {
       }
     } catch {
       // silent
+    }
+  };
+
+  // Phase 7c.1 — symmetric Friendship state machine on top of the
+  // existing one-directional Follow.  Optimistic local state until a
+  // refetch on next FriendsScreen mount catches up.  Backend is
+  // flag-gated by `friends_v2` and degrades to 503 when off; the
+  // catch arm leaves the button visible so retry is one tap away.
+  const [friendRequestSent, setFriendRequestSent] = useState(false);
+  const handleSendFriendRequest = async () => {
+    try {
+      await friendsApi.sendRequest(userId);
+      setFriendRequestSent(true);
+    } catch (e) {
+      Alert.alert(
+        'Friend request failed',
+        e?.error || e?.message || 'Try again later.');
     }
   };
 
@@ -204,21 +221,57 @@ const ProfileScreen = () => {
               )}
 
               {isOwnProfile ? (
-                <TouchableOpacity style={styles.editProfileBtn} onPress={() => setEditing(true)}>
-                  <Ionicons name="create-outline" size={16} color="#00e89d" />
-                  <Text style={styles.editProfileText}>Edit Profile</Text>
-                </TouchableOpacity>
+                <View style={styles.profileActionsRow}>
+                  <TouchableOpacity style={styles.editProfileBtn} onPress={() => setEditing(true)}>
+                    <Ionicons name="create-outline" size={16} color="#00e89d" />
+                    <Text style={styles.editProfileText}>Edit Profile</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={styles.editProfileBtn}
+                    onPress={() => navigation.navigate('Friends')}
+                    accessibilityLabel="Manage friends, pending requests, and blocks"
+                  >
+                    <MaterialCommunityIcons name="account-multiple" size={16} color="#00e89d" />
+                    <Text style={styles.editProfileText}>Friends</Text>
+                  </TouchableOpacity>
+                </View>
               ) : (
-                <TouchableOpacity
-                  style={[styles.followBtn, user.is_following && styles.followingBtn]}
-                  onPress={handleFollow}
-                  onPressIn={onPressIn}
-                  onPressOut={onPressOut}
-                >
-                  <Text style={[styles.followText, user.is_following && styles.followingText]}>
-                    {user.is_following ? 'Following' : 'Follow'}
-                  </Text>
-                </TouchableOpacity>
+                <View style={styles.profileActionsRow}>
+                  <TouchableOpacity
+                    style={[styles.followBtn, user.is_following && styles.followingBtn]}
+                    onPress={handleFollow}
+                    onPressIn={onPressIn}
+                    onPressOut={onPressOut}
+                  >
+                    <Text style={[styles.followText, user.is_following && styles.followingText]}>
+                      {user.is_following ? 'Following' : 'Follow'}
+                    </Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[
+                      styles.friendBtn,
+                      friendRequestSent && styles.friendBtnPending,
+                    ]}
+                    onPress={friendRequestSent ? undefined : handleSendFriendRequest}
+                    disabled={friendRequestSent}
+                    accessibilityLabel={
+                      friendRequestSent
+                        ? 'Friend request pending'
+                        : 'Send friend request'}
+                  >
+                    <Ionicons
+                      name={friendRequestSent ? 'time-outline' : 'person-add-outline'}
+                      size={14}
+                      color={friendRequestSent ? '#888' : '#00e89d'}
+                    />
+                    <Text style={[
+                      styles.friendBtnText,
+                      friendRequestSent && styles.friendBtnPendingText,
+                    ]}>
+                      {friendRequestSent ? 'Pending' : 'Add Friend'}
+                    </Text>
+                  </TouchableOpacity>
+                </View>
               )}
             </>
           )}
@@ -311,6 +364,15 @@ const styles = StyleSheet.create({
   followingBtn: { backgroundColor: 'transparent', borderWidth: 1, borderColor: '#00e89d' },
   followText: { color: '#121212', fontWeight: '700', fontSize: wp('3.5%') },
   followingText: { color: '#00e89d' },
+  profileActionsRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  friendBtn: {
+    flexDirection: 'row', alignItems: 'center', gap: 4,
+    paddingHorizontal: wp('4%'), paddingVertical: hp('1%'), borderRadius: 20,
+    borderWidth: 1, borderColor: '#00e89d', backgroundColor: 'transparent',
+  },
+  friendBtnPending: { borderColor: '#444' },
+  friendBtnText: { color: '#00e89d', fontWeight: '600', fontSize: wp('3.2%') },
+  friendBtnPendingText: { color: '#888' },
   editSection: { width: '100%', marginTop: 8 },
   editInput: {
     backgroundColor: '#121212', borderRadius: 12, padding: wp('3%'), color: '#FFF',

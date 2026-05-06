@@ -1,10 +1,17 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Text, View, TouchableOpacity, Image, NativeModules } from 'react-native';
+import { Text, View, TouchableOpacity, Image, NativeModules, Alert } from 'react-native';
 import Icon from 'react-native-vector-icons/FontAwesome';
 import useThemeStore from '../../../../../../colorThemeZustand';
 import styles from './styles';
 import OCIcon from 'react-native-vector-icons/Octicons';
 import { useNavigation } from '@react-navigation/native';
+// #262 — Friend requests now flow through the canonical HARTOS
+// gateway (auth + flag + tenant filter + Notification fan-out)
+// instead of the legacy direct-DB endpoint at mailer.hertzai.com.
+// Both the gateway and the mailer hit the same Hevolve cloud DB,
+// so the migration is safe; we just want the JWT/flag/fan-out
+// pipeline to apply.
+import { friendsApi } from '../../../../../../services/socialApi';
 
 const Header = ({ imageUri, username, location, rating, time, post_id, postUserId, deletePost, openBottomSheet }) => {
   const { OnboardingModule } = NativeModules;
@@ -73,33 +80,20 @@ const Header = ({ imageUri, username, location, rating, time, post_id, postUserI
   };
 
 
+  // #262 — friendsApi.sendRequest goes through the HARTOS gateway:
+  // JWT auth, friends_v2 flag, tenant_filter, and Notification +
+  // WAMP fan-out all apply.  Pre-migration this hit a direct cloud-
+  // DB endpoint that bypassed all of that.  Both write to the same
+  // Hevolve cloud DB; the gateway path is the canonical one.
   const AddFriend = async () => {
-    console.log(postUserId,userId,'hello')
-    
-    const url = 'https://mailer.hertzai.com/add_friend';
-    const payload = {
-      user_id: userId,
-      friend_user_id: postUserId
-
-    };
-
+    if (!postUserId) return;
     try {
-      const response = await fetch(url, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(payload)
-      });
-
-      const responseJson = await response.json();
-      setFollowed(true)
-      console.log(responseJson, 'this id post id');
-
-
+      await friendsApi.sendRequest(postUserId);
+      setFollowed(true);
     } catch (error) {
-      console.error(error);
-      Alert.alert('Error', 'Failed to block user');
+      Alert.alert(
+        'Error',
+        error?.error || error?.message || 'Failed to send friend request');
     }
   };
 
