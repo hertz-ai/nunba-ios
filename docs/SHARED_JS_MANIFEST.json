@@ -327,9 +327,11 @@
         "SignUp/translations.js",
         "animation.js",
         "shared/LiquidOverlay.js",
+        "shared/MentionInput.js",
         "shared/NunbaKeyboard.js",
         "shared/SocialLiquidUI.js",
         "shared/TVFocusableItem.js",
+        "shared/mentionPills.js",
         "wallpaper/scrolls.js"
       ]
     },
