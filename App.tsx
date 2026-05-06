@@ -407,7 +407,7 @@ function App(): React.JSX.Element {
           when authReady flips.  Zero-sized so it never affects
           layout. */}
       <Text
-        accessibilityIdentifier="root-loaded"
+        testID="root-loaded"
         style={{height: 0, width: 0, opacity: 0}}>
         NunbaCompanionReady
       </Text>
