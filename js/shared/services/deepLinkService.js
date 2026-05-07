@@ -120,32 +120,62 @@ function parseLinkPath(url) {
 }
 
 // ── Custom Scheme Parser ──────────────────────────────────────────────────────
+// Three schemes are accepted on the receive side, matching HARTOS
+// canonical ``DEEPLINK_SCHEMES`` (core/install_links.py):
+//   - hevolveai://   canonical desktop scheme (since 2024)
+//   - nunba://       UNIF-G4 brand-canon scheme
+//   - hevolve://     legacy mobile scheme (Android + iOS native)
+// Builders below (``createReferralLink``/``createShareLink`` etc.)
+// continue to emit ``hevolve://`` URLs for backward compat with
+// already-shared links in the wild — the parser tolerates whichever
+// scheme the URL was authored under.
+const CUSTOM_SCHEMES = ['hevolveai', 'nunba', 'hevolve'];
+const CUSTOM_SCHEME_PATTERN = `(?:${CUSTOM_SCHEMES.join('|')})`;
+
+function _customSchemeRe(rest) {
+  return new RegExp(`^${CUSTOM_SCHEME_PATTERN}:\\/\\/${rest}`);
+}
+
 function parseCustomScheme(url) {
   try {
-    // hevolve://share/:token
-    const shareMatch = url.match(/^hevolve:\/\/share\/([A-Za-z0-9_-]+)/);
+    // <scheme>://share/:token
+    const shareMatch = url.match(_customSchemeRe('share\\/([A-Za-z0-9_-]+)'));
     if (shareMatch) return { type: 'share', token: shareMatch[1] };
 
-    // hevolve://invite/:code
-    const inviteMatch = url.match(/^hevolve:\/\/invite\/([A-Za-z0-9_-]+)/);
+    // <scheme>://invite/:code  (UNIF-G4 invite verb)
+    const inviteMatch = url.match(_customSchemeRe('invite\\/([A-Za-z0-9_-]+)'));
     if (inviteMatch) return { type: 'invite', code: inviteMatch[1] };
 
-    // Phase 7c.2 — hevolve://i/:code (community/conversation invite)
-    const communityInviteMatch = url.match(/^hevolve:\/\/i\/([A-Za-z0-9_-]+)/);
+    // Phase 7c.2 — <scheme>://i/:code (community/conversation invite)
+    const communityInviteMatch = url.match(_customSchemeRe('i\\/([A-Za-z0-9_-]+)'));
     if (communityInviteMatch) {
       return { type: 'community_invite', code: communityInviteMatch[1] };
     }
 
-    // hevolve://campaign/:id
-    const campaignMatch = url.match(/^hevolve:\/\/campaign\/([A-Za-z0-9_-]+)/);
+    // UNIF-G4 — <scheme>://meet/:platform/:roomId (join external room)
+    // Mobile dispatch is deferred today; the parser still recognizes
+    // the URL so it doesn't dead-letter (silent dropping is the
+    // worst kind of failure — captures via DEFERRED_LINK below).
+    const meetMatch = url.match(
+      _customSchemeRe('meet\\/([a-z_]+)\\/([A-Za-z0-9_-]+)'));
+    if (meetMatch) return { type: 'meet', platform: meetMatch[1], roomId: meetMatch[2] };
+
+    // UNIF-G4 — <scheme>://group/:platform/:groupId
+    const groupMatch = url.match(
+      _customSchemeRe('group\\/([a-z_]+)\\/([A-Za-z0-9_-]+)'));
+    if (groupMatch) return { type: 'group', platform: groupMatch[1], groupId: groupMatch[2] };
+
+    // <scheme>://campaign/:id
+    const campaignMatch = url.match(_customSchemeRe('campaign\\/([A-Za-z0-9_-]+)'));
     if (campaignMatch) return { type: 'campaign', campaignId: campaignMatch[1] };
 
-    // hevolve://channel/:channelType
-    const channelMatch = url.match(/^hevolve:\/\/channel\/([a-z_]+)/);
+    // <scheme>://channel/:channelType
+    const channelMatch = url.match(_customSchemeRe('channel\\/([a-z_]+)'));
     if (channelMatch) return { type: 'resource', resourceType: 'channel', resourceId: channelMatch[1] };
 
-    // hevolve://r/:type/:id (generic resource)
-    const resourceMatch = url.match(/^hevolve:\/\/r\/([a-z_]+)\/([A-Za-z0-9_-]+)/);
+    // <scheme>://r/:type/:id (generic resource)
+    const resourceMatch = url.match(
+      _customSchemeRe('r\\/([a-z_]+)\\/([A-Za-z0-9_-]+)'));
     if (resourceMatch) return { type: 'resource', resourceType: resourceMatch[1], resourceId: resourceMatch[2] };
 
     return null;
@@ -206,7 +236,9 @@ class DeepLinkService {
     }
 
     // 2. Parse the link
-    const isCustomScheme = url.startsWith('hevolve://');
+    // Accept all three canonical schemes (hevolveai/nunba/hevolve) —
+    // see CUSTOM_SCHEMES near parseCustomScheme for rationale.
+    const isCustomScheme = CUSTOM_SCHEMES.some((s) => url.startsWith(`${s}://`));
     const parsed = isCustomScheme ? parseCustomScheme(url) : parseLinkPath(url);
 
     if (!parsed) return null;
@@ -228,12 +260,77 @@ class DeepLinkService {
         return this._handleInviteLink(parsed.code, utmData);
       case 'community_invite':
         return this._handleCommunityInviteLink(parsed.code, utmData);
+      case 'meet':
+        return this._handleMeetLink(parsed.platform, parsed.roomId, utmData);
+      case 'group':
+        return this._handleGroupLink(parsed.platform, parsed.groupId, utmData);
       case 'campaign':
         return this._handleCampaignLink(parsed.campaignId, utmData);
       case 'resource':
         return this._handleResourceLink(parsed.resourceType, parsed.resourceId, utmData);
       default:
         return null;
+    }
+  }
+
+  /**
+   * UNIF-G4 — meet deep link handler.
+   *
+   * Today the mobile-side join flow is not yet wired (HARTOS server's
+   * Join_External_Room agent tool is desktop-first). The handler
+   * captures the (platform, roomId) pair via the existing
+   * DEFERRED_LINK + campaign-touch infrastructure so the URL is
+   * never silently dropped — when the mobile join screen ships, the
+   * deferred entry is automatically replayed by ``_processDeferredLink``.
+   */
+  async _handleMeetLink(platform, roomId, utmData) {
+    try {
+      await this._trackCampaignTouch('meet_click', {
+        platform, room_id: roomId, ...(utmData || {}),
+      });
+      await AsyncStorage.setItem(
+        STORAGE_KEYS.DEFERRED_LINK,
+        JSON.stringify({
+          url: `meet://${platform}/${roomId}`,
+          parsed: { type: 'meet', platform, roomId },
+          utmData,
+          ts: Date.now(),
+        }),
+      );
+      return {
+        type: 'meet', platform, roomId,
+        deferred: true, reason: 'mobile_join_pending',
+      };
+    } catch {
+      return { error: 'Failed to capture meet link' };
+    }
+  }
+
+  /**
+   * UNIF-G4 — group deep link handler. Same defer-and-capture pattern
+   * as ``_handleMeetLink``; replayed by ``_processDeferredLink`` when
+   * the mobile group-join screen ships.
+   */
+  async _handleGroupLink(platform, groupId, utmData) {
+    try {
+      await this._trackCampaignTouch('group_click', {
+        platform, group_id: groupId, ...(utmData || {}),
+      });
+      await AsyncStorage.setItem(
+        STORAGE_KEYS.DEFERRED_LINK,
+        JSON.stringify({
+          url: `group://${platform}/${groupId}`,
+          parsed: { type: 'group', platform, groupId },
+          utmData,
+          ts: Date.now(),
+        }),
+      );
+      return {
+        type: 'group', platform, groupId,
+        deferred: true, reason: 'mobile_join_pending',
+      };
+    } catch {
+      return { error: 'Failed to capture group link' };
     }
   }
 
@@ -594,6 +691,13 @@ class DeepLinkService {
 // Use this in NavigationContainer: <NavigationContainer linking={linkingConfig}>
 export const linkingConfig = {
   prefixes: [
+    // All three custom schemes accepted — see CUSTOM_SCHEMES /
+    // HARTOS DEEPLINK_SCHEMES. RN's React Navigation linking layer
+    // walks `prefixes` to decide whether a URL should be routed
+    // through `config.screens`; missing prefixes silently drop the
+    // URL despite the OS-level intent filter accepting it.
+    'hevolveai://',
+    'nunba://',
     'hevolve://',
     'https://hevolve.ai',
     'https://hevolve.app',

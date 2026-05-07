@@ -85,15 +85,21 @@
 	<key>CFBundleURLTypes</key>
 	<array>
 		<dict>
-			<!-- Custom URL scheme for deep links — matches Android's
-			     hevolve:// handler. Receivers in the JS layer
-			     (services/deepLinkService.js) parse the path. -->
+			<!-- Custom URL schemes — matches Android's intent filter +
+			     services/deepLinkService.js CUSTOM_SCHEMES list.  Three
+			     schemes accepted on receive (HARTOS DEEPLINK_SCHEMES
+			     in core/install_links.py is the canonical registry):
+			       - hevolveai  canonical desktop scheme (since 2024)
+			       - nunba      UNIF-G4 brand-canon scheme
+			       - hevolve    legacy mobile scheme (still used by
+			                    already-shared links in the wild) -->
 			<key>CFBundleURLName</key>
 			<string>com.hertzai.nunbacompanion</string>
 			<key>CFBundleURLSchemes</key>
 			<array>
-				<string>hevolve</string>
+				<string>hevolveai</string>
 				<string>nunba</string>
+				<string>hevolve</string>
 			</array>
 		</dict>
 	</array>
