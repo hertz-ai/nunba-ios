@@ -960,11 +960,16 @@ export const reactionsApi = {
     del(`/messages/${message_id}/reactions/${encodeURIComponent(emoji)}`),
 };
 
-// syncApi — Phase 7c.6 multi-device backfill.  Single endpoint;
-// caller passes the previous cursor and gets back a cursor + deltas.
-// Cold start passes since=null/empty for full backfill.  Designed to
-// be called on app launch + on WAMP "something changed" pings + as a
-// background catch-up timer.
+// syncApi — Phase 7c.6 multi-device backfill + 9.X backup/restore.
+// Two related concerns sharing the /sync namespace on HARTOS:
+//   1. deltas()        — cursor-paged catch-up.  Called on app launch
+//                        + WAMP "something changed" pings + a
+//                        background catch-up timer.
+//   2. backup family   — passphrase-encrypted user-data export, list,
+//                        and restore; plus paired device management
+//                        (devices linked at sign-in, unlink to revoke).
+// All routes share the JWT-bearer auth + tenant scoping in `auth.py`;
+// the backend is `integrations/social/sync_api.py` blueprint.
 export const syncApi = {
   deltas: ({ since, kinds, limit } = {}) => {
     const params = {};
@@ -973,6 +978,21 @@ export const syncApi = {
     if (limit) params.limit = limit;
     return get('/sync', Object.keys(params).length ? params : undefined);
   },
+
+  // Backup family — parity with Nunba landing-page syncApi (700-712).
+  // Encrypted server-side with the passphrase; HARTOS never stores
+  // plaintext.  `data` is a JSON object: { passphrase, ... }.
+  createBackup: (data) => post('/sync/backup', data),
+  getBackupMetadata: () => get('/sync/backup/metadata'),
+  // restore → { passphrase, backup_id }
+  restore: (data) => post('/sync/restore', data),
+
+  // Linked-device management.  `linkDevice` is normally invoked
+  // implicitly by deviceApi.linkDevice on sign-in; the explicit
+  // export is here for parity with Nunba and for testability.
+  linkDevice: (data) => post('/sync/link-device', data),
+  listDevices: () => get('/sync/devices'),
+  unlinkDevice: (id) => del(`/sync/devices/${id}`),
 };
 
 // invitesApi — first-class community + conversation invites (Phase 7c.2).

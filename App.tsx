@@ -116,6 +116,10 @@ const ConversationHistoryScreen   = lazy(() => import('./js/shared/components/Co
 
 const ProviderManagementScreen    = lazy(() => import('./js/shared/components/CommunityView/screens/ProviderManagementScreen'));
 
+// Settings parity ports (Bucket B — Nunba MUI → RN)
+const BackupSettingsScreen        = lazy(() => import('./js/shared/components/CommunityView/screens/BackupSettingsScreen'));
+const ComputeDashboardScreen      = lazy(() => import('./js/shared/components/CommunityView/screens/ComputeDashboardScreen'));
+
 // Auth flow screens (Phase 4 — initial route when no token)
 const SignUpCombined              = lazy(() => import('./js/shared/components/SignUp/SignUpCombined'));
 
@@ -189,6 +193,9 @@ type RootStackParamList = {
   ConversationHistory: undefined;
   // Admin
   ProviderManagement: undefined;
+  // Settings parity ports
+  BackupSettings: undefined;
+  ComputeDashboard: undefined;
 };
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -502,6 +509,10 @@ function App(): React.JSX.Element {
 
         {/* Admin */}
         <Stack.Screen name="ProviderManagement" component={withGuards(ProviderManagementScreen, 'ProviderManagement')} />
+
+        {/* Settings parity ports */}
+        <Stack.Screen name="BackupSettings" component={withGuards(BackupSettingsScreen, 'BackupSettings')} />
+        <Stack.Screen name="ComputeDashboard" component={withGuards(ComputeDashboardScreen, 'ComputeDashboard')} />
       </Stack.Navigator>
     </NavigationContainer>
   );
