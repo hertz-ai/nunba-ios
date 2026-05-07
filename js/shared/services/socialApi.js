@@ -1029,6 +1029,22 @@ export const mcpApi = {
   discover: (params) => get('/mcp/discover', params),
 };
 
+// --- Theme ---
+// Parity with Nunba themeApi (services/socialApi.js:763).
+// Backend: HARTOS routes/api_theme.py.  `apply` activates a preset
+// for the caller's account; `customize` accepts partial overrides;
+// `generate` runs the AI theme generator over a free-text prompt.
+export const themeApi = {
+  getPresets: () => get('/theme/presets'),
+  getActive: () => get('/theme/active'),
+  apply: (themeId) => post('/theme/apply', { theme_id: themeId }),
+  customize: (overrides) => post('/theme/customize', overrides),
+  getFonts: () => get('/theme/fonts'),
+  generate: (description, basePreset) =>
+    post('/theme/generate', { description, base_preset: basePreset }),
+  getUserTheme: (userId) => get(`/users/${userId}/theme`),
+};
+
 // --- Marketplace ---
 // Parity with Nunba marketplaceApi (services/socialApi.js:937).
 // Backend: HARTOS routes/api_marketplace.py.  `listings` accepts

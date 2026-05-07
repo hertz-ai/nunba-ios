@@ -122,6 +122,7 @@ const ComputeDashboardScreen      = lazy(() => import('./js/shared/components/Co
 const MCPToolBrowserScreen        = lazy(() => import('./js/shared/components/CommunityView/screens/MCPToolBrowserScreen'));
 const MarketplaceScreen           = lazy(() => import('./js/shared/components/CommunityView/screens/MarketplaceScreen'));
 const ActivityHubScreen           = lazy(() => import('./js/shared/components/CommunityView/screens/ActivityHubScreen'));
+const ThemeSettingsScreen         = lazy(() => import('./js/shared/components/CommunityView/screens/ThemeSettingsScreen'));
 
 // Auth flow screens (Phase 4 — initial route when no token)
 const SignUpCombined              = lazy(() => import('./js/shared/components/SignUp/SignUpCombined'));
@@ -202,6 +203,7 @@ type RootStackParamList = {
   MCPToolBrowser: undefined;
   Marketplace: undefined;
   ActivityHub: undefined;
+  ThemeSettings: undefined;
 };
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -522,6 +524,7 @@ function App(): React.JSX.Element {
         <Stack.Screen name="MCPToolBrowser" component={withGuards(MCPToolBrowserScreen, 'MCPToolBrowser')} />
         <Stack.Screen name="Marketplace" component={withGuards(MarketplaceScreen, 'Marketplace')} />
         <Stack.Screen name="ActivityHub" component={withGuards(ActivityHubScreen, 'ActivityHub')} />
+        <Stack.Screen name="ThemeSettings" component={withGuards(ThemeSettingsScreen, 'ThemeSettings')} />
       </Stack.Navigator>
     </NavigationContainer>
   );

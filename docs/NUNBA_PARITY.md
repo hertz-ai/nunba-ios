@@ -155,7 +155,7 @@ Legend: ✅ ported · 🟡 partial · ❌ missing · 🚫 out-of-scope · 🆕 N
 | QR pairing | inline | `Channels/QRPairingDisplay.js` | ✅ QRScannerScreen (scanner+display) | 🟡 placeholder (Phase 5: needs camera-kit pod) |
 | Privacy settings | `/social/settings/privacy` | `Settings/PrivacySettingsPage.jsx` | ✅ PrivacySettingsScreen | ✅ wired |
 | Backup settings | `/social/settings/backup` | `Settings/BackupSettingsPage.jsx` | ✅ BackupSettingsScreen | ✅ wired (commit 14a1c7c) |
-| Theme settings | `/social/settings/appearance` | `Settings/ThemeSettingsPage.jsx` | ❌ not in Hevolve | ❌ Android gap |
+| Theme settings | `/social/settings/appearance` | `Settings/ThemeSettingsPage.jsx` | ✅ ThemeSettingsScreen (simplified) | ✅ wired (commit 65ba2f9f) |
 
 ### Search
 
@@ -199,17 +199,18 @@ For each: documenting the Nunba file + complexity so a future port pass (Android
 | Activity Hub | `ActivityHub/ActivityHub.js` | Large | Medium | ✅ Ported 2026-05-07 (Hevolve_RN 8dde2c70). 4-section dashboard (Right Now / Play / Contribute / Grow) aggregating gamesApi + computeApi + challengesApi + resonanceApi. |
 | Compute Dashboard | `Compute/ComputeDashboardPage.js` | Large | Medium | ✅ Ported 2026-05-07 (Hevolve_RN 1f1d90d1, iOS 14a1c7c) — opt-in toggle, personal+hive impact, transparency copy. |
 | Backup Settings | `Settings/BackupSettingsPage.jsx` | Small | Low | ✅ Ported 2026-05-07 (Hevolve_RN 1f1d90d1, iOS 14a1c7c) — backup create / restore / linked-device unlink. |
-| Theme Settings | `Settings/ThemeSettingsPage.jsx` | Small | Low | 956 LOC — needs `react-colorful` (web-only) replacement + ThemeContext. Multi-day port deferred. |
+| Theme Settings | `Settings/ThemeSettingsPage.jsx` | Small | Low | ✅ Ported 2026-05-07 (Hevolve_RN 65ba2f9f) — simplified scope: 8-preset grid + AI generator + reset. Dropped per-color HexColorPicker (`react-colorful` is web-only), animation-intensity sliders, and font picker; documented in inline screen comment. |
 | Institution Signup | `pages/signuplite.js` | Small | Low | Uses deprecated `mailer.hertzai.com` (per #262 convergence — that backend is being replaced by HARTOS). Defer until B2B onboarding flow is re-designed against HARTOS auth. |
 
 **Recommendation**: when Hevolve adds any of these screens, sync them to iOS via the manifest. Until then, these are documented gaps — not bugs.
 
-**2026-05-07 progress**: Backup Settings + Compute Dashboard + MCP Tool
-Browser + Marketplace + Activity Hub all ported (5 of 8 Bucket B items
-closed in one day). Remaining three: Autopilot (836 LOC + new
-autopilotStore), Theme Settings (956 LOC + react-colorful replacement),
-Institution Signup (uses deprecated mailer.hertzai.com — defer until
-B2B onboarding is re-designed against HARTOS auth).
+**2026-05-07 progress**: 6 of 8 Bucket B items ported in one day:
+Backup Settings, Compute Dashboard, MCP Tool Browser, Marketplace,
+Activity Hub, Theme Settings (simplified). Remaining two:
+- **Autopilot**: 836-LOC screen + 701-LOC autopilotStore (1537 LOC
+  total). Multi-day port deferred.
+- **Institution Signup**: uses deprecated mailer.hertzai.com — defer
+  until B2B onboarding is re-designed against HARTOS auth.
 
 ## 🚫 Out-of-scope (deliberately not ported)
 
