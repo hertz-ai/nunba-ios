@@ -154,7 +154,7 @@ Legend: ✅ ported · 🟡 partial · ❌ missing · 🚫 out-of-scope · 🆕 N
 | Conversation history | `/social/channels/history` | `Channels/ConversationHistoryPanel.js` | ✅ ConversationHistoryScreen | ✅ wired |
 | QR pairing | inline | `Channels/QRPairingDisplay.js` | ✅ QRScannerScreen (scanner+display) | 🟡 placeholder (Phase 5: needs camera-kit pod) |
 | Privacy settings | `/social/settings/privacy` | `Settings/PrivacySettingsPage.jsx` | ✅ PrivacySettingsScreen | ✅ wired |
-| Backup settings | `/social/settings/backup` | `Settings/BackupSettingsPage.jsx` | ❌ not in Hevolve | ❌ Android gap |
+| Backup settings | `/social/settings/backup` | `Settings/BackupSettingsPage.jsx` | ✅ BackupSettingsScreen | ✅ wired (commit 14a1c7c) |
 | Theme settings | `/social/settings/appearance` | `Settings/ThemeSettingsPage.jsx` | ❌ not in Hevolve | ❌ Android gap |
 
 ### Search
@@ -197,12 +197,18 @@ For each: documenting the Nunba file + complexity so a future port pass (Android
 | MCP Tool Browser | `Tools/MCPToolBrowser.jsx` | Medium | Medium | Browse + use Model Context Protocol tools registered with HARTOS. Backend already supports — just UI port. |
 | Marketplace | `Marketplace/MarketplacePage.jsx` | Medium | Low | Agent / template marketplace. Discovery + install flow. |
 | Activity Hub | `ActivityHub/ActivityHub.js` | Large | Medium | Event feed (engagement, notifications, agent activity). Could replace/augment NotificationsScreen. |
-| Compute Dashboard | `Compute/ComputeDashboardPage.js` | Large | Medium | GPU/CPU usage, cost tracking, quotas. Touches socialApi.computeApi. |
-| Backup Settings | `Settings/BackupSettingsPage.jsx` | Small | Low | Cloud sync + scheduling. Not yet in Hevolve. |
+| Compute Dashboard | `Compute/ComputeDashboardPage.js` | Large | Medium | ✅ Ported 2026-05-07 (Hevolve_RN 1f1d90d1, iOS 14a1c7c) — opt-in toggle, personal+hive impact, transparency copy. |
+| Backup Settings | `Settings/BackupSettingsPage.jsx` | Small | Low | ✅ Ported 2026-05-07 (Hevolve_RN 1f1d90d1, iOS 14a1c7c) — backup create / restore / linked-device unlink. |
 | Theme Settings | `Settings/ThemeSettingsPage.jsx` | Small | Low | Theme picker + accent color. Not yet in Hevolve. |
 | Institution Signup | `pages/signuplite.js` | Small | Low | B2B onboarding variant. Not yet in Hevolve. |
 
 **Recommendation**: when Hevolve adds any of these screens, sync them to iOS via the manifest. Until then, these are documented gaps — not bugs.
+
+**2026-05-07 progress**: Backup Settings + Compute Dashboard ported as the first
+two Bucket B closures. The remaining six (Autopilot, MCP Tool Browser,
+Marketplace, Activity Hub, Theme Settings, Institution Signup) are 475–956 LOC
+each in Nunba and require multi-day MUI→RN translation passes — they remain
+documented gaps.
 
 ## 🚫 Out-of-scope (deliberately not ported)
 
