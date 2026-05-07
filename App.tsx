@@ -58,8 +58,14 @@ const ReportModalComment          = lazy(() => import('./js/shared/components/Co
 
 const EncountersScreen            = lazy(() => import('./js/shared/components/CommunityView/screens/EncountersScreen'));
 // Screens that import react-native-maps — placeholder until Phase 5 (tier-2 native).
-// const CreateMissedConnectionScreen = lazy(() => import('./js/shared/components/CommunityView/screens/CreateMissedConnectionScreen'));
-// const MissedConnectionDetailScreen = lazy(() => import('./js/shared/components/CommunityView/screens/MissedConnectionDetailScreen'));
+// CreateMissedConnection + MissedConnectionDetail now probe react-native-maps
+// at module load and gracefully fall back to a passive lat/lon placeholder
+// when the iOS pod isn't installed.  Safe to wire even in early preview
+// builds; the maps preview activates automatically when the pod is added.
+const CreateMissedConnectionScreen = lazy(() => import('./js/shared/components/CommunityView/screens/CreateMissedConnectionScreen'));
+const MissedConnectionDetailScreen = lazy(() => import('./js/shared/components/CommunityView/screens/MissedConnectionDetailScreen'));
+// MissedConnectionsMapScreen is the entire screen-as-a-map — no useful
+// fallback, kept on PendingNativeDeps until the pod is available.
 // const MissedConnectionsMapScreen   = lazy(() => import('./js/shared/components/CommunityView/screens/MissedConnectionsMapScreen'));
 
 const ResonanceDashboardScreen    = lazy(() => import('./js/shared/components/CommunityView/screens/ResonanceDashboardScreen'));
@@ -111,7 +117,10 @@ const AllFeaturesScreen           = lazy(() => import('./js/shared/components/Co
 
 const ChannelBindingsScreen       = lazy(() => import('./js/shared/components/CommunityView/screens/ChannelBindingsScreen'));
 const ChannelSetupScreen          = lazy(() => import('./js/shared/components/CommunityView/screens/ChannelSetupScreen'));
-// const QRScannerScreen          = lazy(() => import('./js/shared/components/CommunityView/screens/QRScannerScreen'));  // needs camera-kit, Phase 5
+// QRScannerScreen has built-in try/require fallback to manual-code entry
+// when react-native-camera-kit isn't installed — safe to wire on iOS even
+// before the pod is added (the camera UI just doesn't render).
+const QRScannerScreen             = lazy(() => import('./js/shared/components/CommunityView/screens/QRScannerScreen'));
 const ConversationHistoryScreen   = lazy(() => import('./js/shared/components/CommunityView/screens/ConversationHistoryScreen'));
 
 const ProviderManagementScreen    = lazy(() => import('./js/shared/components/CommunityView/screens/ProviderManagementScreen'));
@@ -123,6 +132,8 @@ const MCPToolBrowserScreen        = lazy(() => import('./js/shared/components/Co
 const MarketplaceScreen           = lazy(() => import('./js/shared/components/CommunityView/screens/MarketplaceScreen'));
 const ActivityHubScreen           = lazy(() => import('./js/shared/components/CommunityView/screens/ActivityHubScreen'));
 const ThemeSettingsScreen         = lazy(() => import('./js/shared/components/CommunityView/screens/ThemeSettingsScreen'));
+const AutopilotScreen             = lazy(() => import('./js/shared/components/CommunityView/screens/AutopilotScreen'));
+const InstitutionSignupScreen     = lazy(() => import('./js/shared/components/CommunityView/screens/InstitutionSignupScreen'));
 
 // Auth flow screens (Phase 4 — initial route when no token)
 const SignUpCombined              = lazy(() => import('./js/shared/components/SignUp/SignUpCombined'));
@@ -204,6 +215,8 @@ type RootStackParamList = {
   Marketplace: undefined;
   ActivityHub: undefined;
   ThemeSettings: undefined;
+  Autopilot: undefined;
+  InstitutionSignup: undefined;
 };
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -454,8 +467,8 @@ function App(): React.JSX.Element {
 
         {/* Encounters */}
         <Stack.Screen name="Encounters" component={withGuards(EncountersScreen, 'Encounters')} options={{animation: 'fade'}} />
-        <Stack.Screen name="CreateMissedConnection" component={PendingNativeDeps} />
-        <Stack.Screen name="MissedConnectionDetail" component={PendingNativeDeps} />
+        <Stack.Screen name="CreateMissedConnection" component={withGuards(CreateMissedConnectionScreen, 'CreateMissedConnection')} />
+        <Stack.Screen name="MissedConnectionDetail" component={withGuards(MissedConnectionDetailScreen, 'MissedConnectionDetail')} />
         <Stack.Screen name="MissedConnectionsMap" component={PendingNativeDeps} />
 
         {/* Gamification */}
@@ -512,7 +525,7 @@ function App(): React.JSX.Element {
         {/* Channels */}
         <Stack.Screen name="ChannelBindings" component={withGuards(ChannelBindingsScreen, 'ChannelBindings')} />
         <Stack.Screen name="ChannelSetup" component={withGuards(ChannelSetupScreen, 'ChannelSetup')} />
-        <Stack.Screen name="QRScanner" component={PendingNativeDeps} />
+        <Stack.Screen name="QRScanner" component={withGuards(QRScannerScreen, 'QRScanner')} />
         <Stack.Screen name="ConversationHistory" component={withGuards(ConversationHistoryScreen, 'ConversationHistory')} />
 
         {/* Admin */}
@@ -525,6 +538,8 @@ function App(): React.JSX.Element {
         <Stack.Screen name="Marketplace" component={withGuards(MarketplaceScreen, 'Marketplace')} />
         <Stack.Screen name="ActivityHub" component={withGuards(ActivityHubScreen, 'ActivityHub')} />
         <Stack.Screen name="ThemeSettings" component={withGuards(ThemeSettingsScreen, 'ThemeSettings')} />
+        <Stack.Screen name="Autopilot" component={withGuards(AutopilotScreen, 'Autopilot')} />
+        <Stack.Screen name="InstitutionSignup" component={withGuards(InstitutionSignupScreen, 'InstitutionSignup')} options={{presentation: 'modal'}} />
       </Stack.Navigator>
     </NavigationContainer>
   );

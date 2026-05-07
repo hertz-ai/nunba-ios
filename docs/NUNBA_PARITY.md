@@ -89,9 +89,9 @@ Legend: ✅ ported · 🟡 partial · ❌ missing · 🚫 out-of-scope · 🆕 N
 | Screen | Nunba route | Nunba file | Android RN | iOS |
 |--------|-------------|-----------|-----------|-----|
 | Encounters hub | `/social/encounters` | `Encounters/EncountersPage.js` | ✅ EncountersScreen | ✅ wired |
-| Encounter detail | `/social/encounters/:id` | `Encounters/EncounterDetailPage.js` | ✅ MissedConnectionDetailScreen | 🟡 placeholder (needs react-native-maps — Phase 5) |
-| Create missed connection | (in detail flow) | inline | ✅ CreateMissedConnectionScreen | 🟡 placeholder (Phase 5) |
-| Map view | (modal) | `MissedConnectionMapView.js` | ✅ MissedConnectionsMapScreen | 🟡 placeholder (Phase 5) |
+| Encounter detail | `/social/encounters/:id` | `Encounters/EncounterDetailPage.js` | ✅ MissedConnectionDetailScreen | ✅ wired (commit 5ce75be7 — runtime maps gating; pod-less builds show lat/lon placeholder) |
+| Create missed connection | (in detail flow) | inline | ✅ CreateMissedConnectionScreen | ✅ wired (commit 5ce75be7 — same runtime maps gating) |
+| Map view | (modal) | `MissedConnectionMapView.js` | ✅ MissedConnectionsMapScreen | 🟡 placeholder (entire screen IS the map — no useful pod-less fallback; activates when react-native-maps pod ships) |
 | Discoverable toggle | inline | `Encounters/DiscoverableTogglePanel.jsx` | ✅ component | ✅ vendored |
 | Icebreaker draft | (modal) | `Encounters/IcebreakerDraftSheet.jsx` | ✅ component | ✅ vendored |
 
@@ -152,7 +152,7 @@ Legend: ✅ ported · 🟡 partial · ❌ missing · 🚫 out-of-scope · 🆕 N
 | Channel bindings | `/social/channels` | `Channels/ChannelBindingsPage.js` | ✅ ChannelBindingsScreen | ✅ wired |
 | Channel setup | (modal in bindings) | `ChannelSetupWizard.js` | ✅ ChannelSetupScreen | ✅ wired |
 | Conversation history | `/social/channels/history` | `Channels/ConversationHistoryPanel.js` | ✅ ConversationHistoryScreen | ✅ wired |
-| QR pairing | inline | `Channels/QRPairingDisplay.js` | ✅ QRScannerScreen (scanner+display) | 🟡 placeholder (Phase 5: needs camera-kit pod) |
+| QR pairing | inline | `Channels/QRPairingDisplay.js` | ✅ QRScannerScreen (scanner+display) | ✅ wired — screen already has try/require fallback to manual code entry; activates with camera UI when react-native-camera-kit pod ships |
 | Privacy settings | `/social/settings/privacy` | `Settings/PrivacySettingsPage.jsx` | ✅ PrivacySettingsScreen | ✅ wired |
 | Backup settings | `/social/settings/backup` | `Settings/BackupSettingsPage.jsx` | ✅ BackupSettingsScreen | ✅ wired (commit 14a1c7c) |
 | Theme settings | `/social/settings/appearance` | `Settings/ThemeSettingsPage.jsx` | ✅ ThemeSettingsScreen (simplified) | ✅ wired (commit 65ba2f9f) |
@@ -193,24 +193,28 @@ For each: documenting the Nunba file + complexity so a future port pass (Android
 
 | Feature | Nunba file | Complexity | Priority | Notes |
 |---------|-----------|------------|----------|-------|
-| Autopilot | `Autopilot/AutopilotPage.jsx` | Medium | Low | Automation scheduler (rules + triggers + actions). Touches socialApi.autopilotApi. 836 LOC + autopilotStore — multi-day port deferred. |
+| Autopilot | `Autopilot/AutopilotPage.jsx` | Medium | Low | ✅ Ported 2026-05-07 (Hevolve_RN cd287632) — simplified scope: master toggle + agent mode + 6 agent toggles + 6 automations + interest chips + time-of-day suggestions + daily content. Dropped activity logging + pattern detection + dispatch chains (need backend wiring). |
 | MCP Tool Browser | `Tools/MCPToolBrowser.jsx` | Medium | Medium | ✅ Ported 2026-05-07 (Hevolve_RN 8dde2c70). Card grid + lazy tools fetch + DeviceEventEmitter `nunba:selectAgent` (RN-equivalent of web custom event). |
 | Marketplace | `Marketplace/MarketplacePage.jsx` | Medium | Low | ✅ Ported 2026-05-07 (Hevolve_RN 8dde2c70). Listings grid + 7 category tabs + debounced search + Hire button + Load-more pagination. |
 | Activity Hub | `ActivityHub/ActivityHub.js` | Large | Medium | ✅ Ported 2026-05-07 (Hevolve_RN 8dde2c70). 4-section dashboard (Right Now / Play / Contribute / Grow) aggregating gamesApi + computeApi + challengesApi + resonanceApi. |
 | Compute Dashboard | `Compute/ComputeDashboardPage.js` | Large | Medium | ✅ Ported 2026-05-07 (Hevolve_RN 1f1d90d1, iOS 14a1c7c) — opt-in toggle, personal+hive impact, transparency copy. |
 | Backup Settings | `Settings/BackupSettingsPage.jsx` | Small | Low | ✅ Ported 2026-05-07 (Hevolve_RN 1f1d90d1, iOS 14a1c7c) — backup create / restore / linked-device unlink. |
 | Theme Settings | `Settings/ThemeSettingsPage.jsx` | Small | Low | ✅ Ported 2026-05-07 (Hevolve_RN 65ba2f9f) — simplified scope: 8-preset grid + AI generator + reset. Dropped per-color HexColorPicker (`react-colorful` is web-only), animation-intensity sliders, and font picker; documented in inline screen comment. |
-| Institution Signup | `pages/signuplite.js` | Small | Low | Uses deprecated `mailer.hertzai.com` (per #262 convergence — that backend is being replaced by HARTOS). Defer until B2B onboarding flow is re-designed against HARTOS auth. |
+| Institution Signup | `pages/signuplite.js` | Small | Low | ✅ Ported 2026-05-07 (Hevolve_RN cd287632) — uses `mailerApi.{sendOtp,validateOtp,createClient}` against legacy mailer.hertzai.com. Will migrate to HARTOS auth once B2B onboarding redesign lands. |
 
 **Recommendation**: when Hevolve adds any of these screens, sync them to iOS via the manifest. Until then, these are documented gaps — not bugs.
 
-**2026-05-07 progress**: 6 of 8 Bucket B items ported in one day:
+**2026-05-07 progress**: ALL 8 of 8 Bucket B items ported in one day —
 Backup Settings, Compute Dashboard, MCP Tool Browser, Marketplace,
-Activity Hub, Theme Settings (simplified). Remaining two:
-- **Autopilot**: 836-LOC screen + 701-LOC autopilotStore (1537 LOC
-  total). Multi-day port deferred.
-- **Institution Signup**: uses deprecated mailer.hertzai.com — defer
-  until B2B onboarding is re-designed against HARTOS auth.
+Activity Hub, Theme Settings (simplified), Autopilot (simplified),
+Institution Signup. Bucket B closed.
+
+**Bucket A iOS placeholders unblocked**: 3 of 4 (MissedConnectionDetail,
+CreateMissedConnection, QRScanner) now wire to real screens with
+runtime native-pod gating — they render gracefully in pod-less iOS
+preview builds and auto-activate when the pod ships. Only the
+MissedConnectionsMap full-screen-map view remains on PendingNativeDeps
+because it has no useful fallback when MapView is unavailable.
 
 ## 🚫 Out-of-scope (deliberately not ported)
 

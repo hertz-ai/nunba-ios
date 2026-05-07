@@ -15,7 +15,25 @@ import {
   widthPercentageToDP as wp,
   heightPercentageToDP as hp,
 } from 'react-native-responsive-screen';
-import MapView, { Marker, PROVIDER_GOOGLE } from 'react-native-maps';
+// react-native-maps is autolinked when the iOS pod is installed.  On
+// builds where the native pod hasn't been added yet (early iOS preview
+// builds), the JS layer still resolves but `NativeModules.AIRMapManager`
+// is undefined.  Probing the native module first lets the screen show
+// a passive placeholder card instead of crashing on first render.  See
+// docs/NUNBA_PARITY.md "Bucket A iOS placeholders" for context.
+let MapView = null;
+let Marker = null;
+let PROVIDER_GOOGLE = null;
+try {
+  if (NativeModules.AIRMapManager || NativeModules.AIRMapModule) {
+    const Maps = require('react-native-maps');
+    MapView = Maps.default || Maps.MapView;
+    Marker = Maps.Marker;
+    PROVIDER_GOOGLE = Maps.PROVIDER_GOOGLE;
+  }
+} catch (_) {
+  // pod not installed — leave MapView null and fall through to placeholder.
+}
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import { useNavigation, useRoute } from '@react-navigation/native';
@@ -152,24 +170,40 @@ const MissedConnectionDetailScreen = () => {
       <ScrollView contentContainerStyle={styles.scrollContent}>
         {detail.lat && detail.lon && (
           <View style={styles.mapContainer}>
-            <MapView
-              provider={PROVIDER_GOOGLE}
-              style={styles.map}
-              customMapStyle={darkMapStyle}
-              initialRegion={{
-                latitude: detail.lat,
-                longitude: detail.lon,
-                latitudeDelta: 0.005,
-                longitudeDelta: 0.005,
-              }}
-              scrollEnabled={false}
-              zoomEnabled={false}
-            >
-              <Marker
-                coordinate={{ latitude: detail.lat, longitude: detail.lon }}
-                pinColor="#00e89d"
-              />
-            </MapView>
+            {MapView ? (
+              <MapView
+                provider={PROVIDER_GOOGLE}
+                style={styles.map}
+                customMapStyle={darkMapStyle}
+                initialRegion={{
+                  latitude: detail.lat,
+                  longitude: detail.lon,
+                  latitudeDelta: 0.005,
+                  longitudeDelta: 0.005,
+                }}
+                scrollEnabled={false}
+                zoomEnabled={false}
+              >
+                <Marker
+                  coordinate={{ latitude: detail.lat, longitude: detail.lon }}
+                  pinColor="#00e89d"
+                />
+              </MapView>
+            ) : (
+              <View style={[styles.map, styles.mapPlaceholder]}>
+                <MaterialIcons
+                  name="location-on"
+                  size={36}
+                  color="#00e89d"
+                />
+                <Text style={styles.mapPlaceholderText}>
+                  {detail.lat.toFixed(4)}, {detail.lon.toFixed(4)}
+                </Text>
+                <Text style={styles.mapPlaceholderHint}>
+                  Map preview requires the maps SDK.
+                </Text>
+              </View>
+            )}
           </View>
         )}
 
@@ -290,6 +324,23 @@ const styles = StyleSheet.create({
   },
   map: {
     flex: 1,
+  },
+  mapPlaceholder: {
+    backgroundColor: '#242f3e',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: wp('4%'),
+  },
+  mapPlaceholderText: {
+    color: '#FFF',
+    fontSize: wp('3.4%'),
+    fontWeight: '600',
+    marginTop: 6,
+  },
+  mapPlaceholderHint: {
+    color: 'rgba(255,255,255,0.5)',
+    fontSize: wp('2.8%'),
+    marginTop: 2,
   },
   detailCard: {
     backgroundColor: '#2a2a3e',

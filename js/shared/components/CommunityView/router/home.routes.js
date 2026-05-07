@@ -45,6 +45,8 @@ import MCPToolBrowserScreen from '../screens/MCPToolBrowserScreen';
 import MarketplaceScreen from '../screens/MarketplaceScreen';
 import ActivityHubScreen from '../screens/ActivityHubScreen';
 import ThemeSettingsScreen from '../screens/ThemeSettingsScreen';
+import AutopilotScreen from '../screens/AutopilotScreen';
+import InstitutionSignupScreen from '../screens/InstitutionSignupScreen';
 import ProfileScreen from '../screens/ProfileScreen';
 import RecipesScreen from '../screens/RecipesScreen';
 import RecipeDetailScreen from '../screens/RecipeDetailScreen';
@@ -179,6 +181,8 @@ const HomeRoutes = () => {
       <Stack.Screen name="Marketplace" component={MarketplaceScreen} options={{headerShown: false}} />
       <Stack.Screen name="ActivityHub" component={ActivityHubScreen} options={{headerShown: false}} />
       <Stack.Screen name="ThemeSettings" component={ThemeSettingsScreen} options={{headerShown: false}} />
+      <Stack.Screen name="Autopilot" component={AutopilotScreen} options={{headerShown: false}} />
+      <Stack.Screen name="InstitutionSignup" component={InstitutionSignupScreen} options={{headerShown: false, presentation: 'modal'}} />
       <Stack.Screen name="Profile" component={ProfileScreen} options={{headerShown: false, animation: 'slide_from_bottom'}} />
       <Stack.Screen name="Recipes" component={RecipesScreen} options={{headerShown: false}} />
       <Stack.Screen name="RecipeDetail" component={RecipeDetailScreen} options={{headerShown: false}} />

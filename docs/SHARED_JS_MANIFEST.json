@@ -2,14 +2,15 @@
   "$schema": "./SHARED_JS_MANIFEST.schema.json",
   "description": "Source-of-truth list of JS files vendored from Hevolve_React_Native into Nunba-Companion-iOS. Read by scripts/sync-from-android.sh. Each entry maps a source path (relative to the Android repo root) to a destination path (relative to js/shared/). Files are copied verbatim — destinations should NEVER be hand-edited.",
   "android_repo_path": "../Hevolve_React_Native",
-  "synced_at": "2026-05-07T16:00:00.000Z",
-  "synced_from_commit": "6755563d — UNIF-G5+G6 parity (meet_copilot floating + 3 cloud scopes)",
+  "synced_at": "2026-05-07T18:00:00.000Z",
+  "synced_from_commit": "cd287632 + Autopilot/InstitutionSignup parity port + map runtime gating",
   "groups": [
     {
       "name": "stores",
       "rationale": "Zustand stores. Vendored to root of js/shared/ to match the original Android repo layout — components import them via paths like \"../../../../notificationStore\". Includes deviceCapabilityStore and notificationStore which import NativeModules but those modules are already shimmed iOS-side.",
       "destination_prefix": "",
       "files": [
+        "autopilotStore.js",
         "channelStore.js",
         "colorThemeZustand.js",
         "contextAwarenessStore.js",
@@ -251,6 +252,7 @@
         "CommunityView/screens/AgentHiveScreen.js",
         "CommunityView/screens/AgentInterviewScreen.js",
         "CommunityView/screens/AllFeaturesScreen.js",
+        "CommunityView/screens/AutopilotScreen.js",
         "CommunityView/screens/BackupSettingsScreen.js",
         "CommunityView/screens/CampaignDetailScreen.js",
         "CommunityView/screens/CampaignStudioScreen.js",
@@ -272,6 +274,7 @@
         "CommunityView/screens/GameCreatorScreen.js",
         "CommunityView/screens/GameHubScreen.js",
         "CommunityView/screens/GameScreen.js",
+        "CommunityView/screens/InstitutionSignupScreen.js",
         "CommunityView/screens/KidsGameScreen.js",
         "CommunityView/screens/KidsHub/data/configs/beat_match_games.js",
         "CommunityView/screens/KidsHub/data/configs/sound_charades_games.js",

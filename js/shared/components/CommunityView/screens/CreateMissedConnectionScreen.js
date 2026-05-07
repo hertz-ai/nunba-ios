@@ -10,12 +10,28 @@ import {
   StatusBar,
   ActivityIndicator,
   Platform,
+  NativeModules,
 } from 'react-native';
 import {
   widthPercentageToDP as wp,
   heightPercentageToDP as hp,
 } from 'react-native-responsive-screen';
-import MapView, { Marker, PROVIDER_GOOGLE } from 'react-native-maps';
+// Probe react-native-maps native module before requiring (see
+// MissedConnectionDetailScreen.js for rationale).  Falls back to a
+// passive lat/lon placeholder when the iOS pod isn't installed.
+let MapView = null;
+let Marker = null;
+let PROVIDER_GOOGLE = null;
+try {
+  if (NativeModules.AIRMapManager || NativeModules.AIRMapModule) {
+    const Maps = require('react-native-maps');
+    MapView = Maps.default || Maps.MapView;
+    Marker = Maps.Marker;
+    PROVIDER_GOOGLE = Maps.PROVIDER_GOOGLE;
+  }
+} catch (_) {
+  // pod not installed — leave MapView null and fall through to placeholder.
+}
 import DateTimePicker from '@react-native-community/datetimepicker';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
@@ -127,30 +143,48 @@ const CreateMissedConnectionScreen = () => {
       >
         <Text style={styles.label}>Drop a pin where you saw them</Text>
         <View style={styles.mapContainer}>
-          <MapView
-            provider={PROVIDER_GOOGLE}
-            style={styles.map}
-            customMapStyle={darkMapStyle}
-            initialRegion={{
-              latitude: initialLat,
-              longitude: initialLon,
-              latitudeDelta: 0.01,
-              longitudeDelta: 0.01,
-            }}
-            region={{
-              latitude: markerCoord.latitude,
-              longitude: markerCoord.longitude,
-              latitudeDelta: 0.01,
-              longitudeDelta: 0.01,
-            }}
-          >
-            <Marker
-              coordinate={markerCoord}
-              draggable
-              onDragEnd={handleMarkerDrag}
-              pinColor="#00e89d"
-            />
-          </MapView>
+          {MapView ? (
+            <MapView
+              provider={PROVIDER_GOOGLE}
+              style={styles.map}
+              customMapStyle={darkMapStyle}
+              initialRegion={{
+                latitude: initialLat,
+                longitude: initialLon,
+                latitudeDelta: 0.01,
+                longitudeDelta: 0.01,
+              }}
+              region={{
+                latitude: markerCoord.latitude,
+                longitude: markerCoord.longitude,
+                latitudeDelta: 0.01,
+                longitudeDelta: 0.01,
+              }}
+            >
+              <Marker
+                coordinate={markerCoord}
+                draggable
+                onDragEnd={handleMarkerDrag}
+                pinColor="#00e89d"
+              />
+            </MapView>
+          ) : (
+            <View style={[styles.map, styles.mapPlaceholder]}>
+              <MaterialIcons
+                name="place"
+                size={36}
+                color="#00e89d"
+              />
+              <Text style={styles.mapPlaceholderText}>
+                {markerCoord.latitude.toFixed(4)},{' '}
+                {markerCoord.longitude.toFixed(4)}
+              </Text>
+              <Text style={styles.mapPlaceholderHint}>
+                Map preview requires the maps SDK. Use the Location
+                Name field below to describe where you saw them.
+              </Text>
+            </View>
+          )}
         </View>
 
         <Text style={styles.label}>Location Name</Text>
@@ -256,6 +290,24 @@ const styles = StyleSheet.create({
   },
   map: {
     flex: 1,
+  },
+  mapPlaceholder: {
+    backgroundColor: '#242f3e',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: wp('5%'),
+  },
+  mapPlaceholderText: {
+    color: '#FFF',
+    fontSize: wp('3.4%'),
+    fontWeight: '600',
+    marginTop: 6,
+  },
+  mapPlaceholderHint: {
+    color: 'rgba(255,255,255,0.5)',
+    fontSize: wp('2.8%'),
+    marginTop: 4,
+    textAlign: 'center',
   },
   dateButton: {
     flexDirection: 'row',

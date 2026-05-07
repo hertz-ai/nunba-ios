@@ -1029,6 +1029,39 @@ export const mcpApi = {
   discover: (params) => get('/mcp/discover', params),
 };
 
+// --- Mailer (legacy mailer.hertzai.com — institution signup + OTP) ---
+// Parity with Nunba mailerApi (services/socialApi.js:780).  Uses the
+// legacy `_apiBase` directly (NOT the /api/social-prefixed endpoint
+// resolver) because these routes live at the root of the mailer
+// service.  The institution / B2B onboarding flow consumes these.
+//
+// NOTE: per task #262 the social-side of mailer (add_friend /
+// block_user) has been migrated to HARTOS friendsApi.  These remaining
+// mailer endpoints (OTP, institution registration) stay on the legacy
+// service until B2B onboarding is re-designed against HARTOS auth.
+const _mailerHeaders = async () => {
+  const token = await getAccessToken().catch(() => null);
+  const h = { 'Content-Type': 'application/json' };
+  if (token) h.Authorization = `Bearer ${token}`;
+  return h;
+};
+
+const _mailerPost = async (path, body) => {
+  const headers = await _mailerHeaders();
+  const res = await fetch(`${_apiBase}${path}`, {
+    method: 'POST',
+    headers,
+    body: JSON.stringify(body),
+  });
+  return res.json();
+};
+
+export const mailerApi = {
+  sendOtp: (data) => _mailerPost('/send_otp', data),
+  validateOtp: (data) => _mailerPost('/validate_otp', data),
+  createClient: (data) => _mailerPost('/createclient', data),
+};
+
 // --- Theme ---
 // Parity with Nunba themeApi (services/socialApi.js:763).
 // Backend: HARTOS routes/api_theme.py.  `apply` activates a preset
