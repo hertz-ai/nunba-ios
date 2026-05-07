@@ -22,6 +22,10 @@
  * - agent_action: action status with icon
  * - notification: toast banner
  * - lyrics: floating lyrics display (same overlay system)
+ * - meet_copilot: live transcript card during external Discord audio /
+ *   Teams meet / WhatsApp group voice / Reddit voice room (UNIF-G5).
+ *   Renders as floating overlay so it's visible while user is in the
+ *   actual third-party app — that's the point: copilot over your call.
  */
 
 import { NativeModules, NativeEventEmitter, DeviceEventEmitter, Platform } from 'react-native';
@@ -81,6 +85,7 @@ function handleAgentUIUpdate(component) {
     'notification', 'progress', 'agent_action', 'payment_status',
     'lyrics', 'order_tracking', 'approval', 'metric', 'code',
     'markdown', 'media', 'chart', 'list',
+    'meet_copilot',  // UNIF-G5: live transcript visible during external call
   ]);
   const INLINE_TYPES = new Set([
     'product_card', 'cart', 'checkout', 'comparison', 'form',
@@ -214,6 +219,17 @@ function getComponentSummary(component) {
       return `List: ${(component.items || []).length} items`;
     case 'navigate':
       return `Navigate: ${component.title || component.target || ''}`;
+    case 'meet_copilot': {
+      // Live transcript / decisions / action items for an external
+      // room (UNIF-G5).  Summary shows last speaker + line count.
+      const lines = Array.isArray(component.transcript_lines)
+        ? component.transcript_lines : [];
+      const last = lines.length > 0 ? lines[lines.length - 1] : null;
+      const lastTxt = last
+        ? (typeof last === 'string' ? last : (last.text || ''))
+        : '';
+      return `${component.platform || 'meet'} · ${lines.length} lines${lastTxt ? ' · ' + lastTxt.slice(0, 40) : ''}`;
+    }
     default:
       return component.message || component.content || component.title || type;
   }

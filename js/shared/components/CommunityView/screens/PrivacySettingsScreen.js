@@ -70,6 +70,30 @@ const CLOUD_SCOPES = [
       'Generate icebreaker openers using a cloud LLM at central topology nodes. Drafts run locally without it.',
     requiresAge18: true,
   },
+  // ── UNIF-G6: external-room agent presence (parity with web
+  // landing-page/src/.../cloudCapabilityScopes.js).  All three
+  // honor HIVE MISSION: agent ALWAYS announces presence.
+  {
+    scope: 'agent_joins_external_room',
+    label: 'AI joins external rooms',
+    description:
+      'AI agent participates in an external room (Discord audio / Teams meet / WhatsApp group / Reddit voice / etc.) to take notes / answer / co-pilot. Always announces presence — never silent.',
+    requiresAge18: false,
+  },
+  {
+    scope: 'agent_listens_external_audio',
+    label: 'AI listens to external voice rooms',
+    description:
+      'AI agent transcribes external voice rooms into your knowledge graph. Always announces presence first.',
+    requiresAge18: false,
+  },
+  {
+    scope: 'agent_writes_external_room',
+    label: 'AI posts in external rooms on your behalf',
+    description:
+      'AI agent posts on your behalf when you ask. Each post is attributed to your agent and visible in audit log.',
+    requiresAge18: false,
+  },
 ];
 
 const formatTs = (iso) => {
