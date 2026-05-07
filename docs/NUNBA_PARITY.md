@@ -193,22 +193,23 @@ For each: documenting the Nunba file + complexity so a future port pass (Android
 
 | Feature | Nunba file | Complexity | Priority | Notes |
 |---------|-----------|------------|----------|-------|
-| Autopilot | `Autopilot/AutopilotPage.jsx` | Medium | Low | Automation scheduler (rules + triggers + actions). Touches socialApi.autopilotApi. |
-| MCP Tool Browser | `Tools/MCPToolBrowser.jsx` | Medium | Medium | Browse + use Model Context Protocol tools registered with HARTOS. Backend already supports — just UI port. |
-| Marketplace | `Marketplace/MarketplacePage.jsx` | Medium | Low | Agent / template marketplace. Discovery + install flow. |
-| Activity Hub | `ActivityHub/ActivityHub.js` | Large | Medium | Event feed (engagement, notifications, agent activity). Could replace/augment NotificationsScreen. |
+| Autopilot | `Autopilot/AutopilotPage.jsx` | Medium | Low | Automation scheduler (rules + triggers + actions). Touches socialApi.autopilotApi. 836 LOC + autopilotStore — multi-day port deferred. |
+| MCP Tool Browser | `Tools/MCPToolBrowser.jsx` | Medium | Medium | ✅ Ported 2026-05-07 (Hevolve_RN 8dde2c70). Card grid + lazy tools fetch + DeviceEventEmitter `nunba:selectAgent` (RN-equivalent of web custom event). |
+| Marketplace | `Marketplace/MarketplacePage.jsx` | Medium | Low | ✅ Ported 2026-05-07 (Hevolve_RN 8dde2c70). Listings grid + 7 category tabs + debounced search + Hire button + Load-more pagination. |
+| Activity Hub | `ActivityHub/ActivityHub.js` | Large | Medium | ✅ Ported 2026-05-07 (Hevolve_RN 8dde2c70). 4-section dashboard (Right Now / Play / Contribute / Grow) aggregating gamesApi + computeApi + challengesApi + resonanceApi. |
 | Compute Dashboard | `Compute/ComputeDashboardPage.js` | Large | Medium | ✅ Ported 2026-05-07 (Hevolve_RN 1f1d90d1, iOS 14a1c7c) — opt-in toggle, personal+hive impact, transparency copy. |
 | Backup Settings | `Settings/BackupSettingsPage.jsx` | Small | Low | ✅ Ported 2026-05-07 (Hevolve_RN 1f1d90d1, iOS 14a1c7c) — backup create / restore / linked-device unlink. |
-| Theme Settings | `Settings/ThemeSettingsPage.jsx` | Small | Low | Theme picker + accent color. Not yet in Hevolve. |
-| Institution Signup | `pages/signuplite.js` | Small | Low | B2B onboarding variant. Not yet in Hevolve. |
+| Theme Settings | `Settings/ThemeSettingsPage.jsx` | Small | Low | 956 LOC — needs `react-colorful` (web-only) replacement + ThemeContext. Multi-day port deferred. |
+| Institution Signup | `pages/signuplite.js` | Small | Low | Uses deprecated `mailer.hertzai.com` (per #262 convergence — that backend is being replaced by HARTOS). Defer until B2B onboarding flow is re-designed against HARTOS auth. |
 
 **Recommendation**: when Hevolve adds any of these screens, sync them to iOS via the manifest. Until then, these are documented gaps — not bugs.
 
-**2026-05-07 progress**: Backup Settings + Compute Dashboard ported as the first
-two Bucket B closures. The remaining six (Autopilot, MCP Tool Browser,
-Marketplace, Activity Hub, Theme Settings, Institution Signup) are 475–956 LOC
-each in Nunba and require multi-day MUI→RN translation passes — they remain
-documented gaps.
+**2026-05-07 progress**: Backup Settings + Compute Dashboard + MCP Tool
+Browser + Marketplace + Activity Hub all ported (5 of 8 Bucket B items
+closed in one day). Remaining three: Autopilot (836 LOC + new
+autopilotStore), Theme Settings (956 LOC + react-colorful replacement),
+Institution Signup (uses deprecated mailer.hertzai.com — defer until
+B2B onboarding is re-designed against HARTOS auth).
 
 ## 🚫 Out-of-scope (deliberately not ported)
 

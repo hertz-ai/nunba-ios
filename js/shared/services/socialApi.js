@@ -1017,4 +1017,32 @@ export const invitesApi = {
   resolveCode: (code) => get(`/invites/code/${code}`),
 };
 
+// --- MCP (Model Context Protocol) Server Registry ---
+// Parity with Nunba mcpApi (services/socialApi.js:871).  Backend at
+// HARTOS routes/api_mcp.py exposes server + tool listing for the
+// MCPToolBrowser screen.  `discover` walks gossiped peer servers;
+// `register` POSTs a server self-description for cataloguing.
+export const mcpApi = {
+  servers: (params) => get('/mcp/servers', params),
+  tools: (serverId) => get(`/mcp/servers/${serverId}/tools`),
+  register: (data) => post('/mcp/register', data),
+  discover: (params) => get('/mcp/discover', params),
+};
+
+// --- Marketplace ---
+// Parity with Nunba marketplaceApi (services/socialApi.js:937).
+// Backend: HARTOS routes/api_marketplace.py.  `listings` accepts
+// {limit, offset, category, q} and returns
+// {data: [...], meta: {has_more, total}}.  `hire` triggers an
+// agent-handoff event by id (server emits select-agent dispatch).
+export const marketplaceApi = {
+  listings: (params) => get('/marketplace/listings', params),
+  get: (id) => get(`/marketplace/listings/${id}`),
+  create: (data) => post('/marketplace/listings', data),
+  hire: (id, data) => post(`/marketplace/listings/${id}/hire`, data),
+  reviews: (id) => get(`/marketplace/listings/${id}/reviews`),
+  addReview: (id, data) => post(`/marketplace/listings/${id}/reviews`, data),
+  categories: () => get('/marketplace/categories'),
+};
+
 export default encountersApi;

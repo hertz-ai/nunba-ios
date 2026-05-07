@@ -119,6 +119,9 @@ const ProviderManagementScreen    = lazy(() => import('./js/shared/components/Co
 // Settings parity ports (Bucket B — Nunba MUI → RN)
 const BackupSettingsScreen        = lazy(() => import('./js/shared/components/CommunityView/screens/BackupSettingsScreen'));
 const ComputeDashboardScreen      = lazy(() => import('./js/shared/components/CommunityView/screens/ComputeDashboardScreen'));
+const MCPToolBrowserScreen        = lazy(() => import('./js/shared/components/CommunityView/screens/MCPToolBrowserScreen'));
+const MarketplaceScreen           = lazy(() => import('./js/shared/components/CommunityView/screens/MarketplaceScreen'));
+const ActivityHubScreen           = lazy(() => import('./js/shared/components/CommunityView/screens/ActivityHubScreen'));
 
 // Auth flow screens (Phase 4 — initial route when no token)
 const SignUpCombined              = lazy(() => import('./js/shared/components/SignUp/SignUpCombined'));
@@ -196,6 +199,9 @@ type RootStackParamList = {
   // Settings parity ports
   BackupSettings: undefined;
   ComputeDashboard: undefined;
+  MCPToolBrowser: undefined;
+  Marketplace: undefined;
+  ActivityHub: undefined;
 };
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -513,6 +519,9 @@ function App(): React.JSX.Element {
         {/* Settings parity ports */}
         <Stack.Screen name="BackupSettings" component={withGuards(BackupSettingsScreen, 'BackupSettings')} />
         <Stack.Screen name="ComputeDashboard" component={withGuards(ComputeDashboardScreen, 'ComputeDashboard')} />
+        <Stack.Screen name="MCPToolBrowser" component={withGuards(MCPToolBrowserScreen, 'MCPToolBrowser')} />
+        <Stack.Screen name="Marketplace" component={withGuards(MarketplaceScreen, 'Marketplace')} />
+        <Stack.Screen name="ActivityHub" component={withGuards(ActivityHubScreen, 'ActivityHub')} />
       </Stack.Navigator>
     </NavigationContainer>
   );

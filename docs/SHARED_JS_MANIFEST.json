@@ -2,8 +2,8 @@
   "$schema": "./SHARED_JS_MANIFEST.schema.json",
   "description": "Source-of-truth list of JS files vendored from Hevolve_React_Native into Nunba-Companion-iOS. Read by scripts/sync-from-android.sh. Each entry maps a source path (relative to the Android repo root) to a destination path (relative to js/shared/). Files are copied verbatim — destinations should NEVER be hand-edited.",
   "android_repo_path": "../Hevolve_React_Native",
-  "synced_at": "2026-05-07T00:00:00.000Z",
-  "synced_from_commit": "7708c126 + BackupSettings/ComputeDashboard parity port",
+  "synced_at": "2026-05-07T05:00:00.000Z",
+  "synced_from_commit": "8dde2c70 + MCPToolBrowser/Marketplace/ActivityHub parity port",
   "groups": [
     {
       "name": "stores",
@@ -243,6 +243,7 @@
         "CommunityView/data/stories.js",
         "CommunityView/router/home.routes.js",
         "CommunityView/screens/AchievementsScreen.js",
+        "CommunityView/screens/ActivityHubScreen.js",
         "CommunityView/screens/AgentDashboardScreen.js",
         "CommunityView/screens/AgentEvolutionScreen.js",
         "CommunityView/screens/AgentHiveDetailScreen.js",
@@ -287,7 +288,9 @@
         "CommunityView/screens/KidsHub/templates/WhisperShoutTemplate.js",
         "CommunityView/screens/KidsHub/templates/index.js",
         "CommunityView/screens/KidsProgressScreen.js",
+        "CommunityView/screens/MCPToolBrowserScreen.js",
         "CommunityView/screens/MainScreen/index.js",
+        "CommunityView/screens/MarketplaceScreen.js",
         "CommunityView/screens/MindstoryScreen.js",
         "CommunityView/screens/MissedConnectionDetailScreen.js",
         "CommunityView/screens/MissedConnectionsMapScreen.js",
