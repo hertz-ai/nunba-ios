@@ -865,6 +865,19 @@ export const friendsApi = {
   unblock: (user_id) => post(`/friends/${user_id}/unblock`),
 };
 
+// inboxApi — flattened cross-source inbox view layered on /sync.
+// Backed by GET /api/social/sync/inbox (additive on top of /sync; same
+// `sync_v1` flag-gate; see HARTOS commit ffe4270).  Returns:
+//   { cursor, has_more, rows: [InboxRow, ...] }
+// where InboxRow = { id, kind, parent_kind, parent_id, sender_id,
+//                    sender_kind, content_preview, is_unread,
+//                    last_activity_at, deep_link }.  Pass back the
+// returned `cursor` as `since` to fetch the next page.
+export const inboxApi = {
+  list: ({ since, limit = 50 } = {}) =>
+    get('/sync/inbox', since ? { since, limit } : { limit }),
+};
+
 // callsApi (Phase 7d) — voice/video/screen-share rooms.
 // Server flag-gated by `calls_v1`; off → 503.  See Plan E.4.
 //

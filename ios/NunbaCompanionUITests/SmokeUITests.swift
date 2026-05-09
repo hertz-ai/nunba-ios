@@ -141,6 +141,36 @@ final class SmokeUITests: XCTestCase {
       "App did not return to foreground within 10s of activate")
   }
 
+  /// Tap the "Inbox" feature pill on the home strip, confirm the inbox
+  /// renders (default header text "Inbox") and that one of the filter
+  /// chips ("All") is hittable.  Catches:
+  ///   - Inbox route not registered in App.tsx
+  ///   - InboxScreen import path drifting after a manifest sync
+  ///   - PR A primitives (FilterChips / EmptyState) failing to render
+  ///     on iOS due to a missing Animatable.View export
+  func test_navigatesToInbox_viaFeatureNavStrip() throws {
+    let app = XCUIApplication()
+    app.launch()
+    XCTAssertTrue(waitForRootText(app, timeout: 60), "Initial render failed")
+
+    let inboxPill = app.staticTexts["Inbox"].firstMatch
+    XCTAssertTrue(
+      inboxPill.waitForExistence(timeout: 30),
+      "Inbox feature pill never appeared on the home strip")
+    inboxPill.tap()
+
+    // Header title + at least one filter chip must surface within 10s.
+    let inboxHeader = app.staticTexts["Inbox"].firstMatch
+    let allChip     = app.staticTexts["All"].firstMatch
+    XCTAssertTrue(
+      inboxHeader.waitForExistence(timeout: 10),
+      "InboxScreen header didn't render after pill tap")
+    XCTAssertTrue(
+      allChip.waitForExistence(timeout: 5),
+      "FilterChips 'All' tab didn't render — PR A primitives may not " +
+      "have synced or react-native-animatable named exports broke")
+  }
+
   /// Poll-with-deadline helper for XCUITest lifecycle assertions.
   /// Returns true the moment `app.state == target`; false if the
   /// timeout elapses without a match.  250 ms granularity balances

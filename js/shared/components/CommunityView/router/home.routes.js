@@ -38,6 +38,7 @@ import CommunitiesScreen from '../screens/CommunitiesScreen';
 import CommunityDetailScreen from '../screens/CommunityDetailScreen';
 import FriendsScreen from '../screens/FriendsScreen';
 import InvitesScreen from '../screens/InvitesScreen';
+import InboxScreen from '../screens/InboxScreen';
 import CallChannelScreen from '../screens/CallChannelScreen';
 import BackupSettingsScreen from '../screens/BackupSettingsScreen';
 import ComputeDashboardScreen from '../screens/ComputeDashboardScreen';
@@ -174,6 +175,7 @@ const HomeRoutes = () => {
       <Stack.Screen name="CommunityDetail" component={CommunityDetailScreen} options={{headerShown: false}} />
       <Stack.Screen name="Friends" component={FriendsScreen} options={{headerShown: false}} />
       <Stack.Screen name="Invites" component={InvitesScreen} options={{headerShown: false, presentation: 'modal'}} />
+      <Stack.Screen name="Inbox" component={InboxScreen} options={{headerShown: false}} />
       <Stack.Screen name="CallChannel" component={CallChannelScreen} options={{headerShown: false, presentation: 'fullScreenModal'}} />
       <Stack.Screen name="BackupSettings" component={BackupSettingsScreen} options={{headerShown: false}} />
       <Stack.Screen name="ComputeDashboard" component={ComputeDashboardScreen} options={{headerShown: false}} />

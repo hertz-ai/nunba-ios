@@ -86,6 +86,7 @@ const ShareLandingScreen          = lazy(() => import('./js/shared/components/Co
 const PostDetailScreen            = lazy(() => import('./js/shared/components/CommunityView/screens/PostDetailScreen'));
 const SearchScreen                = lazy(() => import('./js/shared/components/CommunityView/screens/SearchScreen'));
 const NotificationsScreen         = lazy(() => import('./js/shared/components/CommunityView/screens/NotificationsScreen'));
+const InboxScreen                 = lazy(() => import('./js/shared/components/CommunityView/screens/InboxScreen'));
 const CommunitiesScreen           = lazy(() => import('./js/shared/components/CommunityView/screens/CommunitiesScreen'));
 const CommunityDetailScreen       = lazy(() => import('./js/shared/components/CommunityView/screens/CommunityDetailScreen'));
 const ProfileScreen               = lazy(() => import('./js/shared/components/CommunityView/screens/ProfileScreen'));
@@ -489,6 +490,7 @@ function App(): React.JSX.Element {
         <Stack.Screen name="PostDetail" component={withGuards(PostDetailScreen, 'PostDetail')} />
         <Stack.Screen name="Search" component={withGuards(SearchScreen, 'Search')} options={{animation: 'slide_from_bottom'}} />
         <Stack.Screen name="Notifications" component={withGuards(NotificationsScreen, 'Notifications')} />
+        <Stack.Screen name="Inbox" component={withGuards(InboxScreen, 'Inbox')} />
         <Stack.Screen name="Communities" component={withGuards(CommunitiesScreen, 'Communities')} />
         <Stack.Screen name="CommunityDetail" component={withGuards(CommunityDetailScreen, 'CommunityDetail')} />
         <Stack.Screen name="Profile" component={withGuards(ProfileScreen, 'Profile')} options={{animation: 'slide_from_bottom'}} />

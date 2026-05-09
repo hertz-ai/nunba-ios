@@ -309,6 +309,55 @@ export const getAgentPalette = (seed) => {
   return AVATAR_PALETTES[Math.abs(hash) % AVATAR_PALETTES.length];
 };
 
+/* ── Provenance / channel colors (UNIF-G3) ──
+ * Color codes adapter platforms by their canonical brand color so
+ * provenance chips ("via Discord", "in #cosmic-tea-club") are
+ * recognizable without text on a small screen.  Hevolve / Nunba /
+ * HevolveAI native messages use the brand accent.  Unknown platforms
+ * fall back to textMuted so a new adapter doesn't crash the renderer.
+ */
+export const PROVENANCE_COLORS = {
+  discord:    '#5865F2',
+  whatsapp:   '#25D366',
+  slack:      '#4A154B',
+  matrix:     '#0DBD8B',
+  teams:      '#6264A7',
+  telegram:   '#26A5E4',
+  email:      '#888888',
+  livekit:    '#3CB54E',
+  hevolve:    '#6C63FF',
+  nunba:      '#6C63FF',
+  hevolveai:  '#6C63FF',
+  default:    '#888888',
+};
+
+/** Resolve color for a row's `channel_type` (UNIF-G3 shape:
+ * `"platform:room_id"`).  Returns the brand muted gray when the
+ * platform isn't in the table — never throws.
+ */
+export const platformColor = (channelType) => {
+  if (!channelType || typeof channelType !== 'string') {
+    return PROVENANCE_COLORS.default;
+  }
+  const platform = channelType.split(':')[0].toLowerCase();
+  return PROVENANCE_COLORS[platform] || PROVENANCE_COLORS.default;
+};
+
+/* ── Animation timing tokens (UI kit) ──
+ * Single source of truth for cross-component motion timings so
+ * stagger / pulse / shimmer feel consistent across screens.  Values
+ * tuned for responsiveness without busy-feeling jitter on low-end
+ * Android devices.
+ */
+export const TIMINGS = {
+  staggerMs:        30,    // per-row stagger on FlatList mount
+  pulseMs:        1500,    // unread-dot pulse cycle
+  fadeMs:          300,    // mount fade-in
+  swipeThresholdPx: 80,    // distance to trigger swipe action
+  shimmerMs:      1400,    // skeleton shimmer cycle
+  longPressMs:     350,    // long-press → action sheet
+};
+
 export default {
   colors,
   spacing,
@@ -329,4 +378,7 @@ export default {
   getAgentPalette,
   intentColor,
   intentGradient,
+  PROVENANCE_COLORS,
+  platformColor,
+  TIMINGS,
 };

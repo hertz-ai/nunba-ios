@@ -2,8 +2,8 @@
   "$schema": "./SHARED_JS_MANIFEST.schema.json",
   "description": "Source-of-truth list of JS files vendored from Hevolve_React_Native into Nunba-Companion-iOS. Read by scripts/sync-from-android.sh. Each entry maps a source path (relative to the Android repo root) to a destination path (relative to js/shared/). Files are copied verbatim — destinations should NEVER be hand-edited.",
   "android_repo_path": "../Hevolve_React_Native",
-  "synced_at": "2026-05-07T18:00:00.000Z",
-  "synced_from_commit": "cd287632 + Autopilot/InstitutionSignup parity port + map runtime gating",
+  "synced_at": "2026-05-09T00:00:00.000Z",
+  "synced_from_commit": "abb6870c — PR A + B: shared UI kit (8 primitives + tokens) + flagship InboxScreen wired through home.routes + FeatureNavStrip",
   "groups": [
     {
       "name": "stores",
@@ -274,6 +274,7 @@
         "CommunityView/screens/GameCreatorScreen.js",
         "CommunityView/screens/GameHubScreen.js",
         "CommunityView/screens/GameScreen.js",
+        "CommunityView/screens/InboxScreen.js",
         "CommunityView/screens/InstitutionSignupScreen.js",
         "CommunityView/screens/KidsGameScreen.js",
         "CommunityView/screens/KidsHub/data/configs/beat_match_games.js",
@@ -336,11 +337,19 @@
         "SignUp/simple.js",
         "SignUp/translations.js",
         "animation.js",
+        "shared/ActionSheet.js",
+        "shared/AvatarBadged.js",
+        "shared/EmptyState.js",
+        "shared/FilterChips.js",
+        "shared/ListRowCard.js",
         "shared/LiquidOverlay.js",
         "shared/MentionInput.js",
         "shared/NunbaKeyboard.js",
+        "shared/ProvenanceChip.js",
+        "shared/SkeletonRow.js",
         "shared/SocialLiquidUI.js",
         "shared/TVFocusableItem.js",
+        "shared/UnreadDot.js",
         "shared/mentionPills.js",
         "wallpaper/scrolls.js"
       ]

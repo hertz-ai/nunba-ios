@@ -27,6 +27,7 @@ const ALL_FEATURES = [
   { icon: 'earth', iconType: 'community', label: 'Regions', color: '#3B82F6', screen: 'Regions' },
   { icon: 'search', iconType: 'ion', label: 'Search', color: '#CCCCCC', screen: 'Search' },
   { icon: 'notifications', iconType: 'ion', label: 'Alerts', color: '#FF6B35', screen: 'Notifications' },
+  { icon: 'inbox-multiple', iconType: 'community', label: 'Inbox', color: '#6C63FF', screen: 'Inbox' },
   { icon: 'account-group', iconType: 'community', label: 'Communities', color: '#06B6D4', screen: 'Communities' },
   { icon: 'dna', iconType: 'community', label: 'Evolution', color: '#10B981', screen: 'AgentEvolution' },
   { icon: 'account-circle', iconType: 'material', label: 'Profile', color: '#6B7280', screen: 'Profile' },
