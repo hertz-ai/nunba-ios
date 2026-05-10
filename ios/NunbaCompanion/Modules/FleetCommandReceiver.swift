@@ -43,6 +43,15 @@ final class FleetCommandDispatcher {
 
   /// All cmd_types we accept. Single source of truth for the
   /// allowlist — both Android RN and HARTOS publishers must agree.
+  ///
+  /// IMPORTANT: this allowlist is the iOS-side native filter applied
+  /// BEFORE the payload is forwarded to JS via the
+  /// FleetCommandEventEmitter.  Adding a new cmd_type to JS
+  /// `services/fleetCommandHandler.js` COMMAND_HANDLERS without also
+  /// adding it here means iOS APNs / WAMP delivery for that type
+  /// is silently dropped at the native layer.  Android FCM has no
+  /// equivalent allowlist (MyFirebaseMessagingService forwards
+  /// everything with bot_type='fleet_command').
   static let recognizedCommandTypes: Set<String> = [
     "tts_stream",
     "agent_consent",
@@ -50,6 +59,9 @@ final class FleetCommandDispatcher {
     "ui_overlay_show",
     "ui_overlay_dismiss",
     "notification_unconfirmed",
+    // Phase 7d voice/video/screen-share calls
+    "call_invite",
+    "call_ended",
   ]
 
   /// In-memory buffer of recent commands. Mirrors Android's

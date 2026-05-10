@@ -74,7 +74,13 @@ final class CallKitBridge: RCTEventEmitter, CXProviderDelegate {
     override static func requiresMainQueueSetup() -> Bool { true }
     override static func moduleName() -> String! { "CallKitBridge" }
 
-    @objc override var methodQueue: DispatchQueue { DispatchQueue.main }
+    // RCTBridgeModule declares `methodQueue` as an @optional protocol
+    // requirement (not a property on RCTEventEmitter), so Swift can't
+    // use `override` here — that would fail to compile with "method
+    // does not override any method from its superclass".  `@objc` is
+    // sufficient: the bridge factory looks up the selector at runtime
+    // via the Objective-C protocol conformance.
+    @objc var methodQueue: DispatchQueue { DispatchQueue.main }
 
     override func supportedEvents() -> [String]! {
         return [
