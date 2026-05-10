@@ -37,7 +37,9 @@
 	<key>NSCameraUsageDescription</key>
 	<string>Nunba Companion uses the camera for QR scanning and avatar creation.</string>
 	<key>NSMicrophoneUsageDescription</key>
-	<string>Nunba Companion uses the microphone for voice queries and speech-to-text.</string>
+	<string>Nunba Companion uses the microphone for voice queries, speech-to-text, and voice/video calls.</string>
+	<key>NSScreenCaptureUsageDescription</key>
+	<string>Nunba Companion shares your screen during a live call when you choose to.</string>
 	<key>NSSpeechRecognitionUsageDescription</key>
 	<string>Nunba Companion uses speech recognition to transcribe voice queries.</string>
 	<key>NSPhotoLibraryUsageDescription</key>
@@ -81,6 +83,12 @@
 		     after backgrounding. -->
 		<string>remote-notification</string>
 		<string>fetch</string>
+		<!-- Phase 7d voice/video calls — `audio` keeps the LiveKit
+		     audio session alive when the user backgrounds during a call;
+		     `voip` is required for CallKit-driven incoming-call UI to
+		     wake the app from a stopped state. -->
+		<string>audio</string>
+		<string>voip</string>
 	</array>
 	<key>CFBundleURLTypes</key>
 	<array>

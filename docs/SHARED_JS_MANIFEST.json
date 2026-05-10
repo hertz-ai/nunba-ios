@@ -2,8 +2,8 @@
   "$schema": "./SHARED_JS_MANIFEST.schema.json",
   "description": "Source-of-truth list of JS files vendored from Hevolve_React_Native into Nunba-Companion-iOS. Read by scripts/sync-from-android.sh. Each entry maps a source path (relative to the Android repo root) to a destination path (relative to js/shared/). Files are copied verbatim — destinations should NEVER be hand-edited.",
   "android_repo_path": "../Hevolve_React_Native",
-  "synced_at": "2026-05-09T00:00:00.000Z",
-  "synced_from_commit": "abb6870c — PR A + B: shared UI kit (8 primitives + tokens) + flagship InboxScreen wired through home.routes + FeatureNavStrip",
+  "synced_at": "2026-05-10T00:00:00.000Z",
+  "synced_from_commit": "9d132e18 — PR A-F: shared UI kit + flagship InboxScreen + LiveKit SDK on Android + Wear OS call surface (PR G adds iOS CallKit + screen-capture permission native side, no JS changes)",
   "groups": [
     {
       "name": "stores",
