@@ -62,9 +62,19 @@ final class CallKitBridge: RCTEventEmitter, CXProviderDelegate {
     private var hasListeners = false
 
     // MARK: - RCTEventEmitter overrides
+    //
+    // Threading: every RCT_EXTERN_METHOD (reportIncomingCall, endCall) AND
+    // every CXProviderDelegate callback runs on main.  Apple's CallKit docs
+    // require `reportNewIncomingCall` to be called on main; the delegate is
+    // set with `queue: nil` which means main per CXProvider docs.  Pinning
+    // the bridge's methodQueue to main below makes every JS->native and
+    // native->JS event in this module single-threaded — `callIdsByUuid`
+    // accesses don't need a lock.
 
     override static func requiresMainQueueSetup() -> Bool { true }
     override static func moduleName() -> String! { "CallKitBridge" }
+
+    @objc override var methodQueue: DispatchQueue { DispatchQueue.main }
 
     override func supportedEvents() -> [String]! {
         return [

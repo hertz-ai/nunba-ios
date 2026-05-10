@@ -20,3 +20,11 @@ RCT_EXTERN_METHOD(endCall:(NSString *)callKitUuid
                   rejecter:(RCTPromiseRejectBlock)rejecter)
 
 @end
+
+// methodQueue + requiresMainQueueSetup are declared in CallKitBridge.swift
+// via @objc methods.  Apple docs explicitly say
+// `CXProvider.reportNewIncomingCall(...)` must be called on main; the
+// same queue is used for the CXProviderDelegate callbacks (we pass
+// `queue: nil` to setDelegate, which means main).  Forcing both
+// surfaces to main eliminates the race on `callIdsByUuid` that would
+// otherwise need an explicit NSLock.
