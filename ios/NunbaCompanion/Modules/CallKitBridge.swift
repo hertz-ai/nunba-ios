@@ -152,6 +152,35 @@ final class CallKitBridge: RCTEventEmitter, CXProviderDelegate {
         }
     }
 
+    /// JS-friendlier counterpart to `endCall(uuid)` — looks the UUID up
+    /// from `callIdsByUuid` so callers don't have to thread UUIDs
+    /// through their state.  Resolves with `true` if a CallKit session
+    /// was found and ended; resolves with `false` (NOT rejection) when
+    /// no session matched the call_id (the user joined directly via
+    /// in-app UI without a CallKit ringer ever appearing).  CallChannelScreen
+    /// calls this on every unmount so iOS doesn't accumulate orphan
+    /// active calls in the system Phone app's recents.
+    @objc(endCallByCallId:resolver:rejecter:)
+    func endCallByCallId(
+        _ callId: String,
+        resolver: @escaping RCTPromiseResolveBlock,
+        rejecter: @escaping RCTPromiseRejectBlock
+    ) {
+        guard let pair = callIdsByUuid.first(where: { $0.value == callId }) else {
+            resolver(false)
+            return
+        }
+        let action = CXEndCallAction(call: pair.key)
+        let transaction = CXTransaction(action: action)
+        callController.request(transaction) { error in
+            if let error = error {
+                rejecter("CALLKIT_END_FAIL", error.localizedDescription, error)
+            } else {
+                resolver(true)
+            }
+        }
+    }
+
     // MARK: - CXProviderDelegate
 
     func providerDidReset(_ provider: CXProvider) {

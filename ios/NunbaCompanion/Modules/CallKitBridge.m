@@ -19,6 +19,10 @@ RCT_EXTERN_METHOD(endCall:(NSString *)callKitUuid
                   resolver:(RCTPromiseResolveBlock)resolver
                   rejecter:(RCTPromiseRejectBlock)rejecter)
 
+RCT_EXTERN_METHOD(endCallByCallId:(NSString *)callId
+                  resolver:(RCTPromiseResolveBlock)resolver
+                  rejecter:(RCTPromiseRejectBlock)rejecter)
+
 @end
 
 // methodQueue + requiresMainQueueSetup are declared in CallKitBridge.swift
