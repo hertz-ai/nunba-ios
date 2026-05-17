@@ -6,16 +6,37 @@
 //
 //  Bridges JS-side compute-policy queries to native readings:
 //
-//    getLocalStatus()           — is local LLM service running?
+//    getLocalStatus()           — is local LLM running (HTTP or in-process)
 //    checkComputeConditions()   — battery/thermal/RAM gates
+//    getModelCatalog()          — known GGUF models we know how to run
+//    getRecommendedModel()      — default for first-launch
+//    downloadModel(id)          — kick off background GGUF fetch
+//    cancelDownload()           — abort in-progress download
+//    deleteModel(id)            — wipe a cached model from disk
+//    startLocal(id)             — load model into LocalInferenceEngine
+//    stopLocal()                — unload the engine
+//    isLocalRunning()           — engine loaded OR HTTP /health is up
+//    generate(prompt,maxTokens) — single-shot inference, returns text
+//    getAvailableStorage()      — bytes free on documents volume
+//
+//  Architecture (post Hevolve→Nunba consolidation):
+//
+//    • LocalInferenceEngine.swift  — actor wrapping llama.cpp.
+//    • LlamaModelManager.swift     — GGUF download/cache manager.
+//    • This module                — RN bridge + compute-policy gates.
+//
+//  Inference runs in-process — there is no separate HTTP server like
+//  Android's LocalHttpServer.kt (yet).  ``getLocalStatus`` therefore
+//  reports the union of two signals:
+//    1. The in-process LocalInferenceEngine.shared.isLoaded.
+//    2. (Legacy) An HTTP probe to http://localhost:6777/health for
+//       dev/test setups that run a Python sidecar.
 //
 //  iOS-specific divergences from Android:
 //
-//    • There is no on-device llama.cpp service running on iOS in this
-//      build. Model management methods are stubs that return "no model
-//      installed" — they preserve the JS contract so computePolicy.js
-//      cleanly falls through to LAN/WAN/cloud tiers without crashing.
-//      A future XCFramework-wrapped llama.cpp build can fill these in.
+//    • Inference runs IN the RN process (no Python sidecar).  The
+//      JS layer's computePolicy.js doesn't need to care — same
+//      `activeModel='local'` signal either way.
 //    • Battery monitoring requires UIDevice.isBatteryMonitoringEnabled
 //      = true; we enable it on first checkComputeConditions call and
 //      leave it on (cost is negligible, ~1mAh/hr per Apple docs).
@@ -240,16 +261,26 @@ final class LocalHartosModule: NSObject {
     return Double(freeBytes) / (1024.0 * 1024.0)
   }
 
-  // MARK: — Model management stubs (no on-device LLM in this build)
+  // MARK: — Model management (backed by LocalInferenceEngine + LlamaModelManager)
+  //
+  // Replaces the previous stub block.  All methods delegate to the
+  // ported HevolveLocal scaffold (LocalInferenceEngine.swift +
+  // LlamaModelManager.swift).  Until the llama.cpp xcframework is
+  // dropped under ios/Frameworks/, ``generate`` returns a clearly-
+  // labelled placeholder string ("[NunbaLocal scaffold]…") rather
+  // than failing — same contract HevolveLocal had so end-to-end JS
+  // tests pass before the Mac-side framework build runs.
 
+  /// Catalog of GGUF models we know how to run on-device.  Currently
+  /// a single entry (Qwen3-0.8B Q4_K_M).  Shape mirrors Android's
+  /// LocalHartosModule.getModelCatalog so JS treats both platforms
+  /// identically.
   @objc(getModelCatalog:rejecter:)
   func getModelCatalog(
     _ resolve: @escaping RCTPromiseResolveBlock,
     rejecter reject: @escaping RCTPromiseRejectBlock
   ) {
-    // Empty catalog — no on-device model in this build. JS layer
-    // treats this as "no local model available" and routes to cloud.
-    resolve([])
+    resolve([ModelDescriptor.qwen3_08b_q4.toJSDict()])
   }
 
   @objc(getRecommendedModel:rejecter:)
@@ -257,7 +288,16 @@ final class LocalHartosModule: NSObject {
     _ resolve: @escaping RCTPromiseResolveBlock,
     rejecter reject: @escaping RCTPromiseRejectBlock
   ) {
-    resolve(NSNull())
+    resolve(ModelDescriptor.qwen3_08b_q4.toJSDict())
+  }
+
+  /// Resolve a model id to its descriptor.  Currently a 1-entry
+  /// lookup; will expand when the catalog grows.
+  static func descriptor(for id: String) -> ModelDescriptor? {
+    switch id {
+    case ModelDescriptor.qwen3_08b_q4.id: return .qwen3_08b_q4
+    default: return nil
+    }
   }
 
   @objc(downloadModel:resolver:rejecter:)
@@ -266,11 +306,22 @@ final class LocalHartosModule: NSObject {
     resolve: @escaping RCTPromiseResolveBlock,
     rejecter reject: @escaping RCTPromiseRejectBlock
   ) {
-    reject(
-      "LOCAL_LLM_UNAVAILABLE",
-      "On-device LLM not available in this iOS build. Use cloud tier.",
-      nil
-    )
+    guard let desc = Self.descriptor(for: modelId) else {
+      reject("UNKNOWN_MODEL", "Unknown model id: \(modelId)", nil)
+      return
+    }
+    Task { @MainActor in
+      LlamaModelManager.shared.ensureDownloaded(desc)
+      // The download runs in the background URLSession; JS polls
+      // getLocalStatus() / getModelStatus() for progress.  TODO:
+      // once an RCTEventEmitter sibling is added, push the
+      // .downloading / .ready / .failed states up as events.
+      resolve([
+        "started": true,
+        "modelId": modelId,
+        "sizeBytes": desc.sizeBytes,
+      ])
+    }
   }
 
   @objc(cancelDownload:rejecter:)
@@ -278,7 +329,10 @@ final class LocalHartosModule: NSObject {
     _ resolve: @escaping RCTPromiseResolveBlock,
     rejecter reject: @escaping RCTPromiseRejectBlock
   ) {
-    resolve(false)
+    Task { @MainActor in
+      LlamaModelManager.shared.cancel()
+      resolve(true)
+    }
   }
 
   @objc(deleteModel:resolver:rejecter:)
@@ -287,20 +341,57 @@ final class LocalHartosModule: NSObject {
     resolve: @escaping RCTPromiseResolveBlock,
     rejecter reject: @escaping RCTPromiseRejectBlock
   ) {
-    resolve(false)
+    Task { @MainActor in
+      // If the engine is currently using this model, unload first so
+      // the file is closed before we delete it (Foundation tolerates
+      // unlinking an open file on iOS, but better hygiene).
+      let info = await LocalInferenceEngine.shared.info
+      if let info, info.path.lastPathComponent.hasPrefix(modelId) {
+        await LocalInferenceEngine.shared.unload()
+      }
+      let removed = LlamaModelManager.shared.deleteCached(id: modelId)
+      resolve(removed)
+    }
   }
 
+  /// Load a model into the inference engine.  After this returns
+  /// successfully, ``isLocalRunning`` reports true and ``generate``
+  /// can be called.
   @objc(startLocal:resolver:rejecter:)
   func startLocal(
     _ modelId: String,
     resolve: @escaping RCTPromiseResolveBlock,
     rejecter reject: @escaping RCTPromiseRejectBlock
   ) {
-    reject(
-      "LOCAL_LLM_UNAVAILABLE",
-      "On-device LLM not available in this iOS build. Use cloud tier.",
-      nil
-    )
+    guard let _ = Self.descriptor(for: modelId) else {
+      reject("UNKNOWN_MODEL", "Unknown model id: \(modelId)", nil)
+      return
+    }
+    Task {
+      do {
+        let path = await MainActor.run {
+          LlamaModelManager.shared.cachedFileURL(for: modelId)
+        }
+        guard FileManager.default.fileExists(atPath: path.path) else {
+          reject(
+            "MODEL_NOT_DOWNLOADED",
+            "Model \(modelId) not downloaded; call downloadModel first.",
+            nil
+          )
+          return
+        }
+        try await LocalInferenceEngine.shared.loadModel(at: path)
+        let info = await LocalInferenceEngine.shared.info
+        resolve([
+          "loaded": true,
+          "modelId": modelId,
+          "name": info?.name ?? "",
+          "contextSize": info?.contextSize ?? 0,
+        ])
+      } catch {
+        reject("LOAD_FAILED", error.localizedDescription, error)
+      }
+    }
   }
 
   @objc(stopLocal:rejecter:)
@@ -308,16 +399,56 @@ final class LocalHartosModule: NSObject {
     _ resolve: @escaping RCTPromiseResolveBlock,
     rejecter reject: @escaping RCTPromiseRejectBlock
   ) {
-    resolve(true)
+    Task {
+      await LocalInferenceEngine.shared.unload()
+      resolve(true)
+    }
   }
 
+  /// Reports true when EITHER the in-process inference engine has a
+  /// model loaded OR a localhost:6777 HTTP server is responding
+  /// (legacy / Python-sidecar dev setups).  computePolicy.js only
+  /// cares about the union — it routes to tier 1 in either case.
   @objc(isLocalRunning:rejecter:)
   func isLocalRunning(
     _ resolve: @escaping RCTPromiseResolveBlock,
     rejecter reject: @escaping RCTPromiseRejectBlock
   ) {
-    Self.fetchHealthStatus { status in
-      resolve(status.serviceRunning)
+    Task {
+      let engineUp = await LocalInferenceEngine.shared.isLoaded
+      if engineUp {
+        resolve(true)
+        return
+      }
+      // Fall back to the legacy HTTP probe so dev setups running a
+      // Python sidecar at :6777 still report running.
+      Self.fetchHealthStatus { status in
+        resolve(status.serviceRunning)
+      }
+    }
+  }
+
+  /// Single-shot inference.  Returns ``{ text: String }`` on success.
+  /// Until the llama.cpp xcframework lands, ``text`` is a clearly-
+  /// labelled scaffold placeholder so JS end-to-end tests don't
+  /// block on the Mac-side framework build.
+  @objc(generate:maxTokens:resolver:rejecter:)
+  func generate(
+    _ prompt: String,
+    maxTokens: NSNumber,
+    resolver resolve: @escaping RCTPromiseResolveBlock,
+    rejecter reject: @escaping RCTPromiseRejectBlock
+  ) {
+    Task {
+      do {
+        let reply = try await LocalInferenceEngine.shared.generate(
+          prompt: prompt,
+          maxTokens: maxTokens.intValue
+        )
+        resolve(["text": reply])
+      } catch {
+        reject("GENERATE_FAILED", error.localizedDescription, error)
+      }
     }
   }
 

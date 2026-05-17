@@ -1,0 +1,125 @@
+name: iOS — build llama.xcframework
+
+# Builds llama.cpp as an xcframework targeting iOS (device + simulator),
+# macOS, visionOS, and tvOS.  This is the GPU-accelerated (Metal) static
+# binary the on-device LLM scaffold (Modules/LocalInferenceEngine.swift +
+# Modules/LlamaModelManager.swift) links against to run Qwen3-0.8B
+# entirely on-device — closes Privacy Gap #1 (iOS local LLM).
+#
+# Output artifact: llama-xcframework.zip — drop into ios/Frameworks/
+# and the iOS app picks it up via the Podfile addition.  The bridging
+# header (ios/NunbaCompanion/NunbaCompanion-Bridging-Header.h) imports
+# <llama/llama.h> behind a __has_include guard, so the project builds
+# both with and without the framework dropped in.
+#
+# History: ported from Hevolve_React_Native/.github/workflows/
+# ios-llama-xcframework.yml during the Hevolve→Nunba iOS
+# consolidation; the workflow body is intentionally unchanged so the
+# artifact format stays binary-compatible with any consumers that
+# already wired ``gh run download --name llama-xcframework-<sha>``
+# into their dev/CI bootstrap.
+#
+# Trigger model:
+#   - workflow_dispatch (manual): cut a fresh framework on demand
+#   - push to main affecting the on-device LLM scaffold or this workflow
+#   - weekly schedule: track upstream llama.cpp progress
+#
+# The Metal kernels and Accelerate-framework BLAS path are enabled
+# (matches llama.cpp's own build-xcframework.sh defaults — we delegate
+# to the upstream script rather than re-implement the cmake invocation
+# so we don't drift).
+
+on:
+  workflow_dispatch:
+    inputs:
+      llama_ref:
+        description: 'llama.cpp git ref (tag, branch, or sha)'
+        required: false
+        default: 'master'
+  push:
+    branches: [main]
+    paths:
+      - 'ios/NunbaCompanion/Modules/LocalInferenceEngine.swift'
+      - 'ios/NunbaCompanion/Modules/LlamaModelManager.swift'
+      - 'ios/NunbaCompanion/NunbaCompanion-Bridging-Header.h'
+      - '.github/workflows/ios-llama-xcframework.yml'
+  schedule:
+    # Sunday 03:00 UTC — pick up upstream perf/feature work weekly.
+    # Cron is best-effort on free runners; manual dispatch is the
+    # authoritative path.
+    - cron: '0 3 * * 0'
+
+jobs:
+  build:
+    name: Build llama.xcframework on macos-latest
+    runs-on: macos-latest
+    timeout-minutes: 60
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Resolve llama.cpp ref
+        id: ref
+        run: |
+          REF="${{ github.event.inputs.llama_ref }}"
+          if [ -z "$REF" ]; then REF="master"; fi
+          echo "llama_ref=$REF" >> "$GITHUB_OUTPUT"
+
+      - name: Clone llama.cpp
+        run: |
+          git clone --depth 1 --branch "${{ steps.ref.outputs.llama_ref }}" \
+            https://github.com/ggml-org/llama.cpp.git \
+            llama_cpp_build || \
+            git clone https://github.com/ggml-org/llama.cpp.git llama_cpp_build && \
+            (cd llama_cpp_build && git checkout "${{ steps.ref.outputs.llama_ref }}")
+          (cd llama_cpp_build && git rev-parse HEAD > ../llama_cpp_sha.txt)
+          echo "llama.cpp at $(cat llama_cpp_sha.txt)"
+
+      - name: Show Xcode + cmake versions
+        run: |
+          xcodebuild -version
+          cmake --version
+          xcrun --show-sdk-version
+
+      - name: Build xcframework via upstream script
+        working-directory: llama_cpp_build
+        run: |
+          # Upstream's build-xcframework.sh compiles for iOS device,
+          # iOS simulator (arm64+x86_64 fat), macOS, visionOS, tvOS,
+          # then merges them into build-apple/llama.xcframework.
+          # GGML_METAL=ON gives Metal-backed inference on the GPU.
+          chmod +x build-xcframework.sh
+          ./build-xcframework.sh
+
+      - name: Locate + zip artifact
+        run: |
+          XCF_DIR=""
+          for cand in llama_cpp_build/build-apple/llama.xcframework \
+                     llama_cpp_build/build/build-apple/llama.xcframework \
+                     llama_cpp_build/build-apple-llama-xcframework/llama.xcframework; do
+            if [ -d "$cand" ]; then XCF_DIR="$cand"; break; fi
+          done
+          if [ -z "$XCF_DIR" ]; then
+            echo "::error::llama.xcframework not found at expected paths"
+            find llama_cpp_build -name "llama.xcframework" -type d 2>/dev/null | head -20
+            exit 1
+          fi
+          mkdir -p artifacts
+          ditto -c -k --keepParent "$XCF_DIR" artifacts/llama-xcframework.zip
+          ls -lh artifacts/
+
+      - name: Upload llama.xcframework
+        uses: actions/upload-artifact@v4
+        with:
+          name: llama-xcframework-${{ github.sha }}
+          path: artifacts/llama-xcframework.zip
+          retention-days: 30
+
+      - name: Upload build provenance
+        uses: actions/upload-artifact@v4
+        with:
+          name: llama-xcframework-provenance-${{ github.sha }}
+          path: |
+            llama_cpp_sha.txt
+          retention-days: 90

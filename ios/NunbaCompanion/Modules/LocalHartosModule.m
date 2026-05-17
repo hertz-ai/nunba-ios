@@ -43,4 +43,13 @@ RCT_EXTERN_METHOD(isLocalRunning:(RCTPromiseResolveBlock)resolve
 RCT_EXTERN_METHOD(getAvailableStorage:(RCTPromiseResolveBlock)resolve
                   rejecter:(RCTPromiseRejectBlock)reject)
 
+// On-device inference — ported from Hevolve_React_Native/ios/HevolveLocal
+// during the Hevolve→Nunba iOS consolidation.  Backed by
+// LocalInferenceEngine.swift; until the llama.cpp xcframework lands
+// the reply is a clearly-labelled scaffold placeholder.
+RCT_EXTERN_METHOD(generate:(NSString *)prompt
+                  maxTokens:(nonnull NSNumber *)maxTokens
+                  resolver:(RCTPromiseResolveBlock)resolve
+                  rejecter:(RCTPromiseRejectBlock)reject)
+
 @end

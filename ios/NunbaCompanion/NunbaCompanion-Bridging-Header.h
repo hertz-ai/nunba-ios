@@ -15,3 +15,22 @@
 #import <React/RCTBridge.h>
 #import <React/RCTUtils.h>
 #import <React/RCTLog.h>
+
+// On-device LLM via llama.cpp — exposed to Swift only when the
+// xcframework is dropped under ios/Frameworks/.  The CI workflow
+// at .github/workflows/ios-llama-xcframework.yml builds the
+// framework on macos-latest weekly; consumers run
+//   gh run download --name llama-xcframework-<sha> --dir ios/Frameworks/
+//   unzip ios/Frameworks/llama-xcframework.zip -d ios/Frameworks/
+// before `pod install` and the local Xcode build picks it up.
+//
+// __has_include guards keep dev/CI builds without the framework
+// green — LocalInferenceEngine.swift still compiles via its
+// scaffold placeholders, only the real llama_decode loop stays
+// dormant until the header is visible.
+#if __has_include(<llama/llama.h>)
+#import <llama/llama.h>
+#endif
+#if __has_include(<ggml/ggml.h>)
+#import <ggml/ggml.h>
+#endif
