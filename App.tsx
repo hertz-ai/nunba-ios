@@ -175,6 +175,7 @@ type RootStackParamList = {
   PostDetail: {postId?: string};
   Search: undefined;
   Notifications: undefined;
+  Inbox: undefined;
   Communities: undefined;
   CommunityDetail: {id?: string};
   Profile: {userId?: string};

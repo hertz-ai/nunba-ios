@@ -215,6 +215,8 @@ function getComponentSummary(component) {
       return `${component.label || 'Metric'}: ${component.value || 0}${component.unit || ''}`;
     case 'form':
       return `Form: ${component.title || 'input needed'}`;
+    case 'qr_pair':
+      return `Scan QR: ${component.title || component.channel || 'connect'}`;
     case 'list':
       return `List: ${(component.items || []).length} items`;
     case 'navigate':

@@ -13,7 +13,7 @@
  *   - Deferred deep links for unauthenticated users
  */
 
-import { Linking } from 'react-native';
+import { Linking, DeviceEventEmitter } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { shareApi, referralsApi, campaignsApi } from './socialApi';
 
@@ -178,6 +178,33 @@ function parseCustomScheme(url) {
       _customSchemeRe('r\\/([a-z_]+)\\/([A-Za-z0-9_-]+)'));
     if (resourceMatch) return { type: 'resource', resourceType: resourceMatch[1], resourceId: resourceMatch[2] };
 
+    // PR O — <scheme>://oauth-complete?channel_type=...&ok=...&message=...
+    // Lands here from the OAuth provider's close-page when the user
+    // completes (or cancels) consent on a mobile system browser.  The
+    // app re-foregrounds, this handler emits 'onAgentOAuthComplete'
+    // and the OAuthLinkCard auto-dismisses.
+    //
+    // Parsing uses URLSearchParams (Hermes built-in since RN 0.65) so
+    // values containing `=` (base64 padding) or `&` (when wrapped in
+    // %-encoding) round-trip correctly.  The `?` is required — bare
+    // ``oauth-complete`` with no params is rejected so we don't emit
+    // an empty {channel_type:''} event into the dispatcher.
+    const oauthRe = new RegExp(
+      `^${CUSTOM_SCHEME_PATTERN}:\\/\\/oauth-complete\\?(.+)$`,
+    );
+    const oauthMatch = url.match(oauthRe);
+    if (oauthMatch) {
+      const params = new URLSearchParams(oauthMatch[1] || '');
+      const channelType = params.get('channel_type') || '';
+      if (!channelType) return null;  // require at minimum the channel
+      return {
+        type: 'oauth_complete',
+        channel_type: channelType,
+        ok: params.get('ok') === 'true',
+        message: params.get('message') || '',
+      };
+    }
+
     return null;
   } catch {
     return null;
@@ -246,7 +273,13 @@ class DeepLinkService {
     // 3. If not authenticated, defer the link
     // Both 'invite' (referral) and 'community_invite' carry codes
     // safe to capture pre-auth — apply on next signup/login.
-    const safePreAuth = parsed.type === 'invite' || parsed.type === 'community_invite';
+    // 'oauth_complete' is also pre-auth-safe — the OAuth click-through
+    // is initiated by an authed user, but if the app got cold-killed
+    // during the browser hop, we want to still emit the dismissal
+    // event when the user returns; safer than dropping the result.
+    const safePreAuth = parsed.type === 'invite'
+      || parsed.type === 'community_invite'
+      || parsed.type === 'oauth_complete';
     if (!this._isAuthenticated && !safePreAuth) {
       await AsyncStorage.setItem(STORAGE_KEYS.DEFERRED_LINK, JSON.stringify({ url, parsed, utmData, ts: Date.now() }));
       return { deferred: true, parsed };
@@ -268,8 +301,31 @@ class DeepLinkService {
         return this._handleCampaignLink(parsed.campaignId, utmData);
       case 'resource':
         return this._handleResourceLink(parsed.resourceType, parsed.resourceId, utmData);
+      case 'oauth_complete':
+        return this._handleOAuthComplete(parsed);
       default:
         return null;
+    }
+  }
+
+  /**
+   * PR O — channel OAuth completion deep-link handler.
+   *
+   * Re-emits as DeviceEventEmitter('onAgentOAuthComplete') so the
+   * AgentOverlay's OAuthLinkCard auto-dismisses and any UX layer
+   * (toast, banner) can react.  No navigation — the OAuth flow leaves
+   * the user wherever they were when they tapped "Connect with X".
+   */
+  _handleOAuthComplete(parsed) {
+    try {
+      DeviceEventEmitter.emit('onAgentOAuthComplete', {
+        channel_type: parsed.channel_type,
+        ok: !!parsed.ok,
+        message: parsed.message || '',
+      });
+      return { type: 'oauth_complete', ...parsed };
+    } catch {
+      return { error: 'Failed to dispatch oauth_complete' };
     }
   }
 

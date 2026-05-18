@@ -32,11 +32,12 @@ import {
   SafeAreaView,
   StatusBar,
   RefreshControl,
+  Linking,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
-import { inboxApi } from '../../../services/socialApi';
+import { inboxApi, channelsApi } from '../../../services/socialApi';
 import { colors, spacing } from '../../../theme/colors';
 import ListRowCard    from '../../shared/ListRowCard';
 import FilterChips    from '../../shared/FilterChips';
@@ -146,6 +147,12 @@ const InboxScreen = () => {
   const [search, setSearch]           = useState('');
   const [filter, setFilter]           = useState('all');
   const [longPressedRow, setLongPressedRow] = useState(null);
+  // PR P.1 — channel-binding awareness: when the user has zero
+  // active bindings, the empty-state offers a "Connect a channel"
+  // CTA that emits Connect_Channel through the agent.  Same
+  // single-emit Liquid UI surface as register_channel; no parallel
+  // onboarding entrypoint.
+  const [bindingCount, setBindingCount] = useState(null);
 
   const mountedRef = useRef(true);
   useEffect(() => () => { mountedRef.current = false; }, []);
@@ -168,6 +175,52 @@ const InboxScreen = () => {
   }, []);
 
   useEffect(() => { loadInitial(); }, [loadInitial]);
+
+  // PR P.1 — fetch binding count once on mount.  Failure leaves
+  // bindingCount=null so the EmptyState defaults to its existing copy
+  // (no spurious CTA on transient network errors).
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await channelsApi.bindings();
+        const data = (res && res.data) || res || {};
+        const list = Array.isArray(data.bindings)
+          ? data.bindings
+          : Array.isArray(data) ? data : [];
+        if (!cancelled && mountedRef.current) {
+          setBindingCount(list.filter((b) => b && b.is_active !== false).length);
+        }
+      } catch (_e) { /* leave null */ }
+    })();
+    return () => { cancelled = true; };
+  }, []);
+
+  // PR P.2 — replyTo() emits Connect_Channel when the row's
+  // channel_type has no binding.  Returns true if it diverted (so the
+  // caller skips the composer) or false to proceed normally.
+  const ensureBindingForReply = useCallback((row) => {
+    const channelType = row && (row.channel_type || row.channel || row.via);
+    if (!channelType) return false;
+    if (bindingCount === 0) {
+      // No bindings at all — single Connect_Channel emit.
+      DeviceEventEmitter.emit('onAgentRequest', {
+        text: `Connect ${channelType}`,
+        agent_action: 'connect_channel',
+        channel_type: channelType,
+      });
+      return true;
+    }
+    return false;
+  }, [bindingCount]);
+
+  // P.1 CTA handler — "Connect a channel" button on the empty state.
+  const onConnectCTA = useCallback(() => {
+    DeviceEventEmitter.emit('onAgentRequest', {
+      text: 'Connect a channel',
+      agent_action: 'connect_channel',
+    });
+  }, []);
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
@@ -240,17 +293,37 @@ const InboxScreen = () => {
   /* ── Row interactions ───────────────────────────────────────── */
 
   const handlePress = useCallback((row) => {
+    // PR P.2 — bindings gate.  If the row's channel_type has no
+    // active binding on this device (bindingCount === 0), divert
+    // the tap to a Connect_Channel agent flow instead of opening
+    // a composer the user can't actually post from.  The helper
+    // returns true when it diverted; we early-return so the rest
+    // of the routing logic doesn't fire.
+    if (ensureBindingForReply(row)) return;
+
     const target = routeForRow(row);
     if (!target) return;
     if (target.kind === 'deep_link') {
-      // Deep link → for now route via shared deep-link landing screen.
-      navigation.navigate('ShareLanding', { url: target.value });
+      // Deep link can be a custom-scheme URL (hevolve://, nunba://) or
+      // an https://hevolve.ai/s/:token share link.  Linking.openURL
+      // dispatches both via the existing deep-link handler in
+      // services/deepLinkService.js — same path the OS uses when the
+      // user taps a notification or shared link.  Falls back to a
+      // best-effort navigate('ShareLanding') if the URL is a known
+      // share-token shape.
+      const url = String(target.value || '');
+      const shareMatch = url.match(/\/s\/([A-Za-z0-9_-]+)/);
+      if (shareMatch) {
+        navigation.navigate('ShareLanding', { token: shareMatch[1] });
+        return;
+      }
+      Linking.openURL(url).catch(() => {});
       return;
     }
     if (target.kind === 'navigate') {
       navigation.navigate(target.screen, target.params || {});
     }
-  }, [navigation]);
+  }, [navigation, ensureBindingForReply]);
 
   const handleLongPress = useCallback((row) => {
     setLongPressedRow(row);

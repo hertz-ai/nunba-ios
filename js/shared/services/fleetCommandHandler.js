@@ -13,16 +13,19 @@
  *   initFleetCommandHandler();  // Call once in App.js after device registration
  */
 
-import { DeviceEventEmitter, NativeModules, AppState } from 'react-native';
+import { DeviceEventEmitter, NativeModules, AppState, Platform } from 'react-native';
 import useFleetCommandStore from '../fleetCommandStore';
 import useDeviceCapabilityStore from '../deviceCapabilityStore';
 import useLiquidOverlayStore from '../liquidOverlayStore';
 import { ackFleetCommand, pollFleetCommands } from './deviceApi';
 import deepLinkService from './deepLinkService';
 
-const { WearDataSyncModule } = NativeModules;
+const { WearDataSyncModule, CallKitBridge } = NativeModules;
 
 let fleetListener = null;
+let wearCallActionListener = null;
+let callKitAnswerListener = null;
+let callKitEndListener = null;
 let pollInterval = null;
 let appStateListener = null;
 let initialized = false;
@@ -218,11 +221,139 @@ const handleUIOverlayDismiss = async (params, commandId) => {
   }
 };
 
+// ── Phase 7d call invite / state handlers ──
+//
+// Server publishes a fleet command of type 'call_invite' via APNs/WAMP
+// when another participant invites the user to a call.  Three things
+// must happen on receipt:
+//   1. iOS: surface CallKit's lock-screen ringer so the user sees the
+//      ringer even when the app is backgrounded.
+//   2. Android (paired Wear OS): push the incoming-call mirror to the
+//      watch so the user can Accept/Decline from their wrist.
+//   3. In-app: navigate to CallChannel which renders the in-foreground
+//      ringer + auto-joins on Accept.
+
+const handleCallInvite = (params, commandId) => {
+  try {
+    const callId      = params.call_id || params.callId;
+    const callerName  = params.caller_name || params.callerName || 'Caller';
+    const kind        = params.kind || 'voice';
+    const parentKind  = params.parent_kind || params.parentKind;
+    const parentId    = params.parent_id || params.parentId;
+    const parentLabel = params.parent_label || params.parentLabel;
+
+    if (!callId) {
+      if (commandId) ackFleetCommand(commandId, false, 'missing call_id').catch(() => {});
+      return;
+    }
+
+    // 1. iOS lock-screen ringer (no-op if module isn't installed)
+    if (Platform.OS === 'ios' && CallKitBridge
+        && typeof CallKitBridge.reportIncomingCall === 'function') {
+      try {
+        CallKitBridge.reportIncomingCall(callId, callerName, kind).catch(() => {});
+      } catch (_) {}
+    }
+
+    // 2. Push mirror to paired Wear OS watches
+    if (Platform.OS === 'android' && WearDataSyncModule
+        && typeof WearDataSyncModule.relayCallState === 'function') {
+      try {
+        const payload = JSON.stringify({
+          call_id: callId,
+          title: parentLabel || parentId || '',
+          caller_name: callerName,
+          caller_avatar_url: params.caller_avatar_url || null,
+          kind,
+          is_incoming: true,
+          is_active: false,
+          is_muted: false,
+          is_speaker_on: false,
+          participant_count: params.participant_count || 0,
+        });
+        WearDataSyncModule.relayCallState(payload).catch(() => {});
+      } catch (_) {}
+    }
+
+    // 3. In-app navigation to CallChannel — renders the incoming-call
+    //    state when mode='livekit_pending' and auto-connects on accept.
+    if (deepLinkService && typeof deepLinkService.navigate === 'function') {
+      deepLinkService.navigate('CallChannel', {
+        call_id: callId,
+        parent_kind: parentKind,
+        parent_id: parentId,
+        kind,
+        caller_name: callerName,
+      });
+    }
+
+    if (commandId) ackFleetCommand(commandId, true, 'call_invite_received').catch(() => {});
+  } catch (err) {
+    console.warn('FleetCommand: call_invite failed:', err && err.message);
+    if (commandId) ackFleetCommand(commandId, false, err && err.message).catch(() => {});
+  }
+};
+
+// Phase 7d call ended — server tells us the room is gone (other side
+// hung up, admin closed it).  Tear down any system-level UI we surfaced.
+const handleCallEnded = (params, commandId) => {
+  try {
+    if (Platform.OS === 'android' && WearDataSyncModule
+        && typeof WearDataSyncModule.clearCallState === 'function') {
+      WearDataSyncModule.clearCallState().catch(() => {});
+    }
+    // iOS CallKit cleanup is handled when JS calls
+    // CallKitBridge.endCall(uuid) from CallChannelScreen on unmount;
+    // nothing to do here on iOS unless we're cleaning up an
+    // unanswered ringer (rare; handled by CXProvider's own timeout).
+    if (commandId) ackFleetCommand(commandId, true, 'call_ended_processed').catch(() => {});
+  } catch (err) {
+    if (commandId) ackFleetCommand(commandId, false, err && err.message).catch(() => {});
+  }
+};
+
 // ── Command Dispatcher ──
 //
 // Registry-based: every cmd_type maps to exactly one handler.
 // Adding a new cmd_type is a single line here — no switch statement.
 // Exported for test injection.
+
+// PR Q — channel_unhealthy fleet command.
+//
+// HARTOS's per-channel health watchdog fires this when an adapter's
+// auth check fails (token expired, 401 from provider, websocket
+// closed by remote, etc).  We surface it to the user as a Liquid UI
+// banner: same DeviceEventEmitter('onAgentInlineChatCard') pipe the
+// rest of the channel-onboarding cards use.  Tapping "Reconnect" on
+// the banner kicks the existing reconnect_channel agent tool — no
+// parallel reconnect-path here, just a UI nudge into the standard
+// Connect_Channel flow.
+const handleChannelUnhealthy = (params, commandId) => {
+  try {
+    const ch = (params && (params.channel_type || params.channel)) || '';
+    const reason = (params && params.reason) || 'authentication expired';
+    DeviceEventEmitter.emit('onAgentInlineChatCard', {
+      type: 'banner',
+      channel: ch,
+      channel_type: ch,
+      severity: 'warning',
+      text: ch
+        ? `${ch} disconnected: ${reason}. Tap Reconnect to fix.`
+        : `A channel disconnected: ${reason}. Tap Reconnect to fix.`,
+      action_label: 'Reconnect',
+      action: ch ? `reconnect_channel:${ch}` : 'reconnect_channel',
+      binding_id: params && params.binding_id,
+    });
+    if (commandId) {
+      ackFleetCommand(commandId, true, 'channel_unhealthy_banner_shown')
+        .catch(() => {});
+    }
+  } catch (err) {
+    if (commandId) {
+      ackFleetCommand(commandId, false, err && err.message).catch(() => {});
+    }
+  }
+};
 
 export const COMMAND_HANDLERS = {
   tts_stream: handleTTSStream,
@@ -230,6 +361,9 @@ export const COMMAND_HANDLERS = {
   ui_navigate: handleUINavigate,
   ui_overlay_show: handleUIOverlayShow,
   ui_overlay_dismiss: handleUIOverlayDismiss,
+  call_invite: handleCallInvite,
+  call_ended: handleCallEnded,
+  channel_unhealthy: handleChannelUnhealthy,
 };
 
 const dispatchCommand = (data) => {
@@ -281,6 +415,45 @@ const stopPolling = () => {
 
 // ── Lifecycle ──
 
+// ── Cross-device call-action routing ──
+//
+// Two event sources fire when the user accepts an incoming call on a
+// secondary surface (watch / iOS lock-screen).  Both should pop the
+// CallChannel screen on the phone if it isn't already mounted; the
+// in-screen wearCallAction listener inside CallChannelScreen handles
+// mute/hangup/decline once the user is in the call.
+
+const handleWearCallAction = (ev) => {
+  if (!ev || !ev.action) return;
+  if (ev.action === 'accept') {
+    if (deepLinkService && typeof deepLinkService.navigate === 'function') {
+      deepLinkService.navigate('CallChannel', {
+        call_id: ev.call_id,
+        kind: ev.kind || 'voice',
+      });
+    }
+    return;
+  }
+  // mute/unmute/hangup/decline/speaker — the in-screen subscriber
+  // (CallChannelScreen) handles these.  No-op at the global layer so
+  // we don't double-process.
+};
+
+const handleCallKitAnswerCall = (ev) => {
+  if (!ev || !ev.callId) return;
+  if (deepLinkService && typeof deepLinkService.navigate === 'function') {
+    deepLinkService.navigate('CallChannel', { call_id: ev.callId });
+  }
+};
+
+const handleCallKitEndCall = (ev) => {
+  if (!ev || !ev.callId) return;
+  // CallKit told us the user declined or the system ended the call.
+  // The in-screen subscriber handles the leave when CallChannel is
+  // mounted; if it's NOT mounted, there's nothing to clean up at the
+  // JS layer (the LiveKit room only exists when the screen is up).
+};
+
 export const initFleetCommandHandler = () => {
   if (initialized) return;
   initialized = true;
@@ -290,6 +463,18 @@ export const initFleetCommandHandler = () => {
     const data = event && event.data ? event.data : event;
     dispatchCommand(data);
   });
+
+  // Phase 7d cross-device call-action routing (global layer — opens
+  // CallChannel even when no screen is mounted yet).
+  wearCallActionListener = DeviceEventEmitter.addListener(
+    'wearCallAction', handleWearCallAction,
+  );
+  callKitAnswerListener = DeviceEventEmitter.addListener(
+    'callKitAnswerCall', handleCallKitAnswerCall,
+  );
+  callKitEndListener = DeviceEventEmitter.addListener(
+    'callKitEndCall', handleCallKitEndCall,
+  );
 
   // Start polling as fallback
   startPolling();
@@ -308,6 +493,18 @@ export const stopFleetCommandHandler = () => {
   if (fleetListener) {
     fleetListener.remove();
     fleetListener = null;
+  }
+  if (wearCallActionListener) {
+    wearCallActionListener.remove();
+    wearCallActionListener = null;
+  }
+  if (callKitAnswerListener) {
+    callKitAnswerListener.remove();
+    callKitAnswerListener = null;
+  }
+  if (callKitEndListener) {
+    callKitEndListener.remove();
+    callKitEndListener = null;
   }
   stopPolling();
   if (appStateListener) {
