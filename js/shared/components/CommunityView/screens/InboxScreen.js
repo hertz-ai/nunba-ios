@@ -44,6 +44,7 @@ import FilterChips    from '../../shared/FilterChips';
 import EmptyState     from '../../shared/EmptyState';
 import SkeletonRow    from '../../shared/SkeletonRow';
 import ActionSheet    from '../../shared/ActionSheet';
+import NunbaHeroCard  from '../../shared/NunbaHeroCard';
 
 /* ── Filter taxonomy ─────────────────────────────────────────────── */
 
@@ -464,6 +465,13 @@ const InboxScreen = () => {
               tintColor={colors.accent}
             />
           }
+          // UX-AUDIT 2026-05-18 (P2.5 / interleaved P4): permanent
+          // Nunba assistant card at the top of every inbox view.
+          // Empty inbox → it's the only thing; busy inbox → it's
+          // always above messages.  Tap → opens ConversationHistory
+          // with the Nunba agent (auto-created server-side on first
+          // message per Part E.3).
+          ListHeaderComponent={<NunbaHeroCard />}
           onEndReached={onEndReached}
           onEndReachedThreshold={0.5}
           ListEmptyComponent={
