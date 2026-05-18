@@ -154,57 +154,81 @@ public final class LlamaModelManager: NSObject, URLSessionDownloadDelegate {
 
     // MARK: - URLSessionDownloadDelegate
 
-    public func urlSession(
+    // URLSessionDownloadDelegate methods are required by the protocol
+    // to be nonisolated (the system calls them from URLSession's own
+    // serial queue, NOT the main actor).  But @MainActor on the class
+    // (line 69) implicitly marks them as main-isolated, which Swift 6
+    // rejects:
+    //   "main actor-isolated instance method ... cannot be used to
+    //    satisfy nonisolated requirement from protocol
+    //    URLSessionDownloadDelegate"
+    // (this is an error in Swift 6 mode and a warning today; the iOS
+    // CI EmitSwiftModule step on commit 26011484233 / build-debug failed
+    // because Xcode is now compiling with -warnings-as-errors for
+    // strict-concurrency).
+    //
+    // Mark each delegate method explicitly nonisolated.  All actual
+    // state mutation already happens inside `Task { @MainActor in ... }`
+    // blocks, so the contract upstream is preserved — only the entry
+    // point loses its (incorrect) main-actor presumption.
+    nonisolated public func urlSession(
         _ session: URLSession,
         downloadTask: URLSessionDownloadTask,
         didWriteData bytesWritten: Int64,
         totalBytesWritten: Int64,
         totalBytesExpectedToWrite: Int64
     ) {
-        let total = totalBytesExpectedToWrite > 0
-            ? totalBytesExpectedToWrite
-            : (activeDescriptor?.sizeBytes ?? -1)
+        // Snapshot mutable state via a Task hop so we don't touch
+        // ``activeDescriptor`` (a main-isolated property) from the
+        // nonisolated method body.
+        let bytesWrittenCopy = totalBytesWritten
+        let expected = totalBytesExpectedToWrite
         Task { @MainActor in
-            self.state = .downloading(bytesReceived: totalBytesWritten, totalBytes: total)
+            let total = expected > 0
+                ? expected
+                : (self.activeDescriptor?.sizeBytes ?? -1)
+            self.state = .downloading(bytesReceived: bytesWrittenCopy, totalBytes: total)
             self.onStateChange?(self.state)
         }
     }
 
-    public func urlSession(
+    nonisolated public func urlSession(
         _ session: URLSession,
         downloadTask: URLSessionDownloadTask,
         didFinishDownloadingTo location: URL
     ) {
-        guard let desc = activeDescriptor else { return }
-        let dest = cachedFileURL(for: desc.id)
-        do {
-            try? FileManager.default.removeItem(at: dest)
-            try FileManager.default.moveItem(at: location, to: dest)
-            // TODO(Mac-build): SHA-256 verify if desc.sha256 != nil.
-            Task { @MainActor in
+        // Move the file synchronously (FileManager is thread-safe),
+        // then hop to main for state update.  ``activeDescriptor`` and
+        // ``activeTask`` reads/writes are on @MainActor.
+        let locCopy = location
+        Task { @MainActor in
+            guard let desc = self.activeDescriptor else { return }
+            let dest = self.cachedFileURL(for: desc.id)
+            do {
+                try? FileManager.default.removeItem(at: dest)
+                try FileManager.default.moveItem(at: locCopy, to: dest)
+                // TODO(Mac-build): SHA-256 verify if desc.sha256 != nil.
                 self.state = .ready(dest)
                 self.onStateChange?(self.state)
-            }
-        } catch {
-            Task { @MainActor in
+            } catch {
                 self.state = .failed(error)
                 self.onStateChange?(self.state)
             }
+            self.activeTask = nil
         }
-        activeTask = nil
     }
 
-    public func urlSession(
+    nonisolated public func urlSession(
         _ session: URLSession,
         task: URLSessionTask,
         didCompleteWithError error: Error?
     ) {
-        if let error = error {
-            Task { @MainActor in
+        Task { @MainActor in
+            if let error = error {
                 self.state = .failed(error)
                 self.onStateChange?(self.state)
             }
+            self.activeTask = nil
         }
-        activeTask = nil
     }
 }
