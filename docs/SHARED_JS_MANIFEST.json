@@ -2,8 +2,8 @@
   "$schema": "./SHARED_JS_MANIFEST.schema.json",
   "description": "Source-of-truth list of JS files vendored from Hevolve_React_Native into Nunba-Companion-iOS. Read by scripts/sync-from-android.sh. Each entry maps a source path (relative to the Android repo root) to a destination path (relative to js/shared/). Files are copied verbatim — destinations should NEVER be hand-edited.",
   "android_repo_path": "../Hevolve_React_Native",
-  "synced_at": "2026-05-18T17:25:52.770Z",
-  "synced_from_commit": "P5: ParallaxHero primitive for identity surfaces",
+  "synced_at": "2026-05-18T17:28:32.876Z",
+  "synced_from_commit": "P6: Gamification primitives — CountUp + ProgressRing",
   "groups": [
     {
       "name": "stores",
@@ -324,6 +324,7 @@
         "CommunityView/screens/ThemeSettingsScreen.js",
         "shared/ActionSheet.js",
         "shared/AvatarBadged.js",
+        "shared/CountUp.js",
         "shared/EmptyState.js",
         "shared/FilterChips.js",
         "shared/LiquidOverlay.js",
@@ -335,6 +336,7 @@
         "shared/NunbaKeyboard.js",
         "shared/OpenStatusDot.js",
         "shared/ParallaxHero.js",
+        "shared/ProgressRing.js",
         "shared/ProvenanceChip.js",
         "shared/ReactionsStrip.js",
         "shared/SkeletonRow.js",
