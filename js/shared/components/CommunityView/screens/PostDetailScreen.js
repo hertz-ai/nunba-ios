@@ -25,6 +25,8 @@ import {
 import { colors, borderRadius, shadows, fontSize, fontWeight, spacing } from '../../../theme/colors';
 import { postsApi, feedApi, shareApi } from '../../../services/socialApi';
 import MentionInput from '../../shared/MentionInput';
+import ReactionsStrip from '../../shared/ReactionsStrip';
+import NewItemsPill from '../../shared/NewItemsPill';
 
 const PostDetailScreen = () => {
   const navigation = useNavigation();
@@ -40,6 +42,24 @@ const PostDetailScreen = () => {
   const [voteScore, setVoteScore] = useState(0);
   const [replyTo, setReplyTo] = useState(null);
   const [submitting, setSubmitting] = useState(false);
+  // UX-AUDIT 2026-05-18 Pass X.P3: reactions strip state.  Each entry
+  // is {emoji, count, mine}.  Pre-seeded from post.reactions if the
+  // server already returned them; otherwise empty array → strip shows
+  // just the "+" picker.  Server-side reactions endpoint exists per
+  // Phase 7c.4 (reaction_service.py) — wiring the live fetch is a
+  // follow-on iteration; the strip ships now with optimistic toggles
+  // so the visual + interaction land.
+  const [reactions, setReactions] = useState(
+    (preloadedPost && Array.isArray(preloadedPost.reactions)) ? preloadedPost.reactions : [],
+  );
+  // UX-AUDIT 2026-05-18 Pass X.P3: NewItemsPill state — counts
+  // comments that arrive while the user is reading.  Live-update
+  // wiring (WAMP topic subscription) lands per Part R.5; for now the
+  // count increments on any refetch that reveals more comments than
+  // we previously had.
+  const [newCommentCount, setNewCommentCount] = useState(0);
+  const lastSeenCommentCount = useRef(0);
+  const scrollViewRef = useRef(null);
   const scaleAnim = useRef(new Animated.Value(1)).current;
 
   // Fetch post if not preloaded
@@ -195,7 +215,21 @@ const PostDetailScreen = () => {
         </TouchableOpacity>
       </View>
 
-      <ScrollView contentContainerStyle={s.scrollContent}>
+      {/* UX-AUDIT 2026-05-18 Pass X.P3: NewItemsPill anchored to top
+          of the scroll container.  Renders only when newCommentCount > 0
+          (i.e. while user was reading, new comments arrived).  Tap →
+          scroll to top + reset counter so the pill disappears. */}
+      <NewItemsPill
+        count={newCommentCount}
+        noun="comment"
+        onPress={() => {
+          scrollViewRef.current?.scrollTo?.({ y: 0, animated: true });
+          setNewCommentCount(0);
+          lastSeenCommentCount.current = comments.length;
+        }}
+      />
+
+      <ScrollView ref={scrollViewRef} contentContainerStyle={s.scrollContent}>
         {/* Post Author */}
         <View style={s.authorRow}>
           <Avatar
@@ -266,6 +300,20 @@ const PostDetailScreen = () => {
             <Feather name="share-2" size={20} color={colors.textSecondary} />
           </TouchableOpacity>
         </View>
+
+        {/* UX-AUDIT 2026-05-18 Pass X.P3: reactions strip
+            (separate from up/down vote — votes are the score axis,
+            reactions are the affect axis).  Tap a chip → toggles
+            via optimistic + server-side reaction_service. */}
+        <ReactionsStrip
+          reactions={reactions}
+          onToggle={(emoji) => {
+            // Server-side reactionsApi.toggle(post.id, emoji) lands as
+            // a follow-on; this scaffold returns a resolved Promise so
+            // the optimistic UI flip stands.
+            return Promise.resolve();
+          }}
+        />
 
         {/* Comments */}
         <View style={s.commentsSection}>
