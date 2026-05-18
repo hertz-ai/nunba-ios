@@ -176,11 +176,15 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: hertz-ai/Hevolve_React_Native
-          # Pinned to the branch we vendored from. The Android
-          # repo's default branch is 'develop' which has different
-          # content; using that triggers spurious drift. Manifest's
-          # synced_from_commit (a64e3878) lives on this branch.
-          ref: CameraOrientationUpdate
+          # 2026-05-18 (sunny-gliding-eich Part X.5 P0+P1+task-#306):
+          # Source-of-truth for the vendored JS is now Hevolve_RN's
+          # main branch.  Pass-by-pass UX work lands on main; the iOS
+          # drift gate compares against main.  Spurious drift
+          # (Hevolve advances faster than iOS catches up) is INTENDED
+          # — when main moves, this job goes red until iOS does a
+          # sync commit that bumps manifest.synced_from_commit and
+          # re-vendors the changed files.  That's the parity contract.
+          ref: main
           token: ${{ secrets.ANDROID_REPO_TOKEN }}
           path: Hevolve_React_Native
           # Shallow clone — we only need the working tree, not history.
