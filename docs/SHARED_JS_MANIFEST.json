@@ -2,8 +2,8 @@
   "$schema": "./SHARED_JS_MANIFEST.schema.json",
   "description": "Source-of-truth list of JS files vendored from Hevolve_React_Native into Nunba-Companion-iOS. Read by scripts/sync-from-android.sh. Each entry maps a source path (relative to the Android repo root) to a destination path (relative to js/shared/). Files are copied verbatim — destinations should NEVER be hand-edited.",
   "android_repo_path": "../Hevolve_React_Native",
-  "synced_at": "2026-05-18T17:35:29.894Z",
-  "synced_from_commit": "P9: DebouncedSearch primitive",
+  "synced_at": "2026-05-18T17:37:56.546Z",
+  "synced_from_commit": "P10: listPerf + assertA11y — closes the P0-P10 sequence",
   "groups": [
     {
       "name": "stores",
@@ -323,6 +323,7 @@
         "CommunityView/screens/TasksScreen.js",
         "CommunityView/screens/ThemeSettingsScreen.js",
         "shared/ActionSheet.js",
+        "shared/assertA11y.js",
         "shared/AvatarBadged.js",
         "shared/CountUp.js",
         "shared/DebouncedSearch.js",
@@ -330,6 +331,7 @@
         "shared/emptyStatePresets.js",
         "shared/FilterChips.js",
         "shared/LiquidOverlay.js",
+        "shared/listPerf.js",
         "shared/ListRowCard.js",
         "shared/MentionInput.js",
         "shared/mentionPills.js",
