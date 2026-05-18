@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Text, View, TouchableOpacity, NativeModules, Animated } from 'react-native';
+import { Text, View, TouchableOpacity, NativeModules, Animated, DeviceEventEmitter } from 'react-native';
 import styles from './styles';
 import ADIcon from 'react-native-vector-icons/AntDesign';
 import OCIcon from 'react-native-vector-icons/Octicons';
@@ -9,6 +9,8 @@ import useThemeStore from '../../../../../../colorThemeZustand';
 import { useNavigation } from '@react-navigation/native';
 import { RectButton, GestureHandlerRootView } from 'react-native-gesture-handler';
 import { postsApi, commentsApi } from '../../../../../../services/socialApi';
+import BookmarkButton from './BookmarkButton';
+import { optimistic } from '../../../../../../services/optimistic';
 
 const { OnboardingModule, ActivityStarterModule } = NativeModules;
 
@@ -29,6 +31,11 @@ const Footer = ({
   const [voteScore, setVoteScore] = useState(0);
   const [commentCount, setCommentCount] = useState(0);
   const [userId, setUserId] = useState();
+  // UX-AUDIT 2026-05-18 Pass X.P2: BookmarkButton state.  Server-side
+  // /api/social/saved endpoint + savedPostsStore are deferred per the
+  // plan (additive, lands in a follow-up).  Until then this is a
+  // local-only toggle so the visual+haptic experience ships now.
+  const [isSaved, setIsSaved] = useState(false);
   const scaleAnim = useRef(new Animated.Value(1)).current;
   const isAnimating = React.useRef(false);
 
@@ -66,27 +73,86 @@ const Footer = ({
     ]).start(() => { isAnimating.current = false; });
   };
 
-  const handleVote = async (direction) => {
+  // UX-AUDIT 2026-05-18 Pass X.P2: route the vote action through
+  // services/optimistic so apply→request→rollback is one named
+  // contract.  Same observable behaviour as before (UI flips
+  // immediately, network is fire-and-forget) — but failures now
+  // surface a friendly toast via the centralised helper instead of
+  // being swallowed.
+  const handleVote = (direction) => {
     const postId = userData?.id;
     if (!postId) return;
 
     animateBounce();
 
-    if (voteState === direction) {
+    const prevState = voteState;
+    const prevScore = voteScore;
+
+    if (prevState === direction) {
       // Remove vote
-      setVoteState(null);
-      setVoteScore((prev) => prev + (direction === 'up' ? -1 : 1));
-      postsApi.removeVote(postId).catch(() => {});
+      optimistic({
+        apply: () => {
+          setVoteState(null);
+          setVoteScore(prevScore + (direction === 'up' ? -1 : 1));
+        },
+        request: () => postsApi.removeVote(postId),
+        rollback: () => {
+          setVoteState(prevState);
+          setVoteScore(prevScore);
+        },
+        errorToast: "Couldn't remove vote — try again",
+      });
     } else {
       // New vote or switch
       const delta = direction === 'up'
-        ? (voteState === 'down' ? 2 : 1)
-        : (voteState === 'up' ? -2 : -1);
-      setVoteState(direction);
-      setVoteScore((prev) => prev + delta);
-      if (direction === 'up') postsApi.upvote(postId).catch(() => {});
-      else postsApi.downvote(postId).catch(() => {});
+        ? (prevState === 'down' ? 2 : 1)
+        : (prevState === 'up' ? -2 : -1);
+      optimistic({
+        apply: () => {
+          setVoteState(direction);
+          setVoteScore(prevScore + delta);
+        },
+        request: () => (direction === 'up' ? postsApi.upvote(postId) : postsApi.downvote(postId)),
+        rollback: () => {
+          setVoteState(prevState);
+          setVoteScore(prevScore);
+        },
+        errorToast: direction === 'up' ? "Couldn't upvote — try again" : "Couldn't downvote — try again",
+        successHaptic: direction === 'up' ? 'light' : null,
+      });
     }
+  };
+
+  // UX-AUDIT 2026-05-18 Pass X.P2: subscribe to double-tap events
+  // emitted by Body so a double-tap on the image registers an
+  // upvote.  Idempotent: if voteState is already 'up', the existing
+  // handleVote short-circuit (prevState === direction) toggles OFF
+  // — which is wrong for double-tap semantics.  Override here: only
+  // fire handleVote if not already upvoted.
+  useEffect(() => {
+    const postId = userData?.id;
+    if (!postId) return undefined;
+    const sub = DeviceEventEmitter.addListener('PostDoubleTapLike', (payload) => {
+      if (payload?.postId !== postId) return;
+      if (voteState === 'up') return; // already liked — visual burst already played, no-op on state
+      handleVote('up');
+    });
+    return () => sub.remove();
+    // voteState in deps so the listener captures the latest state
+    // — without it, the closure would always see voteState=null
+    // from first render and double-tap on a liked post would
+    // toggle it OFF.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [userData?.id, voteState]);
+
+  // UX-AUDIT 2026-05-18 Pass X.P2: bookmark toggle.  Server-side
+  // /api/social/saved endpoint deferred — for now persist locally
+  // via setIsSaved.  The optimistic helper handles the no-op request
+  // gracefully (success path runs, no error toast fires).
+  const handleBookmarkToggle = (next) => {
+    // Local-only for now — when /api/social/saved lands, swap this
+    // with savedPostsApi.save(postId) / .unsave(postId).
+    return Promise.resolve(next);
   };
 
   const onComment = () => {
@@ -170,6 +236,19 @@ const Footer = ({
             </View>
           </RectButton>
         </GestureHandlerRootView>
+
+        {/* Bookmark — UX-AUDIT 2026-05-18 Pass X.P2 — saves the post
+            for later review.  Caller-controlled state lets a future
+            P-pass wire it to savedPostsStore + /api/social/saved
+            without re-shipping the primitive. */}
+        <View style={styles.iconContainer}>
+          <BookmarkButton
+            postId={userData?.id}
+            isSaved={isSaved}
+            applyLocal={setIsSaved}
+            onToggle={handleBookmarkToggle}
+          />
+        </View>
 
         {/* Chat */}
         <GestureHandlerRootView>
