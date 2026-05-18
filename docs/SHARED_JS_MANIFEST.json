@@ -330,6 +330,7 @@
         "shared/ListRowCard.js",
         "shared/MentionInput.js",
         "shared/mentionPills.js",
+        "shared/NunbaHeroCard.js",
         "shared/NunbaKeyboard.js",
         "shared/OpenStatusDot.js",
         "shared/ProvenanceChip.js",
