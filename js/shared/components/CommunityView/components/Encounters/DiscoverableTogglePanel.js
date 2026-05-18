@@ -130,7 +130,23 @@ const DiscoverableTogglePanel = () => {
       // each enable.  The server's own age_claim_18 record is for
       // gating purposes only.
     } catch (e) {
-      if (mounted.current) setError(`Couldn't load consent state: ${e.message}`);
+      if (!mounted.current) return;
+      // UX-AUDIT 2026-05-18: don't paint a red banner on initial
+      // load failure.  The most common cause is an unauth'd session
+      // (server returns HTML login page → JSON.parse throws), and
+      // shouting "JSON Parse error: Unexpected character: <" at the
+      // user is both technical and unactionable.  The panel itself
+      // already communicates the disabled state via the off-toggle.
+      // Real errors from user actions (toggle path → handleToggle)
+      // continue to surface — that's where the user CAN act.
+      const msg = e?.message || '';
+      const isParseError =
+        msg.includes('JSON Parse error') ||
+        msg.includes('Unexpected token') ||
+        msg.includes('Unexpected character');
+      if (!isParseError) {
+        setError("Couldn't load — tap the toggle to retry");
+      }
     } finally {
       if (mounted.current) setLoading(false);
     }

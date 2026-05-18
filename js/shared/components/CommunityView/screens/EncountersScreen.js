@@ -31,7 +31,11 @@ import { bleEncounterApi } from '../../../services/socialApi';
 
 // BLE Matches added at index 4 (end) so existing index logic for
 // activeTab === 1, 2, 3 (Missed/Discovery/My Posts) is unchanged.
-const TABS = ['Nearby Now', 'Missed Connections', 'Discovery', 'My Posts', 'BLE Matches'];
+// Labels are intentionally SHORT so 4 tabs (5 in dev) fit on phone
+// width without numberOfLines={1} truncation.  Web SPA keeps the
+// long names; mobile chrome is tighter (1440px @ 600dpi shows
+// "Missed Co…" with the full strings).
+const TABS = ['Nearby', 'Missed', 'Discovery', 'My Posts', 'Mutuals'];
 const RADIUS_OPTIONS = [
   { label: '100m', value: 100 },
   { label: '500m', value: 500 },
@@ -216,9 +220,16 @@ const EncountersScreen = () => {
 
   const renderNearbyTab = () => (
     <View style={styles.tabContent}>
-      <LocationSettingsToggle />
+      {/* UX-AUDIT 2026-05-18: LocationSettingsToggle (small inline
+          toggle + privacy blurb) only renders when actively tracking.
+          When tracking is OFF, the big centered empty-state below
+          (icon + "Location Sharing is Off" + Enable Location CTA)
+          already communicates the state — the small toggle was
+          duplicating the same signal and pushing the CTA below the
+          fold. */}
       {isTracking ? (
         <>
+          <LocationSettingsToggle />
           <ProximityBanner nearbyCount={nearbyCount} isScanning={nearbyCount === 0} />
           {/* Context bridge: matched interests → Experiments */}
           {expCtx?.userTopIntent && matches.length > 0 && (
@@ -488,26 +499,38 @@ const EncountersScreen = () => {
       </View>
       {/* BLE consent panel — RN parity for the web SPA's
           DiscoverableTogglePanel (commit 5a705452 / F1 GREENLIT).
-          Mounted ABOVE the tabs so the consent moment is visible
-          across every tab.  Honors mission anchors: 18+ unchecked
-          default per mount, server-authoritative TTL, switch
-          disabled until age claim, no surveillance copy. */}
-      <DiscoverableTogglePanel />
+          Honors mission anchors: 18+ unchecked default per mount,
+          server-authoritative TTL, switch disabled until age claim,
+          no surveillance copy.
+
+          UX-AUDIT 2026-05-18: only render on tabs where BLE
+          proximity is relevant (Nearby = realtime proximity,
+          Mutuals = BLE match list).  On Missed/Discovery/My Posts
+          the consent panel was pushing real content below the fold
+          for no benefit — the user can't act on BLE consent there. */}
+      {(activeTab === 0 || activeTab === 4) && <DiscoverableTogglePanel />}
       <View style={styles.tabBar}>
-        {TABS.map((tab, index) => (
-          <TouchableOpacity
-            key={tab}
-            style={[styles.tab, activeTab === index && styles.tabActive]}
-            onPress={() => setActiveTab(index)}
-          >
-            <Text
-              style={[styles.tabText, activeTab === index && styles.tabTextActive]}
-              numberOfLines={1}
+        {TABS.map((tab, index) => {
+          // Discovery tab hidden in production until product greenlight
+          // (orchestrator a73b4a29 / ledger #444 / commit 7b818ec7).
+          // renderDiscoveryTab below also gates on __DEV__ — keep both
+          // so the tab BAR matches the tab CONTENT.
+          if (index === 2 && !__DEV__) return null;
+          return (
+            <TouchableOpacity
+              key={tab}
+              style={[styles.tab, activeTab === index && styles.tabActive]}
+              onPress={() => setActiveTab(index)}
             >
-              {tab}
-            </Text>
-          </TouchableOpacity>
-        ))}
+              <Text
+                style={[styles.tabText, activeTab === index && styles.tabTextActive]}
+                numberOfLines={1}
+              >
+                {tab}
+              </Text>
+            </TouchableOpacity>
+          );
+        })}
       </View>
       {renderTabContent()}
       {/* PRODUCT_MAP J207-J210 — single icebreaker modal mounted at
@@ -670,7 +693,12 @@ const styles = StyleSheet.create({
   fab: {
     position: 'absolute',
     right: wp('5%'),
-    bottom: hp('3%'),
+    // UX-AUDIT 2026-05-18: 3% was being clipped by the host Activity's
+    // bottom-nav bar (BottomNavigationActivity adds its own chrome
+    // outside the RN SafeAreaView).  10% clears it cleanly on phones
+    // 720dp–1440dp wide.  listContent paddingBottom (hp 10%) already
+    // gives FlatList items the same clearance.
+    bottom: hp('10%'),
     width: 56,
     height: 56,
     borderRadius: 28,
