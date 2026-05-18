@@ -2,8 +2,8 @@
   "$schema": "./SHARED_JS_MANIFEST.schema.json",
   "description": "Source-of-truth list of JS files vendored from Hevolve_React_Native into Nunba-Companion-iOS. Read by scripts/sync-from-android.sh. Each entry maps a source path (relative to the Android repo root) to a destination path (relative to js/shared/). Files are copied verbatim — destinations should NEVER be hand-edited.",
   "android_repo_path": "../Hevolve_React_Native",
-  "synced_at": "2026-05-18T17:31:18.401Z",
-  "synced_from_commit": "P7: Empty-state preset library (13 curated configs)",
+  "synced_at": "2026-05-18T17:33:25.764Z",
+  "synced_from_commit": "P8: RadarPulse animation primitive (BLE scanning visual)",
   "groups": [
     {
       "name": "stores",
@@ -339,6 +339,7 @@
         "shared/ParallaxHero.js",
         "shared/ProgressRing.js",
         "shared/ProvenanceChip.js",
+        "shared/RadarPulse.js",
         "shared/ReactionsStrip.js",
         "shared/SkeletonRow.js",
         "shared/SocialLiquidUI.js",
