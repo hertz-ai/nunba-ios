@@ -44,6 +44,8 @@ import FilterChips    from '../../shared/FilterChips';
 import EmptyState     from '../../shared/EmptyState';
 import SkeletonRow    from '../../shared/SkeletonRow';
 import ActionSheet    from '../../shared/ActionSheet';
+import NunbaHeroCard  from '../../shared/NunbaHeroCard';
+import SwipeableRow   from '../../shared/SwipeableRow';
 
 /* ── Filter taxonomy ─────────────────────────────────────────────── */
 
@@ -385,21 +387,46 @@ const InboxScreen = () => {
 
   /* ── Render ─────────────────────────────────────────────────── */
 
-  const renderItem = useCallback(({ item, index }) => (
-    <ListRowCard
-      index={index}
-      senderName={senderName(item)}
-      senderUri={senderUri(item)}
-      isAgent={isAgent(item)}
-      preview={item.content_preview}
-      channelType={item.channel_type}
-      parentLabel={item.parent_label}
-      isUnread={Boolean(item.is_unread)}
-      trailingTime={ago(item.last_activity_at)}
-      onPress={() => handlePress(item)}
-      onLongPress={() => handleLongPress(item)}
-    />
-  ), [handlePress, handleLongPress]);
+  // UX-AUDIT 2026-05-18 Pass X.P4: wrap each row in SwipeableRow so
+  // swipe-LEFT reveals an Archive action (destructive red) and
+  // swipe-RIGHT reveals a Mark-as-(un)read action (accent).  Long
+  // press still opens the full ActionSheet (a11y fallback + power
+  // users).  Inbox-zero velocity at 30+ rows is dramatically faster
+  // than tap→ActionSheet→option.
+  const renderItem = useCallback(({ item, index }) => {
+    const wasUnread = Boolean(item.is_unread);
+    return (
+      <SwipeableRow
+        leftAction={{
+          label: wasUnread ? 'Read' : 'Unread',
+          icon: wasUnread ? 'email-open-outline' : 'email-mark-as-unread',
+          color: colors.accent || '#00e89d',
+          onPress: () => (wasUnread ? markRead(item) : markUnread(item)),
+        }}
+        rightAction={{
+          label: 'Archive',
+          icon: 'archive-outline',
+          color: colors.error || '#e74c3c',
+          onPress: () => archive(item),
+        }}
+        onLongPress={() => handleLongPress(item)}
+      >
+        <ListRowCard
+          index={index}
+          senderName={senderName(item)}
+          senderUri={senderUri(item)}
+          isAgent={isAgent(item)}
+          preview={item.content_preview}
+          channelType={item.channel_type}
+          parentLabel={item.parent_label}
+          isUnread={wasUnread}
+          trailingTime={ago(item.last_activity_at)}
+          onPress={() => handlePress(item)}
+          onLongPress={() => handleLongPress(item)}
+        />
+      </SwipeableRow>
+    );
+  }, [handlePress, handleLongPress, markRead, markUnread, archive]);
 
   const totalUnread = filterItems.find((f) => f.value === 'all')?.count || 0;
 
@@ -464,6 +491,13 @@ const InboxScreen = () => {
               tintColor={colors.accent}
             />
           }
+          // UX-AUDIT 2026-05-18 (P2.5 / interleaved P4): permanent
+          // Nunba assistant card at the top of every inbox view.
+          // Empty inbox → it's the only thing; busy inbox → it's
+          // always above messages.  Tap → opens ConversationHistory
+          // with the Nunba agent (auto-created server-side on first
+          // message per Part E.3).
+          ListHeaderComponent={<NunbaHeroCard />}
           onEndReached={onEndReached}
           onEndReachedThreshold={0.5}
           ListEmptyComponent={

@@ -2,8 +2,8 @@
   "$schema": "./SHARED_JS_MANIFEST.schema.json",
   "description": "Source-of-truth list of JS files vendored from Hevolve_React_Native into Nunba-Companion-iOS. Read by scripts/sync-from-android.sh. Each entry maps a source path (relative to the Android repo root) to a destination path (relative to js/shared/). Files are copied verbatim — destinations should NEVER be hand-edited.",
   "android_repo_path": "../Hevolve_React_Native",
-  "synced_at": "2026-05-18T17:15:59.059Z",
-  "synced_from_commit": "71438752 — Pass X.P3: PostDetail redesign — ReactionsStrip + NewItemsPill + scroll-anchored live pill",
+  "synced_at": "2026-05-18T17:19:50.425Z",
+  "synced_from_commit": "d2a79da8 — Pass X.P4: SwipeableRow primitive + InboxScreen swipe actions",
   "groups": [
     {
       "name": "stores",
@@ -339,6 +339,7 @@
         "shared/SkeletonRow.js",
         "shared/SocialLiquidUI.js",
         "shared/StoryRing.js",
+        "shared/SwipeableRow.js",
         "shared/TVFocusableItem.js",
         "shared/UnreadDot.js",
         "SignUp/AskUploadVideo.js",
