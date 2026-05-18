@@ -3,7 +3,7 @@
   "description": "Source-of-truth list of JS files vendored from Hevolve_React_Native into Nunba-Companion-iOS. Read by scripts/sync-from-android.sh. Each entry maps a source path (relative to the Android repo root) to a destination path (relative to js/shared/). Files are copied verbatim — destinations should NEVER be hand-edited.",
   "android_repo_path": "../Hevolve_React_Native",
   "synced_at": "2026-05-18T04:58:31.173Z",
-  "synced_from_commit": "15f66e0d — Pass X.P2: DoubleTapToLike + BookmarkButton + optimistic wired into Post Body/Footer",
+  "synced_from_commit": "04275d76 — chore: land prior-session work (PR P+Q jest + gradle daemon JVM + .screenshots gitignore)",
   "groups": [
     {
       "name": "stores",
