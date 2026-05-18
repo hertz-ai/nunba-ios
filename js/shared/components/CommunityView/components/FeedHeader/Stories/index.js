@@ -79,9 +79,15 @@ const Stories = () => {
   // Sort posts descending by ID
   const data = Array.from(postsMap.values()).sort((a, b) => b.id - a.id);
 
+  // UX-AUDIT 2026-05-18 Pass X.P1: "Recommended for you" misnames the
+  // moment — this rail shows stories (ephemeral, time-sensitive), not
+  // recommendations.  Renamed to "Stories" and the entire rail is
+  // hidden when data is empty so an empty rail doesn't take a fold of
+  // vertical chrome above the first post.
+  if (data.length === 0) return null;
   return (
-    <View style={containerStyle}>
-      <Text style={Recommended}>Recommended for you</Text>
+    <View style={containerStyle} testID="StoriesRail">
+      <Text style={Recommended}>Stories</Text>
       <FlatList
         data={data}
         renderItem={({ item }) => <StoryCard story={item} />}

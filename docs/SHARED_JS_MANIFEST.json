@@ -2,8 +2,8 @@
   "$schema": "./SHARED_JS_MANIFEST.schema.json",
   "description": "Source-of-truth list of JS files vendored from Hevolve_React_Native into Nunba-Companion-iOS. Read by scripts/sync-from-android.sh. Each entry maps a source path (relative to the Android repo root) to a destination path (relative to js/shared/). Files are copied verbatim — destinations should NEVER be hand-edited.",
   "android_repo_path": "../Hevolve_React_Native",
-  "synced_at": "2026-05-18T04:29:49.806Z",
-  "synced_from_commit": "ea54eaf0 — Pass X.P0: 5 missing UX primitives (services/optimistic.js + components/shared/{StoryRing,OpenStatusDot}.js + Post/{Body/DoubleTapToLike,Footer/BookmarkButton}.js) — see plan Part X.3.2",
+  "synced_at": "2026-05-18T04:40:32.271Z",
+  "synced_from_commit": "c185ae9d — Pass X.P1: Stories ring on StoryCard avatar + Stories rail rename to \"Stories\" + empty-data guard (Part X.4.1 / Part X.5)",
   "groups": [
     {
       "name": "stores",
