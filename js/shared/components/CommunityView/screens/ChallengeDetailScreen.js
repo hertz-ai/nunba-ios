@@ -22,6 +22,7 @@ import { useNavigation, useRoute } from '@react-navigation/native';
 
 import { challengesApi, shareApi } from '../../../services/socialApi';
 import { SkeletonLoader, AnimatedCounter } from '../components/Gamification';
+import ProgressRing from '../../shared/ProgressRing';
 
 const DIFFICULTY_CONFIG = {
   easy: { color: '#10B981', label: 'Easy', icon: 'star-outline' },
@@ -204,17 +205,18 @@ const ChallengeDetailScreen = () => {
                   {challenge.progress} / {challenge.goal}
                 </Text>
               </View>
-              <View style={styles.progressBar}>
-                <Animatable.View
-                  animation="slideInLeft"
-                  duration={800}
-                  style={[
-                    styles.progressFill,
-                    { width: `${progressPercent}%`, backgroundColor: difficultyConfig.color },
-                  ]}
+              {/* UX-AUDIT 2026-05-19 P6 wire: ProgressRing replaces the
+                  hand-rolled progress bar (37 such bars across the
+                  codebase per reviewer audit — this is the first
+                  migration). */}
+              <View style={{ alignItems: 'center', paddingVertical: 8 }}>
+                <ProgressRing
+                  percent={progressPercent}
+                  size={96}
+                  thickness={8}
+                  color={difficultyConfig.color}
                 />
               </View>
-              <Text style={styles.progressPercent}>{progressPercent.toFixed(0)}% Complete</Text>
             </Animatable.View>
           )}
 

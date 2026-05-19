@@ -113,6 +113,36 @@ const PRESETS = Object.freeze({
     body: 'Your reactions to posts will show up here.',
     ctaLabel: null,
   },
+  'no-channels': {
+    icon: 'connection',
+    title: 'No channels yet',
+    body: 'Connect Telegram, Discord, Slack, and 28 more to chat from one place.',
+    ctaLabel: 'Add channel',
+  },
+  'no-tasks': {
+    icon: 'clipboard-text-outline',
+    title: 'No tasks',
+    body: 'Tasks your agents are working on will show up here.',
+    ctaLabel: null,
+  },
+  'no-recipes': {
+    icon: 'code-braces-box',
+    title: 'No shared recipes',
+    body: 'Recipes shared in your network will appear here.',
+    ctaLabel: null,
+  },
+  'no-conversation-history': {
+    icon: 'chat-outline',
+    title: 'No history yet',
+    body: 'Conversations across your connected channels will show up here.',
+    ctaLabel: null,
+  },
+  'no-regions': {
+    icon: 'map-search',
+    title: 'No regions found',
+    body: 'Try a different filter or search term.',
+    ctaLabel: 'Clear filters',
+  },
 });
 
 /**

@@ -23,6 +23,8 @@ import { useNavigation } from '@react-navigation/native';
 
 import { regionsApi } from '../../../services/socialApi';
 import { RegionCard, SkeletonLoader } from '../components/Gamification';
+import EmptyState from '../../shared/EmptyState';
+import { emptyStatePreset } from '../../shared/emptyStatePresets';
 
 const FILTER_TYPES = [
   { key: 'all', label: 'All', icon: 'earth' },
@@ -227,12 +229,8 @@ const RegionsScreen = () => {
         keyExtractor={(item) => item.id}
         renderItem={renderRegionItem}
         ListHeaderComponent={renderHeader}
-        ListEmptyComponent={
-          <View style={styles.emptyContainer}>
-            <MaterialCommunityIcons name="map-search" size={48} color="#555" />
-            <Text style={styles.emptyText}>No regions found</Text>
-          </View>
-        }
+        // UX-AUDIT 2026-05-19: P7 preset migration (DRY).
+        ListEmptyComponent={<EmptyState {...emptyStatePreset('no-regions')} />}
         contentContainerStyle={styles.listContent}
         showsVerticalScrollIndicator={false}
         refreshControl={

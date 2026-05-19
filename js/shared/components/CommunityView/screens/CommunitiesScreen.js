@@ -12,6 +12,12 @@ import Ionicons from 'react-native-vector-icons/Ionicons';
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
 import { useNavigation } from '@react-navigation/native';
 import { communitiesApi } from '../../../services/socialApi';
+import EmptyState from '../../shared/EmptyState';
+import { emptyStatePreset } from '../../shared/emptyStatePresets';
+import { flatListVirtualizationProps } from '../../shared/listPerf';
+
+// Community card row: 44 icon + padding ~ 100px tall total.
+const COMMUNITY_ROW_HEIGHT = 100;
 
 const CommunitiesScreen = () => {
   const navigation = useNavigation();
@@ -133,12 +139,9 @@ const CommunitiesScreen = () => {
           data={filtered}
           keyExtractor={(item) => String(item.id)}
           renderItem={renderItem}
-          ListEmptyComponent={
-            <View style={styles.centerContainer}>
-              <MaterialCommunityIcons name="account-group-outline" size={48} color="#555" />
-              <Text style={styles.emptyText}>No communities found</Text>
-            </View>
-          }
+          // UX-AUDIT 2026-05-19: P7 preset + P10 virtualization.
+          ListEmptyComponent={<EmptyState {...emptyStatePreset('no-communities')} />}
+          {...flatListVirtualizationProps(COMMUNITY_ROW_HEIGHT)}
           contentContainerStyle={styles.listContent}
           showsVerticalScrollIndicator={false}
           refreshControl={

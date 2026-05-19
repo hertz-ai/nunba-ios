@@ -1,4 +1,4 @@
-import React, { useState, useRef, useCallback } from 'react';
+import React, { useState, useCallback } from 'react';
 import {
   View,
   Text,
@@ -13,11 +13,11 @@ import {
 } from 'react-native-responsive-screen';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 import { encountersApi } from '../../../../services/socialApi';
+import useDebouncedCallback from '../../../../hooks/useDebouncedCallback';
 
 const AutoSuggestInput = ({ value, onChangeText, onSelect, currentLat, currentLon }) => {
   const [suggestions, setSuggestions] = useState([]);
   const [showDropdown, setShowDropdown] = useState(false);
-  const debounceRef = useRef(null);
 
   const fetchSuggestions = useCallback(
     async (text) => {
@@ -95,18 +95,17 @@ const AutoSuggestInput = ({ value, onChangeText, onSelect, currentLat, currentLo
     [currentLat, currentLon],
   );
 
+  // UX-AUDIT 2026-05-19: replaced inline setTimeout debounce with the
+  // shared useDebouncedCallback hook (DRY — single source of truth for
+  // debounce timing across the app).
+  const debouncedFetch = useDebouncedCallback(fetchSuggestions, 300);
+
   const handleTextChange = useCallback(
     (text) => {
       onChangeText(text);
-
-      if (debounceRef.current) {
-        clearTimeout(debounceRef.current);
-      }
-      debounceRef.current = setTimeout(() => {
-        fetchSuggestions(text);
-      }, 300);
+      debouncedFetch(text);
     },
-    [onChangeText, fetchSuggestions],
+    [onChangeText, debouncedFetch],
   );
 
   const handleSelect = useCallback(

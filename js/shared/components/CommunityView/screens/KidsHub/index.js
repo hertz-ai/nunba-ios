@@ -1,4 +1,4 @@
-import React, {useState, useEffect, useCallback, useMemo, useRef} from 'react';
+import React, {useState, useEffect, useCallback, useMemo} from 'react';
 import {
   View, Text, FlatList, TouchableOpacity, TextInput,
   SafeAreaView, StyleSheet, Animated, RefreshControl, Share,
@@ -25,6 +25,7 @@ import MediaPreloader from '../../components/KidsLearning/shared/MediaPreloader'
 import MediaCacheManager from '../../components/KidsLearning/shared/MediaCacheManager';
 import GameSounds from '../../components/KidsLearning/shared/SoundManager';
 import usePressAnimation from '../../../../hooks/usePressAnimation';
+import useDebouncedCallback from '../../../../hooks/useDebouncedCallback';
 
 const AGE_GROUPS = [
   {id: 'early', label: '4-6', range: [4, 6]},
@@ -59,22 +60,15 @@ const KidsHubScreen = () => {
   const [refreshing, setRefreshing] = useState(false);
   const [serverGames, setServerGames] = useState([]);
   const [loadingServer, setLoadingServer] = useState(false);
-  const searchTimerRef = useRef(null);
 
-  // Debounce search input (300ms)
+  // UX-AUDIT 2026-05-19: replaced inline searchTimerRef setTimeout with
+  // the shared useDebouncedCallback hook (DRY — single source of truth
+  // for debounce timing across the app).
+  const debouncedSetSearch = useDebouncedCallback(setDebouncedSearch, 300);
   const handleSearchChange = useCallback((text) => {
     setSearchQuery(text);
-    if (searchTimerRef.current) clearTimeout(searchTimerRef.current);
-    searchTimerRef.current = setTimeout(() => {
-      setDebouncedSearch(text);
-    }, 300);
-  }, []);
-
-  useEffect(() => {
-    return () => {
-      if (searchTimerRef.current) clearTimeout(searchTimerRef.current);
-    };
-  }, []);
+    debouncedSetSearch(text);
+  }, [debouncedSetSearch]);
 
   // Share app with friends
   const handleShareApp = useCallback(async () => {

@@ -13,6 +13,14 @@ import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityI
 import { useNavigation } from '@react-navigation/native';
 import { notificationsApi } from '../../../services/socialApi';
 import useNotificationStore from '../../../notificationStore';
+import EmptyState from '../../shared/EmptyState';
+import { emptyStatePreset } from '../../shared/emptyStatePresets';
+import { flatListVirtualizationProps } from '../../shared/listPerf';
+
+// Fixed row height for notification rows on Galaxy S22+ — avatar(40) +
+// 24px padding + 1px separator.  Same source-of-truth pattern as
+// InboxScreen + FriendsScreen.
+const NOTIFICATION_ROW_HEIGHT = 65;
 
 const ICON_MAP = {
   upvote: { name: 'arrow-up-bold', color: '#00e89d' },
@@ -122,12 +130,9 @@ const NotificationsScreen = () => {
           data={notifications}
           keyExtractor={(item) => String(item.id)}
           renderItem={renderItem}
-          ListEmptyComponent={
-            <View style={styles.centerContainer}>
-              <MaterialCommunityIcons name="bell-off" size={48} color="#555" />
-              <Text style={styles.emptyText}>No notifications yet</Text>
-            </View>
-          }
+          // UX-AUDIT 2026-05-19: P7 preset + P10 virtualization wires.
+          ListEmptyComponent={<EmptyState {...emptyStatePreset('no-notifications')} />}
+          {...flatListVirtualizationProps(NOTIFICATION_ROW_HEIGHT)}
           contentContainerStyle={styles.listContent}
           showsVerticalScrollIndicator={false}
           refreshControl={

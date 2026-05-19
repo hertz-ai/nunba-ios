@@ -12,6 +12,8 @@ import Ionicons from 'react-native-vector-icons/Ionicons';
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
 import { useNavigation } from '@react-navigation/native';
 import useChannelStore from '../../../channelStore';
+import EmptyState from '../../shared/EmptyState';
+import { emptyStatePreset } from '../../shared/emptyStatePresets';
 
 const PAGE_SIZE = 20;
 
@@ -204,11 +206,9 @@ const ConversationHistoryScreen = () => {
           data={conversations}
           keyExtractor={(item, idx) => String(item.id || idx)}
           renderItem={renderMessage}
+          // UX-AUDIT 2026-05-19: P7 preset migration (DRY).
           ListEmptyComponent={
-            <View style={styles.centerContainer}>
-              <MaterialCommunityIcons name="chat-outline" size={48} color="#555" />
-              <Text style={styles.emptyText}>No conversation history yet</Text>
-            </View>
+            <EmptyState {...emptyStatePreset('no-conversation-history')} />
           }
           ListFooterComponent={renderFooter}
           contentContainerStyle={styles.listContent}

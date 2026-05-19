@@ -12,6 +12,8 @@ import Ionicons from 'react-native-vector-icons/Ionicons';
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
 import { useNavigation } from '@react-navigation/native';
 import useChannelStore from '../../../channelStore';
+import EmptyState from '../../shared/EmptyState';
+import { emptyStatePreset } from '../../shared/emptyStatePresets';
 
 const CHANNEL_COLORS = {
   whatsapp: '#25D366',
@@ -169,18 +171,12 @@ const ChannelBindingsScreen = () => {
           data={bindings}
           keyExtractor={(item) => String(item.id)}
           renderItem={renderItem}
+          // UX-AUDIT 2026-05-19: P7 preset migration (DRY — consistent tone).
           ListEmptyComponent={
-            <View style={styles.centerContainer}>
-              <MaterialCommunityIcons name="connection" size={48} color="#555" />
-              <Text style={styles.emptyText}>No channels connected yet</Text>
-              <TouchableOpacity
-                style={styles.emptyAddBtn}
-                onPress={() => navigation.navigate('ChannelSetup')}
-                activeOpacity={0.7}
-              >
-                <Text style={styles.emptyAddBtnText}>Add Channel</Text>
-              </TouchableOpacity>
-            </View>
+            <EmptyState
+              {...emptyStatePreset('no-channels')}
+              onCta={() => navigation.navigate('ChannelSetup')}
+            />
           }
           contentContainerStyle={styles.listContent}
           showsVerticalScrollIndicator={false}

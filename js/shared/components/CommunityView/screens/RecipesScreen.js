@@ -12,6 +12,8 @@ import Ionicons from 'react-native-vector-icons/Ionicons';
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
 import { useNavigation } from '@react-navigation/native';
 import { recipesApi } from '../../../services/socialApi';
+import EmptyState from '../../shared/EmptyState';
+import { emptyStatePreset } from '../../shared/emptyStatePresets';
 
 const RecipesScreen = () => {
   const navigation = useNavigation();
@@ -106,12 +108,8 @@ const RecipesScreen = () => {
           data={recipes}
           keyExtractor={(item) => String(item.id)}
           renderItem={renderItem}
-          ListEmptyComponent={
-            <View style={styles.centerContainer}>
-              <MaterialCommunityIcons name="code-braces-box" size={48} color="#555" />
-              <Text style={styles.emptyText}>No shared recipes yet</Text>
-            </View>
-          }
+          // UX-AUDIT 2026-05-19: P7 preset migration (DRY).
+          ListEmptyComponent={<EmptyState {...emptyStatePreset('no-recipes')} />}
           contentContainerStyle={styles.listContent}
           showsVerticalScrollIndicator={false}
           refreshControl={

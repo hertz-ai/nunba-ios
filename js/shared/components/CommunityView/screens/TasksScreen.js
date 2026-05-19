@@ -12,6 +12,8 @@ import Ionicons from 'react-native-vector-icons/Ionicons';
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
 import { useNavigation } from '@react-navigation/native';
 import { tasksApi } from '../../../services/socialApi';
+import EmptyState from '../../shared/EmptyState';
+import { emptyStatePreset } from '../../shared/emptyStatePresets';
 
 const STATUS_COLORS = {
   open: '#0078ff',
@@ -123,12 +125,8 @@ const TasksScreen = () => {
           data={tasks}
           keyExtractor={(item) => String(item.id)}
           renderItem={renderItem}
-          ListEmptyComponent={
-            <View style={styles.centerContainer}>
-              <MaterialCommunityIcons name="clipboard-text-outline" size={48} color="#555" />
-              <Text style={styles.emptyText}>No tasks yet</Text>
-            </View>
-          }
+          // UX-AUDIT 2026-05-19: P7 preset migration (DRY).
+          ListEmptyComponent={<EmptyState {...emptyStatePreset('no-tasks')} />}
           contentContainerStyle={styles.listContent}
           showsVerticalScrollIndicator={false}
           refreshControl={

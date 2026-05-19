@@ -38,6 +38,7 @@ import {
 } from 'react-native-responsive-screen';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 import { marketplaceApi } from '../../../services/socialApi';
+import useDebouncedCallback from '../../../hooks/useDebouncedCallback';
 
 const ACCENT = '#6C63FF';
 const ACCENT_GREEN = '#00e89d';
@@ -118,11 +119,13 @@ const MarketplaceScreen = () => {
   const [searchDebounced, setSearchDebounced] = useState('');
   const [loadingMore, setLoadingMore] = useState(false);
 
-  // Debounce search input to avoid re-fetching on every keystroke.
+  // UX-AUDIT 2026-05-19: replaced inline useEffect setTimeout with the
+  // shared useDebouncedCallback hook (DRY — same hook used by
+  // SearchScreen, DebouncedSearch, AutoSuggestInput, KidsHub).
+  const debouncedSetSearch = useDebouncedCallback(setSearchDebounced, 350);
   useEffect(() => {
-    const timer = setTimeout(() => setSearchDebounced(search), 350);
-    return () => clearTimeout(timer);
-  }, [search]);
+    debouncedSetSearch(search);
+  }, [search, debouncedSetSearch]);
 
   const load = useCallback(
     async ({ reset } = { reset: false }) => {
