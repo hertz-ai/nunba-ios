@@ -36,9 +36,10 @@
  *
  * Plan ref: Part X.4.2 + Part X.7.1 (P9 tests).
  */
-import React, { useEffect, useRef, useCallback } from 'react';
+import React, { useCallback } from 'react';
 import { View, TextInput, TouchableOpacity, StyleSheet } from 'react-native';
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
+import useDebouncedCallback from '../../hooks/useDebouncedCallback';
 
 const DEFAULT_DELAY = 250;
 
@@ -51,30 +52,27 @@ const DebouncedSearch = ({
   fireOnEmpty = false,
   testID = 'DebouncedSearch',
 }) => {
-  const timerRef = useRef(null);
-  const mountedRef = useRef(true);
-
-  useEffect(() => () => {
-    mountedRef.current = false;
-    if (timerRef.current) clearTimeout(timerRef.current);
-  }, []);
+  // DRY 2026-05-19: the debounce TIMER is owned by useDebouncedCallback
+  // — same hook SearchScreen uses for its specialised TextInput.  No
+  // parallel paths for "wait N ms after last keystroke before firing."
+  const debouncedFire = useDebouncedCallback(
+    (text) => {
+      if (!fireOnEmpty && text === '') return;
+      if (typeof onDebouncedChange === 'function') onDebouncedChange(text);
+    },
+    delay,
+  );
 
   const handleChangeText = useCallback(
     (text) => {
       if (typeof onChangeText === 'function') onChangeText(text);
-      if (timerRef.current) clearTimeout(timerRef.current);
-      timerRef.current = setTimeout(() => {
-        if (!mountedRef.current) return;
-        if (!fireOnEmpty && text === '') return;
-        if (typeof onDebouncedChange === 'function') onDebouncedChange(text);
-      }, delay);
+      debouncedFire(text);
     },
-    [onChangeText, onDebouncedChange, delay, fireOnEmpty],
+    [onChangeText, debouncedFire],
   );
 
   const handleClear = useCallback(() => {
     if (typeof onChangeText === 'function') onChangeText('');
-    if (timerRef.current) clearTimeout(timerRef.current);
     if (fireOnEmpty && typeof onDebouncedChange === 'function') {
       onDebouncedChange('');
     }

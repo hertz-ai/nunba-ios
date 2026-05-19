@@ -27,6 +27,7 @@ import {
   TierProgressBar,
 } from '../components/Gamification';
 import ContextBridge from '../components/ContextBridge';
+import CountUp from '../../shared/CountUp';
 
 const TABS = ['Overview', 'History', 'Leaderboard'];
 
@@ -186,8 +187,12 @@ const ResonanceDashboardScreen = () => {
             style={[styles.progressFill, { width: `${(userData.currentXP / userData.xpToNextLevel) * 100}%` }]}
           />
         </View>
+        {/* UX-AUDIT 2026-05-19 P6 wire: CountUp animates the XP reveal —
+            score arrives with weight instead of just appearing. */}
         <Text style={styles.progressText}>
-          {userData.currentXP.toLocaleString()} / {userData.xpToNextLevel.toLocaleString()} XP to Level {userData.level + 1}
+          <CountUp value={userData.currentXP} duration={800} style={styles.progressText} />
+          {' / '}
+          {userData.xpToNextLevel.toLocaleString()} XP to Level {userData.level + 1}
         </Text>
       </View>
 

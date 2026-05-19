@@ -512,25 +512,45 @@ const InboxScreen = () => {
           onEndReached={onEndReached}
           onEndReachedThreshold={0.5}
           ListEmptyComponent={
-            // UX-AUDIT 2026-05-19: migrated to the curated emptyStatePresets
-            // (Part X.P7).  Search-empty + filter-empty + true-empty each
-            // map to a preset with tone-reviewed copy + a single CTA.
-            <EmptyState
-              {...emptyStatePreset(
+            // UX-AUDIT 2026-05-19: migrated to emptyStatePresets (Part X.P7).
+            // PR P.1 onConnectCTA preserved when bindingCount === 0:
+            // the "Connect a channel" CTA is binding-aware and overrides
+            // the generic preset CTA for first-time users with no
+            // active channel.  Reviewer 2026-05-19 caught the dropped
+            // CTA — this restores it.
+            (() => {
+              const noBindings = bindingCount === 0;
+              if (!search && filter === 'all' && noBindings) {
+                return (
+                  <EmptyState
+                    icon="link-variant"
+                    title="No channels yet"
+                    body="Connect Discord / WhatsApp / Slack to see channel mentions here."
+                    ctaLabel="Connect a channel"
+                    onCta={onConnectCTA}
+                  />
+                );
+              }
+              const preset = emptyStatePreset(
                 search
                   ? 'no-search-results'
                   : filter === 'all'
                     ? 'inbox-empty'
                     : 'inbox-filtered',
-              )}
-              onCta={
-                search
-                  ? () => setSearch('')
-                  : filter !== 'all'
-                    ? () => setFilter('all')
-                    : null
-              }
-            />
+              );
+              return (
+                <EmptyState
+                  {...preset}
+                  onCta={
+                    search
+                      ? () => setSearch('')
+                      : filter !== 'all'
+                        ? () => setFilter('all')
+                        : null
+                  }
+                />
+              );
+            })()
           }
           ListFooterComponent={
             loadingMore ? (

@@ -11,6 +11,7 @@ import { RectButton, GestureHandlerRootView } from 'react-native-gesture-handler
 import { postsApi, commentsApi } from '../../../../../../services/socialApi';
 import BookmarkButton from './BookmarkButton';
 import { optimistic } from '../../../../../../services/optimistic';
+import useSavedPostsStore from '../../../../../../savedPostsStore';
 
 const { OnboardingModule, ActivityStarterModule } = NativeModules;
 
@@ -31,11 +32,16 @@ const Footer = ({
   const [voteScore, setVoteScore] = useState(0);
   const [commentCount, setCommentCount] = useState(0);
   const [userId, setUserId] = useState();
-  // UX-AUDIT 2026-05-18 Pass X.P2: BookmarkButton state.  Server-side
-  // /api/social/saved endpoint + savedPostsStore are deferred per the
-  // plan (additive, lands in a follow-up).  Until then this is a
-  // local-only toggle so the visual+haptic experience ships now.
-  const [isSaved, setIsSaved] = useState(false);
+  // UX-AUDIT 2026-05-19 reviewer-fix #2: BookmarkButton now reads/writes
+  // through savedPostsStore (AsyncStorage-backed Zustand).  Saves survive
+  // app launches.  Server-side /api/social/saved is still deferred but
+  // the in-memory + on-disk persistence means the user-visible bookmark
+  // is no longer a flicker-and-forget no-op.
+  const savedPostsHydrate = useSavedPostsStore((s) => s.hydrate);
+  const isSaved = useSavedPostsStore((s) => userData?.id ? s.has(userData.id) : false);
+  const savedPostsAdd = useSavedPostsStore((s) => s.add);
+  const savedPostsRemove = useSavedPostsStore((s) => s.remove);
+  useEffect(() => { savedPostsHydrate(); }, [savedPostsHydrate]);
   const scaleAnim = useRef(new Animated.Value(1)).current;
   const isAnimating = React.useRef(false);
 
@@ -145,14 +151,23 @@ const Footer = ({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [userData?.id, voteState]);
 
-  // UX-AUDIT 2026-05-18 Pass X.P2: bookmark toggle.  Server-side
-  // /api/social/saved endpoint deferred — for now persist locally
-  // via setIsSaved.  The optimistic helper handles the no-op request
-  // gracefully (success path runs, no error toast fires).
+  // UX-AUDIT 2026-05-19 reviewer-fix #2: bookmark toggle now persists
+  // via savedPostsStore (AsyncStorage).  Server-side /api/social/saved
+  // is deferred — when it lands, swap the Promise.resolve below with
+  // savedPostsApi.save(postId) / .unsave(postId).  Local persistence
+  // makes the bookmark survive app launches RIGHT NOW.
   const handleBookmarkToggle = (next) => {
-    // Local-only for now — when /api/social/saved lands, swap this
-    // with savedPostsApi.save(postId) / .unsave(postId).
+    // Note: applyLocal in BookmarkButton already optimistically flips
+    // the visual via setIsSaved; we just have to mirror that into the
+    // store so the next render of this Footer (or a sibling viewing
+    // the same post) reads the same state.
     return Promise.resolve(next);
+  };
+  const applyBookmark = (next) => {
+    const id = userData?.id;
+    if (!id) return;
+    if (next) savedPostsAdd(id);
+    else savedPostsRemove(id);
   };
 
   const onComment = () => {
@@ -245,7 +260,7 @@ const Footer = ({
           <BookmarkButton
             postId={userData?.id}
             isSaved={isSaved}
-            applyLocal={setIsSaved}
+            applyLocal={applyBookmark}
             onToggle={handleBookmarkToggle}
           />
         </View>

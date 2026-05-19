@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useRef, useEffect } from 'react';
 import {
   View, Text, StyleSheet, FlatList, TouchableOpacity, TextInput,
   SafeAreaView, StatusBar, ActivityIndicator, Animated,
@@ -15,6 +15,7 @@ import { searchApi } from '../../../services/socialApi';
 import { colors, borderRadius, fontSize, fontWeight, shadows, GRADIENTS } from '../../../theme/colors';
 import useLiquidOverlayStore from '../../../liquidOverlayStore';
 import useNunbaKeyboardStore from '../../../nunbaKeyboardStore';
+import useDebouncedCallback from '../../../hooks/useDebouncedCallback';
 
 const TABS = [
   { key: 'posts', label: 'Posts', icon: 'document-text-outline' },
@@ -43,6 +44,12 @@ const SearchScreen = () => {
       setLoading(false);
     }
   }, [activeTab]);
+
+  // DRY 2026-05-19: same hook DebouncedSearch primitive uses internally.
+  // SearchScreen has special-chrome (Nunba-keyboard icon) so it can't
+  // wholesale-replace with <DebouncedSearch/>, but the timer logic
+  // lives in exactly ONE place.
+  const debouncedSearch = useDebouncedCallback((q) => doSearch(q), 250);
 
   const handleSubmit = () => doSearch(query);
 
@@ -125,7 +132,15 @@ const SearchScreen = () => {
           placeholder="Search posts, users, communities..."
           placeholderTextColor={colors.textMuted}
           value={query}
-          onChangeText={setQuery}
+          onChangeText={(text) => {
+            // UX-AUDIT 2026-05-19 P9 wire: per-keystroke UI update,
+            // debounced search call via useDebouncedCallback hook.
+            // DRY: SAME hook DebouncedSearch primitive uses internally
+            // — single source of truth for the timer logic.
+            setQuery(text);
+            if (!text) { setResults([]); return; }
+            debouncedSearch(text);
+          }}
           onSubmitEditing={handleSubmit}
           returnKeyType="search"
           autoFocus

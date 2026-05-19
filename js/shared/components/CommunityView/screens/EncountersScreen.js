@@ -28,6 +28,7 @@ import IcebreakerDraftSheet from '../components/Encounters/IcebreakerDraftSheet'
 import LocationSettingsToggle from '../components/Encounters/LocationSettingsToggle';
 import ContextBridge from '../components/ContextBridge';
 import { bleEncounterApi } from '../../../services/socialApi';
+import RadarPulse from '../../shared/RadarPulse';
 
 // BLE Matches added at index 4 (end) so existing index logic for
 // activeTab === 1, 2, 3 (Missed/Discovery/My Posts) is unchanged.
@@ -230,6 +231,14 @@ const EncountersScreen = () => {
       {isTracking ? (
         <>
           <LocationSettingsToggle />
+          {/* UX-AUDIT 2026-05-19 P8 wire: RadarPulse during scan
+              (nearbyCount === 0) so users see the app is actively
+              looking, not frozen.  Hides once first match arrives. */}
+          {nearbyCount === 0 ? (
+            <View style={{ alignItems: 'center', paddingVertical: hp('4%') }}>
+              <RadarPulse active size={180} />
+            </View>
+          ) : null}
           <ProximityBanner nearbyCount={nearbyCount} isScanning={nearbyCount === 0} />
           {/* Context bridge: matched interests → Experiments */}
           {expCtx?.userTopIntent && matches.length > 0 && (

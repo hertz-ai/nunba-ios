@@ -1,8 +1,9 @@
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useCallback, useEffect, useRef } from 'react';
 import {
   View, Text, StyleSheet, FlatList, TouchableOpacity, TextInput,
   SafeAreaView, StatusBar, RefreshControl, ActivityIndicator, Alert, Animated,
 } from 'react-native';
+import ParallaxHero from '../../shared/ParallaxHero';
 import {
   widthPercentageToDP as wp,
   heightPercentageToDP as hp,
@@ -30,6 +31,10 @@ const ProfileScreen = () => {
   const expCtx = null;
   const resonanceCtx = null;
   const achCtx = null;
+  // UX-AUDIT 2026-05-19 P5 wire: scrollY drives ParallaxHero's cover
+  // translateY (0.5x parallax) + avatar opacity fade (1→0.7 across 80-160 px).
+  const scrollY = useRef(new Animated.Value(0)).current;
+  const AnimatedFlatList = Animated.createAnimatedComponent(FlatList);
 
   const fetchData = useCallback(async () => {
     try {
@@ -305,11 +310,27 @@ const ProfileScreen = () => {
         <View style={styles.headerSpacer} />
       </View>
 
-      <FlatList
+      <AnimatedFlatList
         data={posts}
         keyExtractor={(item) => String(item.id)}
         renderItem={renderPost}
-        ListHeaderComponent={renderHeader}
+        ListHeaderComponent={
+          <>
+            {/* UX-AUDIT 2026-05-19 P5 wire: ParallaxHero with the
+                magazine-style 0.5x cover scroll + bounce-zone scale +
+                avatar opacity fade.  scrollY is the Animated.Value
+                driven by AnimatedFlatList's onScroll. */}
+            <ParallaxHero
+              scrollY={scrollY}
+              coverUri={user?.cover_url || user?.avatar_url}
+              avatarUri={user?.avatar_url}
+              name={user?.display_name || user?.username || 'Unknown'}
+              subtitle={user?.handle ? `@${user.handle}` : (user?.bio || '')}
+              height={200}
+            />
+            {renderHeader()}
+          </>
+        }
         ListEmptyComponent={
           <View style={styles.centerContainer}>
             <MaterialCommunityIcons name="post-outline" size={48} color="#555" />
@@ -318,6 +339,11 @@ const ProfileScreen = () => {
         }
         contentContainerStyle={styles.listContent}
         showsVerticalScrollIndicator={false}
+        onScroll={Animated.event(
+          [{ nativeEvent: { contentOffset: { y: scrollY } } }],
+          { useNativeDriver: true },
+        )}
+        scrollEventThrottle={16}
         refreshControl={
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#00e89d" />
         }
