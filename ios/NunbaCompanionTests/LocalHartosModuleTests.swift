@@ -108,45 +108,51 @@ final class LocalHartosModuleTests: XCTestCase {
     XCTAssertEqual(thermalOk, expected)
   }
 
-  // MARK: — Model management stubs (no on-device LLM in this build)
+  // MARK: — Model management (xcframework-backed local LLM landed Apr 2026)
 
-  func test_getModelCatalog_returnsEmptyArray() {
+  func test_getModelCatalog_returnsQwen3Default() {
+    // Build ships with one curated GGUF: qwen3-0.8b-q4.  When the
+    // catalog grows past one entry, extend this assertion to check
+    // every id is present rather than counting.
     let exp = expectation(description: "")
     module.getModelCatalog({ result in
-      XCTAssertEqual((result as? [Any])?.count, 0)
+      let list = result as? [[String: Any]] ?? []
+      XCTAssertEqual(list.count, 1)
+      XCTAssertEqual(list.first?["id"] as? String, "qwen3-0.8b-q4")
       exp.fulfill()
     }, rejecter: { _, _, _ in XCTFail() })
     wait(for: [exp], timeout: 1.0)
   }
 
-  func test_getRecommendedModel_returnsNull() {
+  func test_getRecommendedModel_returnsQwen3Default() {
     let exp = expectation(description: "")
     module.getRecommendedModel({ result in
-      XCTAssertTrue(result is NSNull,
-                    "No recommended model in this build — JS expects null")
+      let dict = result as? [String: Any] ?? [:]
+      XCTAssertEqual(dict["id"] as? String, "qwen3-0.8b-q4",
+                     "Recommended model is the curated default — JS first-launch path depends on it")
       exp.fulfill()
     }, rejecter: { _, _, _ in XCTFail() })
     wait(for: [exp], timeout: 1.0)
   }
 
-  func test_downloadModel_rejectsWithLocalLLMUnavailable() {
+  func test_downloadModel_rejectsWithUnknownModelForBogusId() {
     let exp = expectation(description: "rejects")
-    module.downloadModel("any-model-id", resolve: { _ in
-      XCTFail("Should not resolve — local LLM unavailable in this build")
+    module.downloadModel("not-a-real-model-id", resolve: { _ in
+      XCTFail("Should not resolve — unknown id must reject")
     }, rejecter: { code, message, _ in
-      XCTAssertEqual(code, "LOCAL_LLM_UNAVAILABLE")
+      XCTAssertEqual(code, "UNKNOWN_MODEL")
       XCTAssertNotNil(message)
       exp.fulfill()
     })
     wait(for: [exp], timeout: 1.0)
   }
 
-  func test_startLocal_rejectsWithLocalLLMUnavailable() {
+  func test_startLocal_rejectsWithUnknownModelForBogusId() {
     let exp = expectation(description: "rejects")
-    module.startLocal("any-model-id", resolve: { _ in
+    module.startLocal("not-a-real-model-id", resolve: { _ in
       XCTFail("Should not resolve")
     }, rejecter: { code, _, _ in
-      XCTAssertEqual(code, "LOCAL_LLM_UNAVAILABLE")
+      XCTAssertEqual(code, "UNKNOWN_MODEL")
       exp.fulfill()
     })
     wait(for: [exp], timeout: 1.0)

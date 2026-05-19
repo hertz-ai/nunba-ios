@@ -30,6 +30,8 @@ final class FleetCommandDispatcherTests: XCTestCase {
       "tts_stream", "agent_consent", "ui_navigate",
       "ui_overlay_show", "ui_overlay_dismiss",
       "notification_unconfirmed",
+      // Phase 7d voice/video/screen-share calls
+      "call_invite", "call_ended",
     ]
     XCTAssertEqual(FleetCommandDispatcher.recognizedCommandTypes, expected)
   }
