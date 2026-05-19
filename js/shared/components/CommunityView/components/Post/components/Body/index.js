@@ -1,8 +1,9 @@
 import React, { useCallback, useEffect, useState, useRef } from 'react';
-import { Image, Text, View, TouchableOpacity, NativeModules, Dimensions } from 'react-native';
+import { Image, Text, View, TouchableOpacity, NativeModules, Dimensions, DeviceEventEmitter } from 'react-native';
 import styles from './styles';
 import useThemeStore from '../../../../../../colorThemeZustand';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
+import DoubleTapToLike from './DoubleTapToLike';
 
 import { useNavigation } from '@react-navigation/native';
 const { OnboardingModule } = NativeModules;
@@ -59,6 +60,19 @@ const Body = ({ resourceUri, contentType, caption, userData }) => {
     navigation.navigate('CommentsList', { userData, userId });
   };
 
+  // UX-AUDIT 2026-05-18 Pass X.P2: wrap the image post in
+  // DoubleTapToLike so a double-tap registers an upvote (mirrors the
+  // Footer's like button + Instagram's iconic interaction).  We don't
+  // own the like state here — Footer does — so we emit a
+  // DeviceEvent that Footer subscribes to.  Idempotency check in
+  // DoubleTapToLike + voteState check in Footer prevents
+  // double-vote storms.
+  const handleDoubleTapLike = useCallback(() => {
+    const postId = userData?.id;
+    if (!postId) return;
+    DeviceEventEmitter.emit('PostDoubleTapLike', { postId });
+  }, [userData?.id]);
+
   if (contentType === 'image') {
     return (
       <View style={{ backgroundColor: 'black' }}>
@@ -73,9 +87,11 @@ const Body = ({ resourceUri, contentType, caption, userData }) => {
             {lengthMore ? (textShown ? ' Read less' : ' Read more') : null}
           </Text>
         ) : null}
-        <TouchableOpacity onPress={navigateToCommentsList}>
-          <Image source={{ uri: resourceUri }} style={styles.image} />
-        </TouchableOpacity>
+        <DoubleTapToLike liked={false} onLike={handleDoubleTapLike}>
+          <TouchableOpacity onPress={navigateToCommentsList}>
+            <Image source={{ uri: resourceUri }} style={styles.image} />
+          </TouchableOpacity>
+        </DoubleTapToLike>
       </View>
     );
   } else if (contentType === 'video') {

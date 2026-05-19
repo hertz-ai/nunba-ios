@@ -2,8 +2,8 @@
   "$schema": "./SHARED_JS_MANIFEST.schema.json",
   "description": "Source-of-truth list of JS files vendored from Hevolve_React_Native into Nunba-Companion-iOS. Read by scripts/sync-from-android.sh. Each entry maps a source path (relative to the Android repo root) to a destination path (relative to js/shared/). Files are copied verbatim — destinations should NEVER be hand-edited.",
   "android_repo_path": "../Hevolve_React_Native",
-  "synced_at": "2026-05-18T17:37:56.546Z",
-  "synced_from_commit": "P10: listPerf + assertA11y — closes the P0-P10 sequence",
+  "synced_at": "2026-05-19T02:23:32.140Z",
+  "synced_from_commit": "d34ce3fe — reviewer fixes (P2 recovered + dead primitives wired + ProgressRing math fix)",
   "groups": [
     {
       "name": "stores",

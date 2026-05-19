@@ -48,6 +48,7 @@ import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityI
 import { useNavigation } from '@react-navigation/native';
 import OpenStatusDot from './OpenStatusDot';
 import { hapticLight } from '../../services/haptics';
+import { assertA11y } from './assertA11y';
 
 // Hardcoded conversation identifier for the Nunba assistant.  The
 // server-side ConversationService resolves this to the user's
@@ -81,15 +82,23 @@ const NunbaHeroCard = ({ onPress, status = 'online' }) => {
     }
   };
 
+  // UX-AUDIT 2026-05-19: dev-time a11y assertion (P10 assertA11y) —
+  // enforces accessibilityLabel + role on this interactive node so a
+  // future edit that strips them throws loud in dev/test.  Production
+  // builds short-circuit (zero runtime cost).
+  const touchableProps = assertA11y({
+    accessibilityRole: 'button',
+    accessibilityLabel: 'Open chat with Nunba',
+    accessibilityHint: 'Opens your default chat — the agent morphs to match what you need',
+    onPress: handlePress,
+  });
+
   return (
     <TouchableOpacity
       style={styles.card}
       activeOpacity={0.85}
-      onPress={handlePress}
-      accessibilityRole="button"
-      accessibilityLabel="Open chat with Nunba"
-      accessibilityHint="Opens your default chat — the agent morphs to match what you need"
       testID="NunbaHeroCard"
+      {...touchableProps}
     >
       <View style={styles.avatarWrap}>
         <View style={styles.avatar}>

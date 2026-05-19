@@ -46,6 +46,13 @@ import SkeletonRow    from '../../shared/SkeletonRow';
 import ActionSheet    from '../../shared/ActionSheet';
 import NunbaHeroCard  from '../../shared/NunbaHeroCard';
 import SwipeableRow   from '../../shared/SwipeableRow';
+import { flatListVirtualizationProps } from '../../shared/listPerf';
+import { emptyStatePreset } from '../../shared/emptyStatePresets';
+
+// UX-AUDIT 2026-05-19: ListRowCard's rendered height on Galaxy S22+
+// + iPhone 15 Pro measures 72px (avatar 44 + 14 padding top/bottom +
+// 2px separator).  Used as the fixed rowHeight for FlatList virtualization.
+const INBOX_ROW_HEIGHT = 72;
 
 /* ── Filter taxonomy ─────────────────────────────────────────────── */
 
@@ -498,23 +505,31 @@ const InboxScreen = () => {
           // with the Nunba agent (auto-created server-side on first
           // message per Part E.3).
           ListHeaderComponent={<NunbaHeroCard />}
+          // UX-AUDIT 2026-05-19: virtualization (P10 listPerf) — pins
+          // row height so FlatList skips per-item measurement passes.
+          // 60fps scroll on inbox with 100+ rows.
+          {...flatListVirtualizationProps(INBOX_ROW_HEIGHT)}
           onEndReached={onEndReached}
           onEndReachedThreshold={0.5}
           ListEmptyComponent={
+            // UX-AUDIT 2026-05-19: migrated to the curated emptyStatePresets
+            // (Part X.P7).  Search-empty + filter-empty + true-empty each
+            // map to a preset with tone-reviewed copy + a single CTA.
             <EmptyState
-              icon={filter === 'all' ? 'inbox-outline' : 'magnify'}
-              title={
-                filter === 'all'
-                  ? 'Inbox zero'
-                  : 'Nothing here'
+              {...emptyStatePreset(
+                search
+                  ? 'no-search-results'
+                  : filter === 'all'
+                    ? 'inbox-empty'
+                    : 'inbox-filtered',
+              )}
+              onCta={
+                search
+                  ? () => setSearch('')
+                  : filter !== 'all'
+                    ? () => setFilter('all')
+                    : null
               }
-              body={
-                filter === 'all'
-                  ? 'New mentions, messages, and invites will land here.'
-                  : 'Try a different filter or pull to refresh.'
-              }
-              ctaLabel={search ? 'Clear search' : null}
-              onCta={search ? () => setSearch('') : null}
             />
           }
           ListFooterComponent={

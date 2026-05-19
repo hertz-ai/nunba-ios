@@ -1,169 +1,92 @@
 /**
  * ProgressRing — circular progress indicator (0-100%) without
- * react-native-svg dependency.  Built from two overlaid semicircle
- * Views with rotation transforms (classic Material progress-circle
- * trick).  Used in Challenges (X% complete), Season progress,
- * Achievement rarity meters.
+ * react-native-svg.  Renders a STATIC RING BORDER + centered
+ * percentage text.  Used in Challenges (X% complete), Season
+ * progress, Achievement rarity meters.
  *
- * Why users would love this (Part X.4.5 Gamification surface):
- *   - A ring that visually FILLS is more legible at a glance than
- *     a "62%" text label.  Activity rings (Apple Watch) proved
- *     this pattern dominates linear progress bars for short
- *     evaluations.
- *   - Color-coded by completion: gray-blue for in-progress, accent
- *     green when complete.
+ * Why we DON'T fake an arc with rotated half-circles:
+ *   Earlier iterations of this primitive tried the classic
+ *   CSS-without-SVG technique of rotating two half-circles around
+ *   transformOrigin to produce an arc.  In RN that approach
+ *   produces a rotated RECTANGLE sweep, not an arc — RN doesn't
+ *   honour CSS-style border-radius clipping on rotated elements
+ *   consistently across platforms.  The reviewer agent caught
+ *   this as broken geometry (2026-05-19 review of Part X).
  *
- * Multi-hat self-critique:
- *   - Designer: two semicircles + rotation > SVG path math.  No
- *     extra native module to install/bundle.  Limitation: at very
- *     small sizes (< 32px) the visual fidelity drops; primitives
- *     using it should size ≥ 40px.
- *   - A11y: accessibilityLabel reports the percent; role=progressbar
- *     so screen readers announce as a progress indicator.
- *   - Engineer: pure View + transform; useNativeDriver-friendly if
- *     the caller animates the percent prop via an Animated.Value
- *     (future enhancement).
+ *   For a true arc, callers should add `react-native-svg` as a dep
+ *   and render a Circle with `strokeDasharray`.  Until then,
+ *   ProgressRing renders a clean static ring + a textual percentage
+ *   that's accessible AND honest.
+ *
+ * Why users still love it:
+ *   - A ring + bold "62%" reads at-a-glance better than a thin
+ *     progress bar.  The visual weight of the bordered circle
+ *     conveys "this is something you're completing."
+ *   - Centered Text scales naturally with the ring size.
+ *   - accessibilityRole='progressbar' + accessibilityValue make
+ *     it work for screen readers identically to a real arc.
  *
  * Props:
  *   - percent    : 0..100
  *   - size?      : px diameter (default 64)
- *   - thickness? : px ring width (default 6)
- *   - color?     : ring fill (default accent)
- *   - trackColor?: ring background (default dark gray)
- *   - children?  : optional centered content (number / label)
+ *   - thickness? : px ring border width (default 6)
+ *   - color?     : ring border color (default accent green)
+ *   - trackColor?: unused (kept for prop-shape compat with prior P6
+ *                  callers); the ring is always single-colored now.
+ *                  Future SVG version may use both.
+ *   - showLabel? : show the "%" text in the center (default true)
+ *   - children?  : custom centered content overrides the % label
  *
- * Plan ref: Part X.4.5 + Part X.7.1 (P6 tests).
+ * Plan ref: Part X.4.5 + Part X.7.1 (P6 tests); reviewer fix
+ * tracked on 2026-05-19.
  */
 import React from 'react';
-import { View, StyleSheet } from 'react-native';
+import { View, Text, StyleSheet } from 'react-native';
 
 const ACCENT = '#00e89d';
-const TRACK = '#2A2A3E';
 
 const ProgressRing = ({
   percent = 0,
   size = 64,
   thickness = 6,
   color = ACCENT,
-  trackColor = TRACK,
+  trackColor: _trackColor,
+  showLabel = true,
   children,
   testID = 'ProgressRing',
 }) => {
   const clamped = Math.max(0, Math.min(100, percent));
-  const inner = size - thickness * 2;
-  const radius = size / 2;
-
-  // Two semicircles overlaid + rotated based on progress.
-  // 0-50%: left semicircle fully fills, right semicircle rotates 0→180°.
-  // 50-100%: right semicircle fully filled (rotated 180°), left
-  //   semicircle rotates 0→180° to reveal increasing color.
-  const rotation = (clamped / 50) * 180;
-  const firstHalf = clamped <= 50;
+  const rounded = Math.round(clamped);
 
   return (
     <View
-      style={[styles.wrap, { width: size, height: size }]}
+      style={[
+        styles.wrap,
+        {
+          width: size,
+          height: size,
+          borderRadius: size / 2,
+          borderWidth: thickness,
+          borderColor: color,
+        },
+      ]}
       accessibilityRole="progressbar"
-      accessibilityValue={{ min: 0, max: 100, now: Math.round(clamped) }}
-      accessibilityLabel={`${Math.round(clamped)} percent`}
+      accessibilityValue={{ min: 0, max: 100, now: rounded }}
+      accessibilityLabel={`${rounded} percent`}
       testID={testID}
     >
-      {/* Track ring (background) */}
-      <View
-        style={[
-          styles.track,
-          {
-            width: size,
-            height: size,
-            borderRadius: radius,
-            borderWidth: thickness,
-            borderColor: trackColor,
-          },
-        ]}
-      />
-
-      {/* Fill ring — built from rotated half-circle slices */}
-      {firstHalf ? (
-        <View
-          style={[
-            styles.halfLeft,
-            { width: size, height: size, borderRadius: radius },
-          ]}
-        >
-          <View
-            style={[
-              styles.fillHalf,
-              {
-                width: size / 2,
-                height: size,
-                borderTopLeftRadius: radius,
-                borderBottomLeftRadius: radius,
-                borderTopWidth: thickness,
-                borderLeftWidth: thickness,
-                borderBottomWidth: thickness,
-                borderColor: color,
-                transform: [{ rotate: `${rotation}deg` }],
-                transformOrigin: '100% 50%',
-              },
-            ]}
-          />
-        </View>
-      ) : (
-        <>
-          <View
-            style={[
-              styles.halfLeft,
-              { width: size / 2, height: size },
-            ]}
-          >
-            <View
-              style={[
-                styles.fillHalf,
-                {
-                  width: size / 2,
-                  height: size,
-                  borderTopLeftRadius: radius,
-                  borderBottomLeftRadius: radius,
-                  borderTopWidth: thickness,
-                  borderLeftWidth: thickness,
-                  borderBottomWidth: thickness,
-                  borderColor: color,
-                },
-              ]}
-            />
-          </View>
-          <View
-            style={[
-              styles.halfRight,
-              { left: size / 2, width: size / 2, height: size },
-            ]}
-          >
-            <View
-              style={[
-                styles.fillHalf,
-                {
-                  width: size / 2,
-                  height: size,
-                  borderTopRightRadius: radius,
-                  borderBottomRightRadius: radius,
-                  borderTopWidth: thickness,
-                  borderRightWidth: thickness,
-                  borderBottomWidth: thickness,
-                  borderColor: color,
-                  transform: [{ rotate: `${rotation - 180}deg` }],
-                  transformOrigin: '0% 50%',
-                },
-              ]}
-            />
-          </View>
-        </>
-      )}
-
-      {/* Center content */}
       {children ? (
-        <View style={[styles.center, { width: inner, height: inner }]}>
-          {children}
-        </View>
+        children
+      ) : showLabel ? (
+        <Text
+          style={[
+            styles.label,
+            { fontSize: Math.max(10, size * 0.28) },
+          ]}
+          testID={`${testID}.label`}
+        >
+          {rounded}%
+        </Text>
       ) : null}
     </View>
   );
@@ -171,31 +94,12 @@ const ProgressRing = ({
 
 const styles = StyleSheet.create({
   wrap: {
-    position: 'relative',
     alignItems: 'center',
     justifyContent: 'center',
   },
-  track: {
-    position: 'absolute',
-  },
-  halfLeft: {
-    position: 'absolute',
-    left: 0,
-    top: 0,
-    overflow: 'hidden',
-  },
-  halfRight: {
-    position: 'absolute',
-    top: 0,
-    overflow: 'hidden',
-  },
-  fillHalf: {
-    position: 'absolute',
-    backgroundColor: 'transparent',
-  },
-  center: {
-    alignItems: 'center',
-    justifyContent: 'center',
+  label: {
+    color: '#FFFFFF',
+    fontWeight: '700',
   },
 });
 
