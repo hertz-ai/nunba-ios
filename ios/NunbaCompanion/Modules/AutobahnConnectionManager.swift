@@ -332,6 +332,34 @@ final class AutobahnConnectionManager: NSObject {
         FleetCommandReceiver.shared.process(userInfo: ["data": payload])
       }
       sendSubscribeLocked(topic: topic)
+
+      // P2-S5 (2026-05-26): subscribe to the canonical chat-new
+      // topic so this iOS companion sees every chat / interview /
+      // external-room row that HARTOS publishes via
+      // chat_messages.publish_new.  Web + desktop + Android already
+      // subscribe; this closes the iOS gap with one wire.  Payload
+      // is forwarded through the JS bridge as 'chatNew' so the React
+      // Native layer can render — same DeviceEventEmitter pattern
+      // FleetCommandReceiver uses.
+      let chatTopic = "com.hertzai.hevolve.chat.new.\(userId)"
+      subscriptions[chatTopic] = Subscription(subscriptionId: nil) { payload in
+        ChatNewEventEmitter.shared.emit(payload: payload)
+      }
+      sendSubscribeLocked(topic: chatTopic)
+
+      // #50 (2026-05-27): subscribe to the canonical social topic so
+      // iOS sees notifications, notification.read fan-out, and the
+      // post/comment lifecycle events that HARTOS publishes via
+      // realtime.on_notification + realtime._publish_*_event.  Same
+      // pattern as chatTopic — separate JS event name ("socialEvent")
+      // because the schema + consumer are different.  Web/desktop
+      // subscribe via crossbarWorker.js:818, Android via
+      // AutobahnConnectionManager.java; this closes the iOS gap.
+      let socialTopic = "com.hertzai.hevolve.social.\(userId)"
+      subscriptions[socialTopic] = Subscription(subscriptionId: nil) { payload in
+        SocialEventEmitter.shared.emit(payload: payload)
+      }
+      sendSubscribeLocked(topic: socialTopic)
     }
   }
 
