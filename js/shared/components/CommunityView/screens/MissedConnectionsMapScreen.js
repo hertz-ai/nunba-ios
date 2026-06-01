@@ -79,7 +79,7 @@ const MissedConnectionsMapScreen = () => {
 
   const getMarkerColor = (item) => {
     if (item.user_id === currentUserId) return '#4a90d9';
-    if (item.response_count > 0) return '#00e89d';
+    if (item.response_count > 0) return '#6C63FF';
     return '#ff6b6b';
   };
 
@@ -97,7 +97,7 @@ const MissedConnectionsMapScreen = () => {
 
   return (
     <SafeAreaView style={styles.container}>
-      <StatusBar barStyle="light-content" backgroundColor="#1a1a2e" />
+      <StatusBar barStyle="light-content" backgroundColor="#000000" />
       <View style={styles.header}>
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
           <Ionicons name="arrow-back" size={24} color="#FFF" />
@@ -177,7 +177,7 @@ const MissedConnectionsMapScreen = () => {
       {/* Bottom radius control */}
       <View style={styles.radiusControl}>
         <View style={styles.radiusHeader}>
-          <MaterialIcons name="radar" size={20} color="#00e89d" />
+          <MaterialIcons name="radar" size={20} color="#6C63FF" />
           <Text style={styles.radiusLabel}>
             Search Radius: {formatRadiusLabel(radius)}
           </Text>
@@ -189,9 +189,9 @@ const MissedConnectionsMapScreen = () => {
           step={100}
           value={radius}
           onSlidingComplete={handleRadiusChange}
-          minimumTrackTintColor="#00e89d"
+          minimumTrackTintColor="#6C63FF"
           maximumTrackTintColor="#3a3a4e"
-          thumbTintColor="#00e89d"
+          thumbTintColor="#6C63FF"
         />
         <View style={styles.sliderLabels}>
           <Text style={styles.sliderLabel}>100m</Text>
@@ -205,7 +205,7 @@ const MissedConnectionsMapScreen = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#1a1a2e',
+    backgroundColor: '#000000',
   },
   header: {
     flexDirection: 'row',

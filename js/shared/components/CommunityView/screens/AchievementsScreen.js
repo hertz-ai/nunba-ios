@@ -201,7 +201,9 @@ const AchievementsScreen = () => {
   const renderHeader = () => (
     <>
       {/* Achievement Count */}
-      <Animatable.View animation="fadeInDown" style={styles.countCard}>
+      {/* UX-AUDIT 2026-05-19 (BROKEN-B-pattern): primary-content
+          Animatable.View → plain View. */}
+      <View style={styles.countCard}>
         <View style={styles.countIcon}>
           <MaterialCommunityIcons name="trophy" size={32} color="#FFD700" />
         </View>
@@ -214,7 +216,7 @@ const AchievementsScreen = () => {
         <View style={styles.countProgress}>
           <Text style={styles.countPercent}>{totalCount > 0 ? Math.round((unlockedCount / totalCount) * 100) : 0}%</Text>
         </View>
-      </Animatable.View>
+      </View>
 
       {/* Context bridge: near-complete achievement action */}
       {nearCompleteBridge && (
@@ -318,7 +320,7 @@ const AchievementsScreen = () => {
 
   return (
     <SafeAreaView style={styles.container}>
-      <StatusBar barStyle="light-content" backgroundColor="#121212" />
+      <StatusBar barStyle="light-content" backgroundColor="#000000" />
 
       {/* Header */}
       <View style={styles.header}>
@@ -345,8 +347,8 @@ const AchievementsScreen = () => {
           <RefreshControl
             refreshing={refreshing}
             onRefresh={onRefresh}
-            tintColor="#00e89d"
-            colors={['#00e89d']}
+            tintColor="#6C63FF"
+            colors={['#6C63FF']}
           />
         }
       />
@@ -359,7 +361,7 @@ const AchievementsScreen = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#121212',
+    backgroundColor: '#000000',
   },
   header: {
     flexDirection: 'row',
@@ -387,7 +389,7 @@ const styles = StyleSheet.create({
   countCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#1A1A1A',
+    backgroundColor: '#141225',
     borderRadius: 16,
     padding: wp('4%'),
     marginBottom: hp('2%'),
@@ -434,7 +436,7 @@ const styles = StyleSheet.create({
   searchContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#1A1A1A',
+    backgroundColor: '#141225',
     borderRadius: 12,
     paddingHorizontal: wp('4%'),
     paddingVertical: hp('1.2%'),
@@ -457,14 +459,14 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingVertical: hp('1%'),
     alignItems: 'center',
-    backgroundColor: '#1A1A1A',
+    backgroundColor: '#141225',
     borderRadius: 10,
     borderWidth: 1,
     borderColor: '#2A2A2A',
   },
   filterTabActive: {
-    backgroundColor: '#00e89d22',
-    borderColor: '#00e89d',
+    backgroundColor: '#6C63FF22',
+    borderColor: '#6C63FF',
   },
   filterTabText: {
     color: '#888',
@@ -472,7 +474,7 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   filterTabTextActive: {
-    color: '#00e89d',
+    color: '#6C63FF',
   },
   categoriesContainer: {
     marginBottom: hp('2%'),
@@ -483,15 +485,15 @@ const styles = StyleSheet.create({
   categoryChip: {
     paddingHorizontal: wp('4%'),
     paddingVertical: hp('0.8%'),
-    backgroundColor: '#1A1A1A',
+    backgroundColor: '#141225',
     borderRadius: 16,
     borderWidth: 1,
     borderColor: '#2A2A2A',
     marginRight: 8,
   },
   categoryChipActive: {
-    backgroundColor: '#00e89d22',
-    borderColor: '#00e89d',
+    backgroundColor: '#6C63FF22',
+    borderColor: '#6C63FF',
   },
   categoryChipText: {
     color: '#888',
@@ -499,7 +501,7 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   categoryChipTextActive: {
-    color: '#00e89d',
+    color: '#6C63FF',
   },
   gridRow: {
     justifyContent: 'space-between',
@@ -523,7 +525,7 @@ const styles = StyleSheet.create({
     padding: wp('5%'),
   },
   modalContent: {
-    backgroundColor: '#1A1A1A',
+    backgroundColor: '#141225',
     borderRadius: 20,
     padding: wp('6%'),
     width: '100%',

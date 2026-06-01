@@ -47,7 +47,7 @@ import {
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 import { consentApi } from '../../../services/socialApi';
 
-const ACCENT = '#00e89d';
+const ACCENT = '#6C63FF';
 const ERR = '#ff6b6b';
 const MUTED = '#888';
 
@@ -407,7 +407,7 @@ const PrivacySettingsScreen = () => {
 };
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#1a1a2e' },
+  container: { flex: 1, backgroundColor: '#000000' },
   content: { padding: wp('4%') },
   heading: {
     color: '#FFF',
@@ -447,7 +447,7 @@ const styles = StyleSheet.create({
   },
   primaryButton: { backgroundColor: ACCENT },
   primaryButtonDisabled: { backgroundColor: '#3a3a4e' },
-  primaryButtonText: { color: '#1a1a2e', fontWeight: '700', fontSize: wp('3.4%') },
+  primaryButtonText: { color: '#000000', fontWeight: '700', fontSize: wp('3.4%') },
   secondaryButton: {
     backgroundColor: 'transparent',
     borderWidth: 1,
@@ -476,7 +476,7 @@ const styles = StyleSheet.create({
     padding: wp('5%'),
   },
   dialog: {
-    backgroundColor: '#1a1a2e',
+    backgroundColor: '#000000',
     borderRadius: 12,
     padding: wp('4%'),
     width: '100%',

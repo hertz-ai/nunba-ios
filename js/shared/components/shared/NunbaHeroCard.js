@@ -139,7 +139,7 @@ const styles = StyleSheet.create({
     borderRadius: 14,
     backgroundColor: '#16172A',
     borderWidth: 1,
-    borderColor: '#00e89d33',
+    borderColor: '#6C63FF33',
   },
   avatarWrap: {
     position: 'relative',
@@ -149,13 +149,13 @@ const styles = StyleSheet.create({
     width: 48,
     height: 48,
     borderRadius: 24,
-    backgroundColor: '#00e89d',
+    backgroundColor: '#6C63FF',
     alignItems: 'center',
     justifyContent: 'center',
     // gradient effect approximated via shadow; full LinearGradient
     // available when the optional react-native-linear-gradient dep
     // is present (same dynamic-require pattern as StoryRing).
-    shadowColor: '#00e89d',
+    shadowColor: '#6C63FF',
     shadowOpacity: 0.4,
     shadowRadius: 8,
     shadowOffset: { width: 0, height: 0 },

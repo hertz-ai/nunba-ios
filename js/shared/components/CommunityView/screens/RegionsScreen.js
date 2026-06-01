@@ -118,7 +118,7 @@ const RegionsScreen = () => {
             <MaterialCommunityIcons
               name={filter.icon}
               size={16}
-              color={selectedType === filter.key ? '#00e89d' : '#888'}
+              color={selectedType === filter.key ? '#6C63FF' : '#888'}
             />
             <Text style={[styles.filterChipText, selectedType === filter.key && styles.filterChipTextActive]}>
               {filter.label}
@@ -130,14 +130,14 @@ const RegionsScreen = () => {
       {/* Nearby Toggle */}
       <View style={styles.nearbyToggle}>
         <View style={styles.nearbyInfo}>
-          <MaterialCommunityIcons name="crosshairs-gps" size={20} color="#00e89d" />
+          <MaterialCommunityIcons name="crosshairs-gps" size={20} color="#6C63FF" />
           <Text style={styles.nearbyText}>Show nearby regions</Text>
         </View>
         <Switch
           value={nearbyEnabled}
           onValueChange={setNearbyEnabled}
-          trackColor={{ false: '#3A3A4E', true: '#00e89d44' }}
-          thumbColor={nearbyEnabled ? '#00e89d' : '#888'}
+          trackColor={{ false: '#3A3A4E', true: '#6C63FF44' }}
+          thumbColor={nearbyEnabled ? '#6C63FF' : '#888'}
         />
       </View>
 
@@ -213,7 +213,7 @@ const RegionsScreen = () => {
 
   return (
     <SafeAreaView style={styles.container}>
-      <StatusBar barStyle="light-content" backgroundColor="#121212" />
+      <StatusBar barStyle="light-content" backgroundColor="#000000" />
 
       {/* Header */}
       <View style={styles.header}>
@@ -234,7 +234,7 @@ const RegionsScreen = () => {
         contentContainerStyle={styles.listContent}
         showsVerticalScrollIndicator={false}
         refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#00e89d" />
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#6C63FF" />
         }
       />
 
@@ -242,7 +242,7 @@ const RegionsScreen = () => {
       {canCreateRegion && (
         <Animatable.View animation="bounceIn" delay={500}>
           <TouchableOpacity style={styles.fab} activeOpacity={0.8}>
-            <MaterialCommunityIcons name="plus" size={28} color="#121212" />
+            <MaterialCommunityIcons name="plus" size={28} color="#000000" />
           </TouchableOpacity>
         </Animatable.View>
       )}
@@ -256,7 +256,7 @@ const getTypeColor = (type) => {
     thematic: '#9D4EDD',
     language: '#FF6B35',
   };
-  return colors[type] || '#00e89d';
+  return colors[type] || '#6C63FF';
 };
 
 const formatCount = (count) => {
@@ -268,7 +268,7 @@ const formatCount = (count) => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#121212',
+    backgroundColor: '#000000',
   },
   header: {
     flexDirection: 'row',
@@ -295,7 +295,7 @@ const styles = StyleSheet.create({
   searchContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#1A1A1A',
+    backgroundColor: '#141225',
     borderRadius: 12,
     paddingHorizontal: wp('4%'),
     paddingVertical: hp('1.2%'),
@@ -322,15 +322,15 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingHorizontal: wp('3.5%'),
     paddingVertical: hp('0.8%'),
-    backgroundColor: '#1A1A1A',
+    backgroundColor: '#141225',
     borderRadius: 20,
     borderWidth: 1,
     borderColor: '#2A2A2A',
     marginRight: 8,
   },
   filterChipActive: {
-    backgroundColor: '#00e89d22',
-    borderColor: '#00e89d',
+    backgroundColor: '#6C63FF22',
+    borderColor: '#6C63FF',
   },
   filterChipText: {
     color: '#888',
@@ -339,13 +339,13 @@ const styles = StyleSheet.create({
     marginLeft: 6,
   },
   filterChipTextActive: {
-    color: '#00e89d',
+    color: '#6C63FF',
   },
   nearbyToggle: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    backgroundColor: '#1A1A1A',
+    backgroundColor: '#141225',
     borderRadius: 12,
     paddingHorizontal: wp('4%'),
     paddingVertical: hp('1%'),
@@ -389,7 +389,7 @@ const styles = StyleSheet.create({
   },
   myRegionCard: {
     width: wp('35%'),
-    backgroundColor: '#1A1A1A',
+    backgroundColor: '#141225',
     borderRadius: 12,
     padding: wp('3%'),
     marginRight: wp('3%'),
@@ -435,11 +435,11 @@ const styles = StyleSheet.create({
     width: 56,
     height: 56,
     borderRadius: 28,
-    backgroundColor: '#00e89d',
+    backgroundColor: '#6C63FF',
     justifyContent: 'center',
     alignItems: 'center',
     elevation: 6,
-    shadowColor: '#00e89d',
+    shadowColor: '#6C63FF',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.3,
     shadowRadius: 4,

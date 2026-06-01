@@ -129,7 +129,7 @@ const CreateMissedConnectionScreen = () => {
 
   return (
     <SafeAreaView style={styles.container}>
-      <StatusBar barStyle="light-content" backgroundColor="#1a1a2e" />
+      <StatusBar barStyle="light-content" backgroundColor="#000000" />
       <View style={styles.header}>
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
           <Ionicons name="arrow-back" size={24} color="#FFF" />
@@ -165,7 +165,7 @@ const CreateMissedConnectionScreen = () => {
                 coordinate={markerCoord}
                 draggable
                 onDragEnd={handleMarkerDrag}
-                pinColor="#00e89d"
+                pinColor="#6C63FF"
               />
             </MapView>
           ) : (
@@ -173,7 +173,7 @@ const CreateMissedConnectionScreen = () => {
               <MaterialIcons
                 name="place"
                 size={36}
-                color="#00e89d"
+                color="#6C63FF"
               />
               <Text style={styles.mapPlaceholderText}>
                 {markerCoord.latitude.toFixed(4)},{' '}
@@ -201,7 +201,7 @@ const CreateMissedConnectionScreen = () => {
           style={styles.dateButton}
           onPress={() => setShowDatePicker(true)}
         >
-          <MaterialIcons name="event" size={20} color="#00e89d" />
+          <MaterialIcons name="event" size={20} color="#6C63FF" />
           <Text style={styles.dateButtonText}>{formatDisplayDate(wasAt)}</Text>
         </TouchableOpacity>
         {showDatePicker && (
@@ -238,7 +238,7 @@ const CreateMissedConnectionScreen = () => {
           disabled={submitting || !locationName.trim() || !description.trim()}
         >
           {submitting ? (
-            <ActivityIndicator size="small" color="#1a1a2e" />
+            <ActivityIndicator size="small" color="#000000" />
           ) : (
             <Text style={styles.submitButtonText}>Post Missed Connection</Text>
           )}
@@ -251,7 +251,7 @@ const CreateMissedConnectionScreen = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#1a1a2e',
+    backgroundColor: '#000000',
   },
   header: {
     flexDirection: 'row',
@@ -340,7 +340,7 @@ const styles = StyleSheet.create({
     marginTop: 4,
   },
   submitButton: {
-    backgroundColor: '#00e89d',
+    backgroundColor: '#6C63FF',
     paddingVertical: hp('1.8%'),
     borderRadius: 24,
     alignItems: 'center',
@@ -350,7 +350,7 @@ const styles = StyleSheet.create({
     opacity: 0.5,
   },
   submitButtonText: {
-    color: '#1a1a2e',
+    color: '#000000',
     fontSize: wp('4%'),
     fontWeight: '700',
   },

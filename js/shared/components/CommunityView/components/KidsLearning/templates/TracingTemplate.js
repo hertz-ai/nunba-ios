@@ -359,10 +359,10 @@ const TracingTemplate = ({config, onAnswer, onComplete}) => {
   const [toleranceMultiplier, setToleranceMultiplier] = useState(1);
 
   // Animations
-  const guideAnim = useRef(new Animated.Value(0)).current;
-  const scoreAnim = useRef(new Animated.Value(0)).current;
+  const guideAnim = useRef(new Animated.Value(1)).current;
+  const scoreAnim = useRef(new Animated.Value(1)).current;
   const pulseAnim = useRef(new Animated.Value(1)).current;
-  const traceColorAnim = useRef(new Animated.Value(0)).current;
+  const traceColorAnim = useRef(new Animated.Value(1)).current;
 
   // Feedback
   const [feedbackVisible, setFeedbackVisible] = useState(false);
@@ -391,9 +391,9 @@ const TracingTemplate = ({config, onAnswer, onComplete}) => {
 
   // Animate guide in on item change
   useEffect(() => {
-    guideAnim.setValue(0);
-    scoreAnim.setValue(0);
-    traceColorAnim.setValue(0);
+    guideAnim.setValue(1);
+    scoreAnim.setValue(1);
+    traceColorAnim.setValue(1);
     setTracePath([]);
     setScored(false);
     setScore(0);
@@ -499,8 +499,8 @@ const TracingTemplate = ({config, onAnswer, onComplete}) => {
     setTracePath([]);
     setScored(false);
     setScore(0);
-    scoreAnim.setValue(0);
-    traceColorAnim.setValue(0);
+    scoreAnim.setValue(1);
+    traceColorAnim.setValue(1);
     itemStartTime.current = Date.now();
   }, []);
 

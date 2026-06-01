@@ -23,7 +23,7 @@ import { TouchableOpacity, StyleSheet } from 'react-native';
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
 import { optimistic } from '../../../../../../services/optimistic';
 
-const ACCENT = '#00e89d';
+const ACCENT = '#6C63FF';
 const MUTED = '#888888';
 
 const BookmarkButton = ({

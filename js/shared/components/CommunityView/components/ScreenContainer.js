@@ -8,11 +8,11 @@ import useOrientation from '../../../hooks/useOrientation';
  * In landscape: caps content at 600dp and centers it, preventing stretched cramped layouts.
  *
  * Usage:
- *   <ScreenContainer backgroundColor="#121212">
+ *   <ScreenContainer backgroundColor="#000000">
  *     {content}
  *   </ScreenContainer>
  */
-const ScreenContainer = ({ children, backgroundColor = '#121212', statusBarStyle = 'light-content' }) => {
+const ScreenContainer = ({ children, backgroundColor = '#000000', statusBarStyle = 'light-content' }) => {
   const { isLandscape } = useOrientation();
 
   return (

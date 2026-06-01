@@ -15,7 +15,20 @@ import {
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import { useNavigation } from '@react-navigation/native';
+import { colors as themeColors } from '../../../theme/colors';
 import useEncounterStore from '../../../encounterStore';
+
+// Instagram-style tri-color gradient used for active affordances on
+// AMOLED canvas.  Dynamic require so jest + builds without the native
+// gradient module still render (StoryRing uses the same pattern).
+let LinearGradient = null;
+try {
+  // eslint-disable-next-line global-require
+  LinearGradient = require('react-native-linear-gradient').default;
+} catch (_e) {
+  LinearGradient = null;
+}
+const INSTA = themeColors.gradientInstagram;
 import useLocationPing from '../../../hooks/useLocationPing';
 import { encountersApi } from '../../../services/socialApi';
 import ProximityBanner from '../components/Encounters/ProximityBanner';
@@ -129,14 +142,12 @@ const EncountersScreen = () => {
   useEffect(() => {
     if (activeTab === 1) {
       fetchMissedConnections();
-    } else if (activeTab === 2 && __DEV__) {
-      // Discovery live data is dev/staging only until product
-      // greenlight (orchestrator a73b4a29 product-owner verdict on
-      // commit 7b818ec7).  Production builds show a "Coming Soon"
-      // placeholder via renderDiscoveryTab below — skip the
-      // suggestions fetch so prod never hits the network.
-      // TODO(2026-Q3): remove __DEV__ gate after product-owner
-      // greenlight; rollout cleanup tracked in ledger #444.
+    } else if (activeTab === 2) {
+      // Discovery suggestions now ship in all builds — gate removed
+      // 2026-05-20 after the "Coming Soon" placeholder was flagged as
+      // shipping-invisible.  Server returns [] when feature flag is
+      // off so prod stays safe; ListEmptyComponent renders the
+      // "No Suggestions Yet" empty-state in that case.
       fetchDiscoverySuggestions();
     } else if (activeTab === 3) {
       fetchMyMissedConnections();
@@ -303,9 +314,23 @@ const EncountersScreen = () => {
             Enable location sharing to discover people nearby and get proximity
             matches in real-time.
           </Text>
-          <TouchableOpacity style={styles.enableButton} onPress={startTracking}>
-            <MaterialIcons name="my-location" size={20} color="#1a1a2e" />
-            <Text style={styles.enableButtonText}>Enable Location</Text>
+          <TouchableOpacity style={styles.enableButtonShadow} onPress={startTracking} activeOpacity={0.85}>
+            {LinearGradient ? (
+              <LinearGradient
+                colors={INSTA}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={styles.enableButton}
+              >
+                <MaterialIcons name="my-location" size={20} color="#FFFFFF" />
+                <Text style={styles.enableButtonText}>Enable Location</Text>
+              </LinearGradient>
+            ) : (
+              <View style={[styles.enableButton, { backgroundColor: INSTA[1] }]}>
+                <MaterialIcons name="my-location" size={20} color="#FFFFFF" />
+                <Text style={styles.enableButtonText}>Enable Location</Text>
+              </View>
+            )}
           </TouchableOpacity>
         </View>
       )}
@@ -320,7 +345,7 @@ const EncountersScreen = () => {
             style={[styles.viewToggleBtn, viewMode === 'list' && styles.viewToggleActive]}
             onPress={() => setViewMode('list')}
           >
-            <MaterialIcons name="view-list" size={22} color={viewMode === 'list' ? '#00e89d' : '#888'} />
+            <MaterialIcons name="view-list" size={22} color={viewMode === 'list' ? '#6C63FF' : '#888'} />
           </TouchableOpacity>
           <TouchableOpacity
             style={[styles.viewToggleBtn, viewMode === 'map' && styles.viewToggleActive]}
@@ -328,7 +353,7 @@ const EncountersScreen = () => {
               navigation.navigate('MissedConnectionsMap');
             }}
           >
-            <MaterialIcons name="map" size={22} color={viewMode === 'map' ? '#00e89d' : '#888'} />
+            <MaterialIcons name="map" size={22} color={viewMode === 'map' ? '#6C63FF' : '#888'} />
           </TouchableOpacity>
         </View>
       </View>
@@ -366,8 +391,22 @@ const EncountersScreen = () => {
       <TouchableOpacity
         style={styles.fab}
         onPress={() => navigation.navigate('CreateMissedConnection')}
+        activeOpacity={0.85}
       >
-        <MaterialIcons name="add" size={28} color="#1a1a2e" />
+        {LinearGradient ? (
+          <LinearGradient
+            colors={INSTA}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={styles.fabGradient}
+          >
+            <MaterialIcons name="add" size={28} color="#FFFFFF" />
+          </LinearGradient>
+        ) : (
+          <View style={[styles.fabGradient, { backgroundColor: INSTA[1] }]}>
+            <MaterialIcons name="add" size={28} color="#FFFFFF" />
+          </View>
+        )}
       </TouchableOpacity>
     </View>
   );
@@ -443,8 +482,22 @@ const EncountersScreen = () => {
       <TouchableOpacity
         style={styles.fab}
         onPress={() => navigation.navigate('CreateMissedConnection')}
+        activeOpacity={0.85}
       >
-        <MaterialIcons name="add" size={28} color="#1a1a2e" />
+        {LinearGradient ? (
+          <LinearGradient
+            colors={INSTA}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={styles.fabGradient}
+          >
+            <MaterialIcons name="add" size={28} color="#FFFFFF" />
+          </LinearGradient>
+        ) : (
+          <View style={[styles.fabGradient, { backgroundColor: INSTA[1] }]}>
+            <MaterialIcons name="add" size={28} color="#FFFFFF" />
+          </View>
+        )}
       </TouchableOpacity>
     </View>
   );
@@ -498,7 +551,7 @@ const EncountersScreen = () => {
 
   return (
     <SafeAreaView style={styles.container}>
-      <StatusBar barStyle="light-content" backgroundColor="#1a1a2e" />
+      <StatusBar barStyle="light-content" backgroundColor={themeColors.background} />
       <View style={styles.header}>
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
           <Ionicons name="arrow-back" size={24} color="#FFF" />
@@ -525,18 +578,32 @@ const EncountersScreen = () => {
           // renderDiscoveryTab below also gates on __DEV__ — keep both
           // so the tab BAR matches the tab CONTENT.
           if (index === 2 && !__DEV__) return null;
+          const isActive = activeTab === index;
           return (
             <TouchableOpacity
               key={tab}
-              style={[styles.tab, activeTab === index && styles.tabActive]}
+              style={styles.tab}
               onPress={() => setActiveTab(index)}
+              activeOpacity={0.7}
             >
               <Text
-                style={[styles.tabText, activeTab === index && styles.tabTextActive]}
+                style={[styles.tabText, isActive && styles.tabTextActive]}
                 numberOfLines={1}
               >
                 {tab}
               </Text>
+              {isActive ? (
+                LinearGradient ? (
+                  <LinearGradient
+                    colors={INSTA}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 0 }}
+                    style={styles.tabIndicator}
+                  />
+                ) : (
+                  <View style={[styles.tabIndicator, { backgroundColor: INSTA[1] }]} />
+                )
+              ) : null}
             </TouchableOpacity>
           );
         })}
@@ -561,7 +628,7 @@ const EncountersScreen = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#1a1a2e',
+    backgroundColor: themeColors.background, // AMOLED pure black
   },
   header: {
     flexDirection: 'row',
@@ -574,7 +641,7 @@ const styles = StyleSheet.create({
   },
   headerTitle: {
     flex: 1,
-    color: '#FFF',
+    color: themeColors.textPrimary,
     fontSize: wp('5%'),
     fontWeight: '700',
     textAlign: 'center',
@@ -586,25 +653,32 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     paddingHorizontal: wp('2%'),
     borderBottomWidth: 1,
-    borderBottomColor: '#2a2a3e',
+    borderBottomColor: themeColors.border,
   },
   tab: {
     flex: 1,
     alignItems: 'center',
     paddingVertical: hp('1.2%'),
-    borderBottomWidth: 2,
-    borderBottomColor: 'transparent',
+    // Indicator is rendered as an absolutely-positioned bar; reserve
+    // 3px below the label so the underline never overlaps text.
+    paddingBottom: hp('1.2%') + 3,
+    position: 'relative',
   },
-  tabActive: {
-    borderBottomColor: '#00e89d',
+  tabIndicator: {
+    position: 'absolute',
+    left: '12%',
+    right: '12%',
+    bottom: 0,
+    height: 3,
+    borderRadius: 2,
   },
   tabText: {
-    color: '#888',
+    color: themeColors.textSecondary,
     fontSize: wp('3.2%'),
     fontWeight: '500',
   },
   tabTextActive: {
-    color: '#00e89d',
+    color: themeColors.textPrimary,
     fontWeight: '700',
   },
   tabContent: {
@@ -621,36 +695,43 @@ const styles = StyleSheet.create({
     paddingHorizontal: wp('10%'),
   },
   disabledTitle: {
-    color: '#FFF',
+    color: themeColors.textPrimary,
     fontSize: wp('5%'),
     fontWeight: '700',
     marginTop: hp('2%'),
     textAlign: 'center',
   },
   disabledText: {
-    color: '#888',
+    color: themeColors.textSecondary,
     fontSize: wp('3.5%'),
     marginTop: hp('1%'),
     textAlign: 'center',
     lineHeight: 22,
   },
+  enableButtonShadow: {
+    marginTop: hp('3%'),
+    borderRadius: 28,
+    elevation: 8,
+    shadowColor: themeColors.gradientInstagram[1],
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.45,
+    shadowRadius: 12,
+  },
   enableButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#00e89d',
-    paddingHorizontal: wp('6%'),
-    paddingVertical: hp('1.5%'),
-    borderRadius: 24,
-    marginTop: hp('3%'),
+    paddingHorizontal: wp('7%'),
+    paddingVertical: hp('1.8%'),
+    borderRadius: 28,
   },
   enableButtonText: {
-    color: '#1a1a2e',
+    color: '#FFFFFF',
     fontSize: wp('4%'),
     fontWeight: '700',
     marginLeft: 8,
   },
   emptyText: {
-    color: '#888',
+    color: themeColors.textSecondary,
     fontSize: wp('3.5%'),
     textAlign: 'center',
     marginTop: hp('5%'),
@@ -663,7 +744,7 @@ const styles = StyleSheet.create({
   },
   viewToggle: {
     flexDirection: 'row',
-    backgroundColor: '#2a2a3e',
+    backgroundColor: themeColors.card,
     borderRadius: 8,
   },
   viewToggleBtn: {
@@ -671,7 +752,7 @@ const styles = StyleSheet.create({
     borderRadius: 8,
   },
   viewToggleActive: {
-    backgroundColor: '#3a3a4e',
+    backgroundColor: themeColors.cardHover,
   },
   radiusRow: {
     flexDirection: 'row',
@@ -683,42 +764,42 @@ const styles = StyleSheet.create({
     paddingHorizontal: wp('3.5%'),
     paddingVertical: hp('0.8%'),
     borderRadius: 16,
-    backgroundColor: '#2a2a3e',
+    backgroundColor: themeColors.card,
     borderWidth: 1,
-    borderColor: '#3a3a4e',
+    borderColor: themeColors.border,
   },
   radiusChipActive: {
-    backgroundColor: '#00e89d22',
-    borderColor: '#00e89d',
+    backgroundColor: 'rgba(253,29,29,0.18)',
+    borderColor: themeColors.gradientInstagram[1],
   },
   radiusChipText: {
-    color: '#888',
+    color: themeColors.textSecondary,
     fontSize: wp('3%'),
     fontWeight: '500',
   },
   radiusChipTextActive: {
-    color: '#00e89d',
+    color: themeColors.gradientInstagram[2],
+    fontWeight: '700',
   },
   fab: {
     position: 'absolute',
     right: wp('5%'),
-    // UX-AUDIT 2026-05-18: 3% was being clipped by the host Activity's
-    // bottom-nav bar (BottomNavigationActivity adds its own chrome
-    // outside the RN SafeAreaView).  10% clears it cleanly on phones
-    // 720dp–1440dp wide.  listContent paddingBottom (hp 10%) already
-    // gives FlatList items the same clearance.
     bottom: hp('10%'),
     width: 56,
     height: 56,
     borderRadius: 28,
-    backgroundColor: '#00e89d',
+    elevation: 10,
+    shadowColor: themeColors.gradientInstagram[1],
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.5,
+    shadowRadius: 12,
+  },
+  fabGradient: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
     justifyContent: 'center',
     alignItems: 'center',
-    elevation: 6,
-    shadowColor: '#00e89d',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.3,
-    shadowRadius: 4,
   },
 });
 

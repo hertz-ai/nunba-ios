@@ -50,7 +50,7 @@ import {
 } from '../../../services/socialApi';
 
 const ACCENT = '#6C63FF';
-const ACCENT_GREEN = '#00e89d';
+const ACCENT_GREEN = '#6C63FF';
 const ACCENT_AMBER = '#FFB740';
 const ACCENT_RED = '#FF6B6B';
 const ACCENT_PURPLE = '#7C4DFF';
@@ -487,7 +487,7 @@ const ActivityHubScreen = () => {
 };
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#1a1a2e' },
+  container: { flex: 1, backgroundColor: '#000000' },
   loadingContainer: { justifyContent: 'center', alignItems: 'center' },
   content: { padding: wp('4%') },
   heading: {

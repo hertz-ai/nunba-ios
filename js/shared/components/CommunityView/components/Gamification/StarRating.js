@@ -202,7 +202,7 @@ const StarRating = ({
 
 const styles = StyleSheet.create({
   container: {
-    backgroundColor: '#1A1A1A',
+    backgroundColor: '#141225',
     borderRadius: 16,
     padding: wp('4%'),
     marginVertical: hp('1%'),

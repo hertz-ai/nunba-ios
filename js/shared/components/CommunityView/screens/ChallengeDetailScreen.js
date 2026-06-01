@@ -99,7 +99,7 @@ const ChallengeDetailScreen = () => {
   if (loading) {
     return (
       <SafeAreaView style={styles.container}>
-        <StatusBar barStyle="light-content" backgroundColor="#121212" />
+        <StatusBar barStyle="light-content" backgroundColor="#000000" />
         <View style={styles.header}>
           <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
             <Ionicons name="arrow-back" size={24} color="#FFF" />
@@ -119,7 +119,7 @@ const ChallengeDetailScreen = () => {
 
   return (
     <SafeAreaView style={styles.container}>
-      <StatusBar barStyle="light-content" backgroundColor="#121212" />
+      <StatusBar barStyle="light-content" backgroundColor="#000000" />
 
       {/* Header */}
       <View style={styles.header}>
@@ -329,7 +329,7 @@ const getRankStyle = (rank) => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#121212',
+    backgroundColor: '#000000',
   },
   header: {
     flexDirection: 'row',
@@ -397,7 +397,7 @@ const styles = StyleSheet.create({
     marginBottom: hp('1%'),
   },
   timerCard: {
-    backgroundColor: '#1A1A1A',
+    backgroundColor: '#141225',
     borderRadius: 16,
     padding: wp('4%'),
     marginVertical: hp('1.5%'),
@@ -473,7 +473,7 @@ const styles = StyleSheet.create({
     lineHeight: 20,
   },
   progressCard: {
-    backgroundColor: '#1A1A1A',
+    backgroundColor: '#141225',
     borderRadius: 16,
     padding: wp('4%'),
     marginTop: hp('2.5%'),
@@ -517,7 +517,7 @@ const styles = StyleSheet.create({
   },
   rewardCard: {
     flex: 1,
-    backgroundColor: '#1A1A1A',
+    backgroundColor: '#141225',
     borderRadius: 12,
     padding: wp('3%'),
     alignItems: 'center',
@@ -538,15 +538,15 @@ const styles = StyleSheet.create({
   leaderboardItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#1A1A1A',
+    backgroundColor: '#141225',
     borderRadius: 12,
     padding: wp('3%'),
     marginBottom: hp('1%'),
   },
   leaderboardItemCurrent: {
     borderWidth: 1,
-    borderColor: '#00e89d44',
-    backgroundColor: '#00e89d11',
+    borderColor: '#6C63FF44',
+    backgroundColor: '#6C63FF11',
   },
   rankBadge: {
     width: 28,
@@ -610,7 +610,7 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     padding: wp('4%'),
-    backgroundColor: '#121212',
+    backgroundColor: '#000000',
     borderTopWidth: 1,
     borderTopColor: '#2A2A2A',
   },

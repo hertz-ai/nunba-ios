@@ -99,8 +99,8 @@ const generatePositions = (count, areaWidth, areaHeight, iconSize) => {
 
 // Individual animated icon
 const CountIcon = ({iconName, color, position, delay, size, showNumber, number}) => {
-  const bounceAnim = useRef(new Animated.Value(0)).current;
-  const wobble = useRef(new Animated.Value(0)).current;
+  const bounceAnim = useRef(new Animated.Value(1)).current;
+  const wobble = useRef(new Animated.Value(1)).current;
 
   useEffect(() => {
     Animated.sequence([
@@ -183,8 +183,8 @@ const CountingTemplate = ({config, onAnswer, onComplete}) => {
   const [showHint, setShowHint] = useState(true);
 
   // Animations
-  const titleAnim = useRef(new Animated.Value(0)).current;
-  const resultAnim = useRef(new Animated.Value(0)).current;
+  const titleAnim = useRef(new Animated.Value(1)).current;
+  const resultAnim = useRef(new Animated.Value(1)).current;
 
   // Feedback
   const [feedbackVisible, setFeedbackVisible] = useState(false);
@@ -208,9 +208,9 @@ const CountingTemplate = ({config, onAnswer, onComplete}) => {
     setInputValue('');
     setAnswered(false);
     setShowCountLabels(false);
-    resultAnim.setValue(0);
+    resultAnim.setValue(1);
 
-    titleAnim.setValue(0);
+    titleAnim.setValue(1);
     Animated.timing(titleAnim, {
       toValue: 1,
       duration: 400,

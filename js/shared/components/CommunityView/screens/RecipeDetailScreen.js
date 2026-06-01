@@ -45,9 +45,9 @@ const RecipeDetailScreen = () => {
   if (loading) {
     return (
       <SafeAreaView style={styles.container}>
-        <StatusBar barStyle="light-content" backgroundColor="#121212" />
+        <StatusBar barStyle="light-content" backgroundColor="#000000" />
         <View style={styles.centerContainer}>
-          <ActivityIndicator size="large" color="#00e89d" />
+          <ActivityIndicator size="large" color="#6C63FF" />
         </View>
       </SafeAreaView>
     );
@@ -56,7 +56,7 @@ const RecipeDetailScreen = () => {
   if (!recipe) {
     return (
       <SafeAreaView style={styles.container}>
-        <StatusBar barStyle="light-content" backgroundColor="#121212" />
+        <StatusBar barStyle="light-content" backgroundColor="#000000" />
         <View style={styles.header}>
           <TouchableOpacity onPress={() => navigation.goBack()}>
             <Ionicons name="arrow-back" size={24} color="#FFF" />
@@ -73,7 +73,7 @@ const RecipeDetailScreen = () => {
 
   return (
     <SafeAreaView style={styles.container}>
-      <StatusBar barStyle="light-content" backgroundColor="#121212" />
+      <StatusBar barStyle="light-content" backgroundColor="#000000" />
 
       <View style={styles.header}>
         <TouchableOpacity onPress={() => navigation.goBack()}>
@@ -130,7 +130,7 @@ const RecipeDetailScreen = () => {
           )}
 
           <TouchableOpacity style={styles.forkBtn} onPress={handleFork} activeOpacity={0.8}>
-            <MaterialCommunityIcons name="source-fork" size={20} color="#121212" />
+            <MaterialCommunityIcons name="source-fork" size={20} color="#000000" />
             <Text style={styles.forkBtnText}>Fork this Recipe</Text>
           </TouchableOpacity>
         </Animatable.View>
@@ -140,7 +140,7 @@ const RecipeDetailScreen = () => {
 };
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#121212' },
+  container: { flex: 1, backgroundColor: '#000000' },
   header: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: wp('4%'), paddingVertical: hp('1.5%') },
   headerTitle: { flex: 1, color: '#FFF', fontSize: wp('5%'), fontWeight: '700', textAlign: 'center' },
   headerSpacer: { width: 32 },
@@ -148,7 +148,7 @@ const styles = StyleSheet.create({
   emptyText: { color: '#888', fontSize: wp('3.5%') },
   content: { paddingHorizontal: wp('4%'), paddingBottom: hp('10%') },
   infoCard: {
-    backgroundColor: '#1A1A1A', borderRadius: 16, padding: wp('5%'),
+    backgroundColor: '#141225', borderRadius: 16, padding: wp('5%'),
     marginBottom: hp('2%'), borderWidth: 1, borderColor: '#2A2A2A', alignItems: 'center',
   },
   iconBg: { width: 60, height: 60, borderRadius: 30, backgroundColor: '#0078ff22', justifyContent: 'center', alignItems: 'center', marginBottom: 12 },
@@ -162,7 +162,7 @@ const styles = StyleSheet.create({
   tag: { backgroundColor: '#2A2A3E', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 3 },
   tagText: { color: '#888', fontSize: wp('2.8%') },
   stepsCard: {
-    backgroundColor: '#1A1A1A', borderRadius: 16, padding: wp('5%'),
+    backgroundColor: '#141225', borderRadius: 16, padding: wp('5%'),
     marginBottom: hp('2%'), borderWidth: 1, borderColor: '#2A2A2A',
   },
   sectionTitle: { color: '#FFF', fontSize: wp('4%'), fontWeight: '700', marginBottom: 12 },
@@ -174,7 +174,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
     backgroundColor: '#0078ff', borderRadius: 12, paddingVertical: hp('1.5%'),
   },
-  forkBtnText: { color: '#121212', fontWeight: '700', fontSize: wp('4%') },
+  forkBtnText: { color: '#000000', fontWeight: '700', fontSize: wp('4%') },
 });
 
 export default RecipeDetailScreen;

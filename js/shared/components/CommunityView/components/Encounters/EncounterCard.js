@@ -17,7 +17,7 @@
  *   onSkip:   (encounter) => void   — local state removal only
  *
  * Style baseline taken from MissedConnectionCard.js (dark theme,
- * #2a2a3e card on #1a1a2e bg, #00e89d accent, wp/hp units).
+ * #2a2a3e card on #1a1a2e bg, #6C63FF accent, wp/hp units).
  */
 import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, Image } from 'react-native';
@@ -27,7 +27,7 @@ import {
 } from 'react-native-responsive-screen';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 
-const ACCENT = '#00e89d';
+const ACCENT = '#6C63FF';
 const PRIMARY = '#6C63FF';
 
 const EncounterCard = ({ encounter, onAccept, onSkip }) => {
@@ -119,7 +119,7 @@ const EncounterCard = ({ encounter, onAccept, onSkip }) => {
             accessibilityLabel={`Accept ${displayName}`}
             accessibilityRole="button"
           >
-            <MaterialIcons name="check" size={18} color="#1a1a2e" />
+            <MaterialIcons name="check" size={18} color="#000000" />
             <Text style={styles.acceptText}>Accept</Text>
           </TouchableOpacity>
         )}
@@ -182,7 +182,7 @@ const styles = StyleSheet.create({
   progressTrack: {
     height: 6,
     borderRadius: 3,
-    backgroundColor: '#1a1a2e',
+    backgroundColor: '#000000',
     marginTop: hp('1.5%'),
     marginBottom: hp('1%'),
     overflow: 'hidden',
@@ -235,7 +235,7 @@ const styles = StyleSheet.create({
     backgroundColor: ACCENT,
   },
   acceptText: {
-    color: '#1a1a2e',
+    color: '#000000',
     marginLeft: 4,
     fontSize: wp('3.2%'),
     fontWeight: '700',

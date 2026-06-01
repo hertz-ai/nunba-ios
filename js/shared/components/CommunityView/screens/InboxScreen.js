@@ -407,7 +407,7 @@ const InboxScreen = () => {
         leftAction={{
           label: wasUnread ? 'Read' : 'Unread',
           icon: wasUnread ? 'email-open-outline' : 'email-mark-as-unread',
-          color: colors.accent || '#00e89d',
+          color: colors.accent || '#6C63FF',
           onPress: () => (wasUnread ? markRead(item) : markUnread(item)),
         }}
         rightAction={{

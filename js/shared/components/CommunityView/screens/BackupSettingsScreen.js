@@ -47,10 +47,10 @@ import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 import { syncApi } from '../../../services/socialApi';
 
 const ACCENT = '#6C63FF'; // Match Nunba MUI's purple for backup theming.
-const ACCENT_GREEN = '#00e89d';
+const ACCENT_GREEN = '#6C63FF';
 const ERR = '#ff6b6b';
 const MUTED = '#888';
-const SUCCESS = '#00e89d';
+const SUCCESS = '#6C63FF';
 
 // HARTOS responses are payload-wrapped: {success, data: {...}}.
 // Defensive read so flat responses (just the payload object) still work.
@@ -376,7 +376,7 @@ const BackupSettingsScreen = () => {
 };
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#1a1a2e' },
+  container: { flex: 1, backgroundColor: '#000000' },
   content: { padding: wp('4%') },
   heading: {
     color: '#FFF',
@@ -426,7 +426,7 @@ const styles = StyleSheet.create({
   row: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   input: {
     flex: 1,
-    backgroundColor: '#1a1a2e',
+    backgroundColor: '#000000',
     color: '#FFF',
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.15)',

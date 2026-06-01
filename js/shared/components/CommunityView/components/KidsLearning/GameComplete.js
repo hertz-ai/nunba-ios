@@ -19,12 +19,12 @@ const GameComplete = ({templateType, result: resultProp, onPlayAgain, onHome}) =
   const theme = useMemo(() => getGameTheme(templateType || 'MultipleChoice'), [templateType]);
 
   // Shared animations
-  const scaleAnim = useRef(new Animated.Value(0)).current;
-  const starsAnim = useRef(new Animated.Value(0)).current;
+  const scaleAnim = useRef(new Animated.Value(1)).current;
+  const starsAnim = useRef(new Animated.Value(1)).current;
   // Celebration-specific
-  const celebAnims = useRef(Array.from({length: 6}).map(() => new Animated.Value(0))).current;
-  const iconRotate = useRef(new Animated.Value(0)).current;
-  const iconScale = useRef(new Animated.Value(0)).current;
+  const celebAnims = useRef(Array.from({length: 6}).map(() => new Animated.Value(1))).current;
+  const iconRotate = useRef(new Animated.Value(1)).current;
+  const iconScale = useRef(new Animated.Value(1)).current;
 
   const accuracy = result.total > 0 ? Math.round((result.correct / result.total) * 100) : 0;
 
@@ -34,11 +34,13 @@ const GameComplete = ({templateType, result: resultProp, onPlayAgain, onHome}) =
     });
     Animated.sequence(seq).start();
 
-    // Audio
-    const celebrationKey = result.isPerfect ? 'sfx_perfect' : 'sfx_complete';
-    MediaCacheManager.get(celebrationKey).then(path => {
-      if (path) GameSounds.startBackgroundMusic(path, {loop: false, volume: 0.6, fadeInMs: 0});
-    }).catch(() => {});
+    // Audio — MediaCacheManager.get returns a sync path string (or null);
+    // do not call .then on it (was crashing GameComplete on mount).
+    try {
+      const celebrationKey = result.isPerfect ? 'sfx_perfect' : 'sfx_complete';
+      const celebrationPath = MediaCacheManager.get(celebrationKey);
+      if (celebrationPath) GameSounds.startBackgroundMusic(celebrationPath, {loop: false, volume: 0.6, fadeInMs: 0});
+    } catch (_e) { /* celebration audio is best-effort */ }
 
     // TTS
     const msg = getMessage();

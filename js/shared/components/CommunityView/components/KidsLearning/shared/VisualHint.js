@@ -207,11 +207,11 @@ function HandPointer({size = 56}) {
 // ── Main Component ────────────────────────────────────────────────
 export default function VisualHint({type = 'tap', visible = true, onDismiss}) {
   // Animated values
-  const fadeAnim = useRef(new Animated.Value(0)).current;
-  const translateX = useRef(new Animated.Value(0)).current;
-  const translateY = useRef(new Animated.Value(0)).current;
+  const fadeAnim = useRef(new Animated.Value(1)).current;
+  const translateX = useRef(new Animated.Value(1)).current;
+  const translateY = useRef(new Animated.Value(1)).current;
   const scale = useRef(new Animated.Value(1)).current;
-  const rotateVal = useRef(new Animated.Value(0)).current;
+  const rotateVal = useRef(new Animated.Value(1)).current;
   const opacity = useRef(new Animated.Value(1)).current;
   const animRef = useRef(null);
 
@@ -237,10 +237,10 @@ export default function VisualHint({type = 'tap', visible = true, onDismiss}) {
     if (!visible) return;
 
     // Reset all values
-    translateX.setValue(0);
-    translateY.setValue(0);
+    translateX.setValue(1);
+    translateY.setValue(1);
     scale.setValue(1);
-    rotateVal.setValue(0);
+    rotateVal.setValue(1);
     opacity.setValue(1);
 
     const builder = ANIMATION_BUILDERS[type] || ANIMATION_BUILDERS.tap;

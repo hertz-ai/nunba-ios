@@ -41,7 +41,7 @@ import { marketplaceApi } from '../../../services/socialApi';
 import useDebouncedCallback from '../../../hooks/useDebouncedCallback';
 
 const ACCENT = '#6C63FF';
-const ACCENT_GREEN = '#00e89d';
+const ACCENT_GREEN = '#6C63FF';
 const ACCENT_AMBER = '#FFAB00';
 const HEART = '#FF6B6B';
 const MUTED = '#888';
@@ -375,7 +375,7 @@ const MarketplaceScreen = () => {
 };
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#1a1a2e' },
+  container: { flex: 1, backgroundColor: '#000000' },
   content: { padding: wp('4%') },
   heading: {
     color: '#FFF',

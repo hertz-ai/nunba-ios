@@ -6,6 +6,7 @@ import {
 import { useNavigation } from '@react-navigation/native';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import useContextualInsights from '../../../../hooks/useContextualInsights';
+import useNotificationStore from '../../../../notificationStore';
 import InsightCard from './InsightCard';
 import InsightCardSkeleton from './InsightCardSkeleton';
 import FeatureNavStrip from './FeatureNavStrip';
@@ -20,14 +21,38 @@ if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental
 
 const QuickAccessBar = () => {
   const navigation = useNavigation();
+  // #198 — bell icon now shows an unread badge that lives in the
+  // shared zustand notificationStore (live-updated by WAMP via
+  // realtimeService).  Filled bell when unread > 0, outline when 0.
+  const unreadCount = useNotificationStore((s) => s.unreadCount);
+  const hasUnread = unreadCount > 0;
   const tap = (screen) => { hapticLight(); navigation.navigate(screen); };
   return (
     <View style={styles.quickAccess}>
       <TouchableOpacity style={styles.quickBtn} onPress={() => tap('Search')} accessibilityLabel="Search">
         <Icon name="magnify" size={22} color={colors.textSecondary} />
       </TouchableOpacity>
-      <TouchableOpacity style={styles.quickBtn} onPress={() => tap('Notifications')} accessibilityLabel="Notifications">
-        <Icon name="bell-outline" size={22} color={colors.textSecondary} />
+      <TouchableOpacity
+        style={styles.quickBtn}
+        onPress={() => tap('Notifications')}
+        accessibilityLabel={hasUnread
+          ? `Notifications, ${unreadCount} unread`
+          : 'Notifications'}
+      >
+        <View>
+          <Icon
+            name={hasUnread ? 'bell' : 'bell-outline'}
+            size={22}
+            color={hasUnread ? colors.primary : colors.textSecondary}
+          />
+          {hasUnread && (
+            <View style={styles.notifBadge}>
+              <Text style={styles.notifBadgeText}>
+                {unreadCount > 99 ? '99+' : String(unreadCount)}
+              </Text>
+            </View>
+          )}
+        </View>
       </TouchableOpacity>
       <TouchableOpacity style={styles.quickBtn} onPress={() => tap('Profile')} accessibilityLabel="Profile">
         <Icon name="account-circle-outline" size={22} color={colors.textSecondary} />
@@ -125,6 +150,29 @@ const styles = StyleSheet.create({
     backgroundColor: colors.backgroundSecondary,
     justifyContent: 'center',
     alignItems: 'center',
+  },
+  // #198 — small red count badge over the bell icon; sits in the
+  // top-right corner of the bell's 22px icon, doesn't push layout
+  // since the parent View wraps the Icon and Badge in a relative
+  // positioning context.
+  notifBadge: {
+    position: 'absolute',
+    top: -4,
+    right: -6,
+    minWidth: 16,
+    height: 16,
+    paddingHorizontal: 4,
+    borderRadius: 8,
+    backgroundColor: colors.error || '#FF3B30',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  notifBadgeText: {
+    color: '#fff',
+    fontSize: 10,
+    fontWeight: '700',
+    lineHeight: 12,
+    textAlign: 'center',
   },
   listContent: {
     paddingHorizontal: 12,

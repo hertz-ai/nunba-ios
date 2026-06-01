@@ -98,15 +98,15 @@ const StoryBuilderTemplate = ({config, onAnswer, onComplete}) => {
   }, [allSceneTexts]);
 
   // Animations
-  const textAnim = useRef(new Animated.Value(0)).current;
+  const textAnim = useRef(new Animated.Value(1)).current;
   const choiceAnims = useRef([
-    new Animated.Value(0),
-    new Animated.Value(0),
-    new Animated.Value(0),
-    new Animated.Value(0),
+    new Animated.Value(1),
+    new Animated.Value(1),
+    new Animated.Value(1),
+    new Animated.Value(1),
   ]).current;
-  const iconAnim = useRef(new Animated.Value(0)).current;
-  const feedbackAnim = useRef(new Animated.Value(0)).current;
+  const iconAnim = useRef(new Animated.Value(1)).current;
+  const feedbackAnim = useRef(new Animated.Value(1)).current;
 
   const currentScene = scenes[currentSceneId] || null;
 
@@ -118,9 +118,9 @@ const StoryBuilderTemplate = ({config, onAnswer, onComplete}) => {
     sceneCount.current += 1;
 
     // Reset animations
-    textAnim.setValue(0);
-    iconAnim.setValue(0);
-    choiceAnims.forEach(a => a.setValue(0));
+    textAnim.setValue(1);
+    iconAnim.setValue(1);
+    choiceAnims.forEach(a => a.setValue(1));
 
     // Animate icon
     Animated.spring(iconAnim, {

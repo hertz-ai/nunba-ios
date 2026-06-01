@@ -1,6 +1,15 @@
 import Sound from 'react-native-sound';
 
-Sound.setCategory('Playback');
+// react-native-sound's native module is not always linked in this build
+// (verified on Galaxy S23 Ultra 2026-06-01 — every kids game crashed
+// with "TypeError: Object is not a function" the moment `new Sound(...)`
+// fired on a wrong-answer SFX, taking the whole RN bridge down).  Detect
+// the broken state once and make every call a silent no-op so games stay
+// playable without audio.
+const SoundAvailable = !!(Sound && typeof Sound === 'function');
+if (SoundAvailable) {
+  try { Sound.setCategory('Playback'); } catch (_e) {}
+}
 
 let isMuted = false;
 let masterVolume = 1.0;
@@ -28,47 +37,60 @@ let activeSfxCount = 0;
 const AudioChannelManager = {
   // Play SFX from bundled asset (fire-and-forget)
   playSFX: (filename) => {
+    if (!SoundAvailable) return;
     if (isMuted || activeSfxCount >= MAX_CONCURRENT_SFX) return;
     activeSfxCount++;
-    const sound = new Sound(filename, Sound.MAIN_BUNDLE, (error) => {
-      if (error) {
-        activeSfxCount = Math.max(0, activeSfxCount - 1);
-        return;
-      }
-      sound.setVolume(masterVolume);
-      sound.play(() => {
-        sound.release();
-        activeSfxCount = Math.max(0, activeSfxCount - 1);
+    try {
+      const sound = new Sound(filename, Sound.MAIN_BUNDLE, (error) => {
+        if (error) {
+          activeSfxCount = Math.max(0, activeSfxCount - 1);
+          return;
+        }
+        sound.setVolume(masterVolume);
+        sound.play(() => {
+          sound.release();
+          activeSfxCount = Math.max(0, activeSfxCount - 1);
+        });
       });
-    });
+    } catch (_e) {
+      activeSfxCount = Math.max(0, activeSfxCount - 1);
+    }
   },
 
   // Play SFX from cached file path
   playSFXFromPath: (filePath) => {
+    if (!SoundAvailable) return;
     if (isMuted || activeSfxCount >= MAX_CONCURRENT_SFX) return;
     activeSfxCount++;
-    const sound = new Sound(filePath, '', (error) => {
-      if (error) {
-        activeSfxCount = Math.max(0, activeSfxCount - 1);
-        return;
-      }
-      sound.setVolume(masterVolume);
-      sound.play(() => {
-        sound.release();
-        activeSfxCount = Math.max(0, activeSfxCount - 1);
+    try {
+      const sound = new Sound(filePath, '', (error) => {
+        if (error) {
+          activeSfxCount = Math.max(0, activeSfxCount - 1);
+          return;
+        }
+        sound.setVolume(masterVolume);
+        sound.play(() => {
+          sound.release();
+          activeSfxCount = Math.max(0, activeSfxCount - 1);
+        });
       });
-    });
+    } catch (_e) {
+      activeSfxCount = Math.max(0, activeSfxCount - 1);
+    }
   },
 
   // Start background music with fade-in
   startBGM: (source, {loop = true, volume = 0.3, fadeInMs = 1000} = {}) => {
+    if (!SoundAvailable) return;
     // Stop current BGM if playing
     AudioChannelManager.stopBGM({fadeOutMs: 0});
 
     const isPath = typeof source === 'string' && (source.startsWith('/') || source.startsWith('file'));
     const basePath = isPath ? '' : Sound.MAIN_BUNDLE;
 
-    const sound = new Sound(source, basePath, (error) => {
+    let sound;
+    try {
+      sound = new Sound(source, basePath, (error) => {
       if (error) return;
 
       bgmChannel.sound = sound;
@@ -109,6 +131,7 @@ const AudioChannelManager = {
         }
       });
     });
+    } catch (_e) { /* sound module unavailable */ }
   },
 
   // Stop BGM with fade-out
@@ -172,7 +195,7 @@ const AudioChannelManager = {
   // Play TTS audio (auto-pauses BGM, resumes after)
   playTTS: (source, {onStart, onEnd} = {}) => {
     return new Promise((resolve) => {
-      if (isMuted) {
+      if (!SoundAvailable || isMuted) {
         resolve(false);
         return;
       }
@@ -190,7 +213,9 @@ const AudioChannelManager = {
       const isPath = typeof source === 'string' && (source.startsWith('/') || source.startsWith('file'));
       const basePath = isPath ? '' : Sound.MAIN_BUNDLE;
 
-      const sound = new Sound(source, basePath, (error) => {
+      let sound;
+      try {
+        sound = new Sound(source, basePath, (error) => {
         if (error) {
           if (ttsChannel.bgmWasPaused) AudioChannelManager.resumeBGM();
           resolve(false);
@@ -217,6 +242,10 @@ const AudioChannelManager = {
           resolve(success);
         });
       });
+      } catch (_e) {
+        if (ttsChannel.bgmWasPaused) AudioChannelManager.resumeBGM();
+        resolve(false);
+      }
     });
   },
 

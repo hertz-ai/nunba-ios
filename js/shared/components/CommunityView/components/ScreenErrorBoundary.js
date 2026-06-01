@@ -45,15 +45,15 @@ class ScreenErrorBoundary extends React.Component {
 
 const styles = StyleSheet.create({
   container: {
-    flex: 1, backgroundColor: '#121212', justifyContent: 'center', alignItems: 'center', padding: 24,
+    flex: 1, backgroundColor: '#000000', justifyContent: 'center', alignItems: 'center', padding: 24,
   },
   emoji: { fontSize: 48, marginBottom: 16 },
   title: { color: '#FFF', fontSize: 20, fontWeight: '700', marginBottom: 8 },
   error: { color: '#FF6B6B', fontSize: 14, textAlign: 'center', marginBottom: 24, lineHeight: 20 },
   button: {
-    backgroundColor: '#00e89d', paddingHorizontal: 24, paddingVertical: 12, borderRadius: 8, marginBottom: 12,
+    backgroundColor: '#6C63FF', paddingHorizontal: 24, paddingVertical: 12, borderRadius: 8, marginBottom: 12,
   },
-  buttonText: { color: '#121212', fontSize: 16, fontWeight: '700' },
+  buttonText: { color: '#000000', fontSize: 16, fontWeight: '700' },
   backButton: { padding: 12 },
   backText: { color: '#888', fontSize: 14 },
 });

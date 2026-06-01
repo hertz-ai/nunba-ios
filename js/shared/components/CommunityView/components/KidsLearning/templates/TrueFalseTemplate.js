@@ -40,12 +40,12 @@ const TrueFalseTemplate = ({config, onAnswer, onComplete}) => {
   const [timerRunning, setTimerRunning] = useState(false);
 
   // Animations
-  const statementAnim = useRef(new Animated.Value(0)).current;
+  const statementAnim = useRef(new Animated.Value(1)).current;
   const trueButtonScale = useRef(new Animated.Value(1)).current;
   const falseButtonScale = useRef(new Animated.Value(1)).current;
-  const explanationAnim = useRef(new Animated.Value(0)).current;
-  const hintAnim = useRef(new Animated.Value(0)).current;
-  const iconBounce = useRef(new Animated.Value(0)).current;
+  const explanationAnim = useRef(new Animated.Value(1)).current;
+  const hintAnim = useRef(new Animated.Value(1)).current;
+  const iconBounce = useRef(new Animated.Value(1)).current;
 
   // Feedback
   const [feedbackVisible, setFeedbackVisible] = useState(false);
@@ -62,10 +62,10 @@ const TrueFalseTemplate = ({config, onAnswer, onComplete}) => {
 
   // Animate new question in
   useEffect(() => {
-    statementAnim.setValue(0);
-    explanationAnim.setValue(0);
-    hintAnim.setValue(0);
-    iconBounce.setValue(0);
+    statementAnim.setValue(1);
+    explanationAnim.setValue(1);
+    hintAnim.setValue(1);
+    iconBounce.setValue(1);
 
     Animated.parallel([
       Animated.spring(statementAnim, {

@@ -77,8 +77,8 @@ const SimulationTemplate = ({config, onAnswer, onComplete}) => {
 
   // Animations
   const walletAnim = useRef(new Animated.Value(1)).current;
-  const moneyAnim = useRef(new Animated.Value(0)).current;
-  const itemAnims = useRef(items.map(() => new Animated.Value(0))).current;
+  const moneyAnim = useRef(new Animated.Value(1)).current;
+  const itemAnims = useRef(items.map(() => new Animated.Value(1))).current;
   const cartBounce = useRef(new Animated.Value(1)).current;
 
   // Entrance animations

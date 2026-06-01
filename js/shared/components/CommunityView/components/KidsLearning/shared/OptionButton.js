@@ -18,9 +18,9 @@ import {SPRINGS} from './gameThemes';
  * - size: 'normal' | 'large'
  */
 const OptionButton = ({label, icon, emoji, onPress, state = 'default', color, size = 'normal'}) => {
-  const shakeAnim = useRef(new Animated.Value(0)).current;
+  const shakeAnim = useRef(new Animated.Value(1)).current;
   const scaleAnim = useRef(new Animated.Value(1)).current;
-  const bgAnim = useRef(new Animated.Value(0)).current;
+  const bgAnim = useRef(new Animated.Value(1)).current;
   const { onPressIn, onPressOut, animatedStyle: pressStyle } = usePressAnimation(0.96);
 
   useEffect(() => {

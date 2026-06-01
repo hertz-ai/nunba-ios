@@ -99,9 +99,12 @@ const ChallengesScreen = () => {
       )}
 
       {/* Progress Summary */}
-      <Animatable.View animation="fadeInUp" delay={100} style={styles.progressCard}>
+      {/* UX-AUDIT 2026-05-19 (BROKEN-B-pattern): primary-content
+          Animatable.View → plain View to keep this card visible if
+          Animatable's entrance fails. */}
+      <View style={styles.progressCard}>
         <View style={styles.progressHeader}>
-          <MaterialCommunityIcons name="flag-checkered" size={24} color="#00e89d" />
+          <MaterialCommunityIcons name="flag-checkered" size={24} color="#6C63FF" />
           <Text style={styles.progressTitle}>This Week's Progress</Text>
         </View>
         <View style={styles.progressStats}>
@@ -121,13 +124,11 @@ const ChallengesScreen = () => {
           </View>
         </View>
         <View style={styles.progressBar}>
-          <Animatable.View
-            animation="slideInLeft"
-            duration={800}
+          <View
             style={[styles.progressFill, { width: `${(completedThisWeek / totalThisWeek) * 100}%` }]}
           />
         </View>
-      </Animatable.View>
+      </View>
 
       {/* Context bridges */}
       <View style={styles.bridgeRow}>
@@ -137,7 +138,7 @@ const ChallengesScreen = () => {
             targetScreen="Encounters"
             icon="people"
             iconType="material"
-            color="#00e89d"
+            color="#6C63FF"
             title={`${encounterCtx.nearbyCount} nearby`}
           />
         )}
@@ -194,7 +195,7 @@ const ChallengesScreen = () => {
 
   return (
     <SafeAreaView style={styles.container}>
-      <StatusBar barStyle="light-content" backgroundColor="#121212" />
+      <StatusBar barStyle="light-content" backgroundColor="#000000" />
 
       {/* Header */}
       <View style={styles.header}>
@@ -229,8 +230,8 @@ const ChallengesScreen = () => {
           <RefreshControl
             refreshing={refreshing}
             onRefresh={onRefresh}
-            tintColor="#00e89d"
-            colors={['#00e89d']}
+            tintColor="#6C63FF"
+            colors={['#6C63FF']}
           />
         }
       />
@@ -241,7 +242,7 @@ const ChallengesScreen = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#121212',
+    backgroundColor: '#000000',
   },
   header: {
     flexDirection: 'row',
@@ -266,7 +267,7 @@ const styles = StyleSheet.create({
     paddingBottom: hp('10%'),
   },
   progressCard: {
-    backgroundColor: '#1A1A1A',
+    backgroundColor: '#141225',
     borderRadius: 16,
     padding: wp('4%'),
     marginHorizontal: wp('3%'),
@@ -317,7 +318,7 @@ const styles = StyleSheet.create({
   },
   progressFill: {
     height: '100%',
-    backgroundColor: '#00e89d',
+    backgroundColor: '#6C63FF',
     borderRadius: 3,
   },
   bridgeRow: {
@@ -338,14 +339,14 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     paddingVertical: hp('1.2%'),
-    backgroundColor: '#1A1A1A',
+    backgroundColor: '#141225',
     borderRadius: 10,
     borderWidth: 1,
     borderColor: '#2A2A2A',
   },
   tabActive: {
-    backgroundColor: '#00e89d22',
-    borderColor: '#00e89d',
+    backgroundColor: '#6C63FF22',
+    borderColor: '#6C63FF',
   },
   tabText: {
     color: '#888',
@@ -353,17 +354,17 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   tabTextActive: {
-    color: '#00e89d',
+    color: '#6C63FF',
   },
   tabBadge: {
-    backgroundColor: '#00e89d',
+    backgroundColor: '#6C63FF',
     borderRadius: 8,
     paddingHorizontal: 6,
     paddingVertical: 2,
     marginLeft: 6,
   },
   tabBadgeText: {
-    color: '#121212',
+    color: '#000000',
     fontSize: wp('2.5%'),
     fontWeight: '700',
   },

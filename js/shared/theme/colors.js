@@ -5,12 +5,17 @@
 import { Easing } from 'react-native';
 
 export const colors = {
-  // Backgrounds (aligned with web: #0F0E17 / #1A1932)
-  background: '#0F0E17',
-  backgroundSecondary: '#1A1932',
-  backgroundTertiary: '#252542',
-  card: '#1F1E36',
-  cardHover: '#2A2950',
+  // Backgrounds — true AMOLED canvas, Instagram-style depth ladder.
+  // background = pure black for OLED energy + maximum contrast.
+  // backgroundSecondary / card sit just above black so depth survives
+  // without dropping the vibrant feel.  Web mirror kept at #0F0E17 /
+  // #1A1932 via socialTokens.js — mobile diverges intentionally
+  // because OLED phones benefit from true #000.
+  background: '#000000',
+  backgroundSecondary: '#0A0815',
+  backgroundTertiary: '#15131F',
+  card: '#141225',
+  cardHover: '#1F1B33',
 
   // Text
   textPrimary: '#FFFFFE',
@@ -84,8 +89,16 @@ export const colors = {
   gradientAccent: ['#FF6B6B', '#FF9494'],
   gradientBrand: ['#6C63FF', '#FF6B6B', '#2ECC71'],
   gradientGrowth: ['#2ECC71', '#A8E6CF'],
-  gradientDark: ['#1A1932', '#0F0E17'],
+  gradientDark: ['#0A0815', '#000000'],
   gradientSurface: ['rgba(108,99,255,0.05)', 'transparent'],
+  // Instagram-style tri-color gradient — purple → magenta → orange.
+  // Applied to active tabs, FABs, primary CTAs, story rings, and any
+  // affordance that wants the "alive / hot" feel against AMOLED black.
+  gradientInstagram: ['#833AB4', '#FD1D1D', '#FCAF45'],
+  gradientInstagramVertical: ['#FCAF45', '#FD1D1D', '#833AB4'],
+  // Subtle AMOLED card sheen — for elevated surfaces that need to read
+  // as "above black" without lifting brightness too much.
+  gradientAmoledCard: ['#15131F', '#0A0815'],
 
   // Borders
   border: 'rgba(255,255,255,0.12)',

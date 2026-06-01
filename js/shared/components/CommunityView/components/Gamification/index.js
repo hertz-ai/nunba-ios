@@ -1,6 +1,6 @@
 // Gamification Components Index
 // Netflix-quality shared gamification components for React Native
-// All components follow dark theme (#121212 bg), smooth animations, and responsive design
+// All components follow dark theme (#000000 bg), smooth animations, and responsive design
 
 export { default as ResonanceWallet } from './ResonanceWallet';
 export { default as LevelBadge } from './LevelBadge';

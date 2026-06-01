@@ -262,7 +262,7 @@ const InvitesScreen = () => {
               onPress={handleAccept(item.id)}
               disabled={busyId === item.id}
             >
-              <Ionicons name="checkmark" size={16} color="#121212" />
+              <Ionicons name="checkmark" size={16} color="#000000" />
               <Text style={styles.primaryBtnText}>Accept</Text>
             </TouchableOpacity>
             <TouchableOpacity
@@ -296,7 +296,7 @@ const InvitesScreen = () => {
 
   return (
     <SafeAreaView style={styles.container}>
-      <StatusBar barStyle="light-content" backgroundColor="#121212" />
+      <StatusBar barStyle="light-content" backgroundColor="#000000" />
 
       <View style={styles.header}>
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
@@ -308,13 +308,13 @@ const InvitesScreen = () => {
           onPress={() => setComposeOpen(true)}
           accessibilityLabel="Compose new invite"
         >
-          <Ionicons name="add" size={22} color="#121212" />
+          <Ionicons name="add" size={22} color="#000000" />
         </TouchableOpacity>
       </View>
 
       {loading ? (
         <View style={styles.centerContainer}>
-          <ActivityIndicator size="large" color="#00e89d" />
+          <ActivityIndicator size="large" color="#6C63FF" />
         </View>
       ) : (
         <FlatList
@@ -336,7 +336,7 @@ const InvitesScreen = () => {
             <RefreshControl
               refreshing={refreshing}
               onRefresh={onRefresh}
-              tintColor="#00e89d"
+              tintColor="#6C63FF"
             />
           }
         />
@@ -367,7 +367,7 @@ const InvitesScreen = () => {
                 disabled={sending}
               >
                 {sending ? (
-                  <ActivityIndicator size="small" color="#121212" />
+                  <ActivityIndicator size="small" color="#000000" />
                 ) : (
                   <Text style={styles.sendBtnText}>Send</Text>
                 )}
@@ -382,7 +382,7 @@ const InvitesScreen = () => {
               >
                 <Ionicons
                   name="people-outline" size={14}
-                  color={!shareableLink ? '#121212' : '#888'} />
+                  color={!shareableLink ? '#000000' : '#888'} />
                 <Text style={[
                   styles.modeBtnText,
                   !shareableLink && styles.modeBtnTextActive,
@@ -396,7 +396,7 @@ const InvitesScreen = () => {
               >
                 <Ionicons
                   name="link-outline" size={14}
-                  color={shareableLink ? '#121212' : '#888'} />
+                  color={shareableLink ? '#000000' : '#888'} />
                 <Text style={[
                   styles.modeBtnText,
                   shareableLink && styles.modeBtnTextActive,
@@ -424,7 +424,7 @@ const InvitesScreen = () => {
                     autoCapitalize="none"
                   />
                   {searching ? (
-                    <ActivityIndicator size="small" color="#00e89d" />
+                    <ActivityIndicator size="small" color="#6C63FF" />
                   ) : null}
                 </View>
                 {searchResults.length > 0 ? (
@@ -491,7 +491,7 @@ const InvitesScreen = () => {
 };
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#121212' },
+  container: { flex: 1, backgroundColor: '#000000' },
 
   header: {
     flexDirection: 'row', alignItems: 'center',
@@ -504,23 +504,23 @@ const styles = StyleSheet.create({
   },
   composeBtn: {
     width: 36, height: 36, borderRadius: 18,
-    backgroundColor: '#00e89d',
+    backgroundColor: '#6C63FF',
     justifyContent: 'center', alignItems: 'center',
   },
 
   listContent: { paddingHorizontal: wp('4%'), paddingBottom: hp('10%') },
   card: {
-    backgroundColor: '#1A1A1A', borderRadius: 12,
+    backgroundColor: '#141225', borderRadius: 12,
     padding: wp('4%'), marginBottom: hp('1%'),
     borderWidth: 1, borderColor: '#2A2A2A',
   },
   row: { flexDirection: 'row', alignItems: 'center' },
   avatar: {
     width: 44, height: 44, borderRadius: 22,
-    backgroundColor: '#00e89d22',
+    backgroundColor: '#6C63FF22',
     justifyContent: 'center', alignItems: 'center',
   },
-  avatarText: { color: '#00e89d', fontSize: wp('3.6%'), fontWeight: '700' },
+  avatarText: { color: '#6C63FF', fontSize: wp('3.6%'), fontWeight: '700' },
   name: { color: '#FFF', fontSize: wp('3.8%'), fontWeight: '700' },
   subline: { color: '#888', fontSize: wp('3%'), marginTop: 2 },
 
@@ -529,10 +529,10 @@ const styles = StyleSheet.create({
   },
   primaryBtn: {
     flexDirection: 'row', alignItems: 'center',
-    backgroundColor: '#00e89d', paddingHorizontal: wp('4%'),
+    backgroundColor: '#6C63FF', paddingHorizontal: wp('4%'),
     paddingVertical: hp('0.8%'), borderRadius: 20, gap: 4,
   },
-  primaryBtnText: { color: '#121212', fontWeight: '700', fontSize: wp('3%') },
+  primaryBtnText: { color: '#000000', fontWeight: '700', fontSize: wp('3%') },
   ghostBtn: {
     paddingHorizontal: wp('4%'), paddingVertical: hp('0.8%'),
     borderRadius: 20, borderWidth: 1, borderColor: '#2A2A2A',
@@ -558,7 +558,7 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-end',
   },
   modalSheet: {
-    backgroundColor: '#1A1A1A',
+    backgroundColor: '#141225',
     borderTopLeftRadius: 24, borderTopRightRadius: 24,
     padding: wp('4%'),
     paddingBottom: hp('4%'),
@@ -575,10 +575,10 @@ const styles = StyleSheet.create({
   },
   sendBtn: {
     paddingHorizontal: wp('5%'), paddingVertical: hp('0.8%'),
-    backgroundColor: '#00e89d', borderRadius: 20,
+    backgroundColor: '#6C63FF', borderRadius: 20,
   },
   sendBtnBusy: { opacity: 0.6 },
-  sendBtnText: { color: '#121212', fontWeight: '700', fontSize: wp('3.2%') },
+  sendBtnText: { color: '#000000', fontWeight: '700', fontSize: wp('3.2%') },
 
   modeRow: { flexDirection: 'row', gap: 8, marginTop: 12 },
   modeBtn: {
@@ -587,9 +587,9 @@ const styles = StyleSheet.create({
     paddingVertical: hp('1%'), borderRadius: 12,
     borderWidth: 1, borderColor: '#2A2A2A',
   },
-  modeBtnActive: { backgroundColor: '#00e89d', borderColor: '#00e89d' },
+  modeBtnActive: { backgroundColor: '#6C63FF', borderColor: '#6C63FF' },
   modeBtnText: { color: '#888', fontSize: wp('3.2%'), fontWeight: '600' },
-  modeBtnTextActive: { color: '#121212' },
+  modeBtnTextActive: { color: '#000000' },
 
   chipsRow: {
     flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 12,
@@ -603,14 +603,14 @@ const styles = StyleSheet.create({
 
   searchContainer: {
     flexDirection: 'row', alignItems: 'center',
-    backgroundColor: '#121212', borderRadius: 12,
+    backgroundColor: '#000000', borderRadius: 12,
     paddingHorizontal: wp('3%'), paddingVertical: hp('1%'),
     marginTop: 12, borderWidth: 1, borderColor: '#2A2A2A', gap: 8,
   },
   searchInput: { flex: 1, color: '#FFF', fontSize: wp('3.4%') },
 
   suggestList: {
-    marginTop: 8, backgroundColor: '#121212',
+    marginTop: 8, backgroundColor: '#000000',
     borderRadius: 12, borderWidth: 1, borderColor: '#2A2A2A',
     paddingVertical: 4,
   },
@@ -620,10 +620,10 @@ const styles = StyleSheet.create({
   },
   avatarSmall: {
     width: 32, height: 32, borderRadius: 16,
-    backgroundColor: '#00e89d22',
+    backgroundColor: '#6C63FF22',
     justifyContent: 'center', alignItems: 'center',
   },
-  avatarSmallText: { color: '#00e89d', fontSize: wp('3%'), fontWeight: '700' },
+  avatarSmallText: { color: '#6C63FF', fontSize: wp('3%'), fontWeight: '700' },
   suggestName: { color: '#FFF', fontSize: wp('3.4%'), fontWeight: '600' },
   suggestHandle: { color: '#888', fontSize: wp('2.8%') },
 
@@ -637,9 +637,9 @@ const styles = StyleSheet.create({
     flex: 1, paddingVertical: hp('1%'), borderRadius: 12,
     borderWidth: 1, borderColor: '#2A2A2A', alignItems: 'center',
   },
-  roleBtnActive: { backgroundColor: '#00e89d', borderColor: '#00e89d' },
+  roleBtnActive: { backgroundColor: '#6C63FF', borderColor: '#6C63FF' },
   roleBtnText: { color: '#FFF', fontSize: wp('3.2%'), fontWeight: '600' },
-  roleBtnTextActive: { color: '#121212' },
+  roleBtnTextActive: { color: '#000000' },
 
   helperText: {
     color: '#888', fontSize: wp('2.8%'),

@@ -210,7 +210,7 @@ const MemoryFlipTemplate = ({config, onAnswer, onComplete}) => {
   const completedRef = useRef(false);
 
   // Header animation
-  const headerAnim = useRef(new Animated.Value(0)).current;
+  const headerAnim = useRef(new Animated.Value(1)).current;
 
   useEffect(() => {
     setDeck(buildDeck());

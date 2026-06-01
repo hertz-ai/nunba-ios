@@ -42,10 +42,10 @@ const FillBlankTemplate = ({config, onAnswer, onComplete}) => {
   const [showVisualHint, setShowVisualHint] = useState(true);
 
   // Animations
-  const sentenceAnim = useRef(new Animated.Value(0)).current;
+  const sentenceAnim = useRef(new Animated.Value(1)).current;
   const blankPulse = useRef(new Animated.Value(1)).current;
-  const hintAnim = useRef(new Animated.Value(0)).current;
-  const completedAnim = useRef(new Animated.Value(0)).current;
+  const hintAnim = useRef(new Animated.Value(1)).current;
+  const completedAnim = useRef(new Animated.Value(1)).current;
 
   // Feedback overlay
   const [feedbackVisible, setFeedbackVisible] = useState(false);
@@ -61,8 +61,8 @@ const FillBlankTemplate = ({config, onAnswer, onComplete}) => {
 
   // Animate sentence in on question change
   useEffect(() => {
-    sentenceAnim.setValue(0);
-    completedAnim.setValue(0);
+    sentenceAnim.setValue(1);
+    completedAnim.setValue(1);
     Animated.timing(sentenceAnim, {
       toValue: 1,
       duration: 400,
@@ -91,7 +91,7 @@ const FillBlankTemplate = ({config, onAnswer, onComplete}) => {
     setAnswered(false);
     setOptionStates({});
     setShowHint(false);
-    hintAnim.setValue(0);
+    hintAnim.setValue(1);
 
     return () => pulse.stop();
   }, [currentIndex]);

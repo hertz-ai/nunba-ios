@@ -63,9 +63,9 @@ const HAPTIC = {
 
 // ── Confetti Particle ──────────────────────────────────────────────
 const ConfettiParticle = ({delay, color, startX}) => {
-  const fallAnim = useRef(new Animated.Value(0)).current;
-  const swayAnim = useRef(new Animated.Value(0)).current;
-  const rotateAnim = useRef(new Animated.Value(0)).current;
+  const fallAnim = useRef(new Animated.Value(1)).current;
+  const swayAnim = useRef(new Animated.Value(1)).current;
+  const rotateAnim = useRef(new Animated.Value(1)).current;
 
   useEffect(() => {
     let anim = null;
@@ -155,33 +155,25 @@ const StarBurst = ({visible, count = 5}) => {
 };
 
 // ── Loading Shimmer ────────────────────────────────────────────────
+// Static (non-animated) skeleton bars.  The earlier implementation drove
+// every bar's opacity from an Animated.loop(Animated.sequence(timing,
+// timing)) with useNativeDriver=true.  On-device evidence (2026-06-01,
+// Galaxy S23 Ultra) showed the JS thread stops processing setTimeout
+// callbacks after this component mounts — the GameShell phase effect
+// scheduled setTimeout(setPhase, 600) but the callback never fired,
+// leaving every kids game stuck on the skeleton forever.  Removing the
+// looping animation restored the phase advance.  We keep the static
+// bars so the user still sees a clear "loading" visual hint during the
+// 600 ms before the intro card animates in.
 const LoadingShimmer = () => {
-  const shimmerAnim = useRef(new Animated.Value(0)).current;
-
-  useEffect(() => {
-    const shimmerLoop = Animated.loop(
-      Animated.sequence([
-        Animated.timing(shimmerAnim, {toValue: 1, duration: 1000, useNativeDriver: true}),
-        Animated.timing(shimmerAnim, {toValue: 0, duration: 1000, useNativeDriver: true}),
-      ]),
-    );
-    shimmerLoop.start();
-    return () => shimmerLoop.stop();
-  }, []);
-
-  const opacity = shimmerAnim.interpolate({
-    inputRange: [0, 1],
-    outputRange: [0.3, 0.7],
-  });
-
   return (
     <View style={styles.shimmerContainer}>
       {[0.7, 0.5, 0.9, 0.6, 0.4].map((width, i) => (
-        <Animated.View
+        <View
           key={i}
           style={[
             styles.shimmerBar,
-            {width: `${width * 100}%`, opacity},
+            {width: `${width * 100}%`, opacity: 0.5},
           ]}
         />
       ))}
@@ -198,7 +190,14 @@ const GameShell = ({
   children,
 }) => {
   // ── Game Lifecycle State ──
-  const [phase, setPhase] = useState('loading'); // loading | intro | playing | paused | complete
+  // Initial phase set directly to 'playing' so the template renders
+  // immediately on mount.  We tried the original loading→intro→playing
+  // setTimeout chain on-device (Galaxy S23 Ultra, 2026-06-01) — the
+  // setTimeout callback never fires once GameShell mounts (timer
+  // handle is allocated but never executed, no cleanup either).  Until
+  // that JS-engine timer bug is properly understood, going straight to
+  // the playable template guarantees the kids games are usable.
+  const [phase, setPhase] = useState('playing');
   const [score, setScore] = useState(0);
   const [totalAnswered, setTotalAnswered] = useState(0);
   const [correctCount, setCorrectCount] = useState(0);
@@ -212,9 +211,9 @@ const GameShell = ({
   const [elapsedTime, setElapsedTime] = useState(0);
 
   // Animations
-  const introAnim = useRef(new Animated.Value(0)).current;
-  const contentAnim = useRef(new Animated.Value(0)).current;
-  const completeAnim = useRef(new Animated.Value(0)).current;
+  const introAnim = useRef(new Animated.Value(1)).current;
+  const contentAnim = useRef(new Animated.Value(1)).current;
+  const completeAnim = useRef(new Animated.Value(1)).current;
 
   // Timers
   const startTimeRef = useRef(Date.now());
@@ -246,7 +245,16 @@ const GameShell = ({
 
   // ── Accessibility ──
   useEffect(() => {
-    AccessibilityInfo.isReduceMotionEnabled().then(setIsReducedMotion);
+    // isReduceMotionEnabled returns Promise on Android API 19+, but a
+    // null on some older releases — guard with try/catch and a Promise
+    // shape check so this effect never throws (the previous unguarded
+    // .then(setIsReducedMotion) is a known crash source).
+    try {
+      const p = AccessibilityInfo.isReduceMotionEnabled();
+      if (p && typeof p.then === 'function') {
+        p.then(setIsReducedMotion).catch(() => {});
+      }
+    } catch (_e) {}
     const sub = AccessibilityInfo.addEventListener('reduceMotionChanged', setIsReducedMotion);
     return () => sub?.remove?.();
   }, []);
@@ -285,18 +293,23 @@ const GameShell = ({
   // ── Phase Transitions (themed per game type) ──
   useEffect(() => {
     if (phase === 'loading') {
-      // Brief loading shimmer, then intro
       const t = setTimeout(() => setPhase('intro'), 600);
       return () => clearTimeout(t);
     }
     if (phase === 'intro') {
       // Animate intro card — uses SPRINGS.smooth instead of hardcoded friction/tension
       Animated.spring(introAnim, {toValue: 1, ...SPRINGS.smooth}).start();
-      // Start background music — use theme-specific bgm category, fall back to generic
-      const bgmKey = `bgm_${gameTheme.bgmCategory || config?.category || 'general'}_happy`;
-      MediaCacheManager.get(bgmKey).then(path => {
-        if (path) GameSounds.startBackgroundMusic(path, {fadeInMs: 2000, volume: 0.2});
-      }).catch(() => {});
+      // Start background music — use theme-specific bgm category, fall back to generic.
+      // MediaCacheManager.get is SYNCHRONOUS (returns the cached path string
+      // or null), not a Promise — calling .then() on it crashed the entire
+      // kids-game render with "Cannot read property 'then' of null" the
+      // moment we entered the intro phase.  Verified via on-device logcat
+      // 2026-06-01 (eng-spell-animals-01 → APP_CRASH on intro).
+      try {
+        const bgmKey = `bgm_${gameTheme.bgmCategory || config?.category || 'general'}_happy`;
+        const bgmPath = MediaCacheManager.get(bgmKey);
+        if (bgmPath) GameSounds.startBackgroundMusic(bgmPath, {fadeInMs: 2000, volume: 0.2});
+      } catch (_e) { /* bgm is best-effort */ }
       // Auto-transition to playing
       const t = setTimeout(() => {
         Animated.timing(introAnim, {
@@ -499,24 +512,15 @@ const GameShell = ({
           </Animated.View>
         )}
 
-        {/* Playing Phase */}
+        {/* Playing Phase — Animated.View wrapper removed.  The
+            contentAnim opacity (0 → 1 spring) never advanced past 0
+            on-device, leaving the template invisible.  Until the
+            animated entry is reinstated safely, render children
+            directly so every kids game is at least playable. */}
         {phase === 'playing' && (
-          <Animated.View
-            style={[
-              styles.gameArea,
-              {
-                opacity: contentAnim,
-                transform: [{
-                  translateY: contentAnim.interpolate({
-                    inputRange: [0, 1],
-                    outputRange: [30, 0],
-                  }),
-                }],
-              },
-            ]}
-          >
+          <View style={styles.gameArea}>
             {typeof children === 'function' ? children(templateProps) : children}
-          </Animated.View>
+          </View>
         )}
 
         {/* Paused Overlay */}

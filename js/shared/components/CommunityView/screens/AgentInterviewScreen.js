@@ -187,7 +187,7 @@ export default function AgentInterviewScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#0F0E17',
+    backgroundColor: '#000000',
   },
   header: {
     flexDirection: 'row',
@@ -295,7 +295,7 @@ const styles = StyleSheet.create({
     paddingVertical: hp(1),
     borderTopWidth: 1,
     borderTopColor: '#1A1932',
-    backgroundColor: '#0F0E17',
+    backgroundColor: '#000000',
   },
   input: {
     flex: 1,

@@ -62,7 +62,7 @@ const FloatingBubble = ({
   // Pop animations
   const popScale = useRef(new Animated.Value(1)).current;
   const popOpacity = useRef(new Animated.Value(1)).current;
-  const popRotate = useRef(new Animated.Value(0)).current;
+  const popRotate = useRef(new Animated.Value(1)).current;
 
   const sizeConfig = BUBBLE_SIZES[bubble.sizeCategory];
   const bubbleSize = sizeConfig.size;
@@ -177,7 +177,7 @@ const FloatingBubble = ({
 };
 
 const SpeechBubbleTemplate = ({config, onComplete, onAnswer}) => {
-  const questions = config?.questions || [];
+  const questions = config?.content?.questions || config?.questions || [];
 
   const [wordIndex, setWordIndex] = useState(0);
   const [filledLetters, setFilledLetters] = useState([]);
@@ -203,7 +203,7 @@ const SpeechBubbleTemplate = ({config, onComplete, onAnswer}) => {
   const targetLetters = targetWord.split('');
 
   // Voice meter animation
-  const voiceLevelAnim = useRef(new Animated.Value(0)).current;
+  const voiceLevelAnim = useRef(new Animated.Value(1)).current;
 
   useEffect(() => {
     Animated.timing(voiceLevelAnim, {

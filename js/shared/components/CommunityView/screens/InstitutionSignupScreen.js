@@ -49,7 +49,7 @@ import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 import { useNavigation } from '@react-navigation/native';
 import { mailerApi } from '../../../services/socialApi';
 
-const ACCENT = '#00e89d';
+const ACCENT = '#6C63FF';
 const ACCENT_BLUE = '#0078ff';
 const ACCENT_AMBER = '#ffcc00';
 const ERR = '#ff6b6b';
@@ -412,7 +412,7 @@ const InstitutionSignupScreen = () => {
 };
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#1a1a2e' },
+  container: { flex: 1, backgroundColor: '#000000' },
   content: { padding: wp('4%'), paddingBottom: hp('6%') },
   headerRow: {
     flexDirection: 'row',

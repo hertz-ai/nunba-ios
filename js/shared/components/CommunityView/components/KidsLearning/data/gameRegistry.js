@@ -27,6 +27,13 @@ const TEMPLATE_REGISTRY = {
   'story-builder': () => require('../templates/StoryBuilderTemplate').default,
   'simulation': () => require('../templates/SimulationTemplate').default,
   'spot-difference': () => require('../templates/SpotDifferenceTemplate').default,
+  // Voice/speech-based templates — voice games (BalloonPop, Peekaboo,
+  // SpeechBubble) live in data/configs/{balloonPop,peekaboo,speechBubble}Games.js
+  // but were missing from the registry, so every voice game silently
+  // rendered null when launched.  Verified 2026-06-01.
+  'balloon-pop': () => require('../templates/BalloonPopTemplate').default,
+  'peekaboo': () => require('../templates/PeekabooTemplate').default,
+  'speech-bubble': () => require('../templates/SpeechBubbleTemplate').default,
 };
 
 // Dynamic templates registered at runtime from server definitions

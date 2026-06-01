@@ -154,7 +154,7 @@ const EvolutionTimeline = ({
                     styles.stageIcon,
                     {
                       backgroundColor: isFuture
-                        ? '#1A1A1A'
+                        ? '#141225'
                         : stage.color + '20',
                       borderColor: isFuture ? '#2A2A2A' : stage.color,
                     },
@@ -259,7 +259,7 @@ const EvolutionTimeline = ({
 
 const styles = StyleSheet.create({
   container: {
-    backgroundColor: '#1A1A1A',
+    backgroundColor: '#141225',
     borderRadius: 16,
     padding: wp('4%'),
     marginVertical: hp('1%'),
@@ -345,7 +345,7 @@ const styles = StyleSheet.create({
     position: 'absolute',
     bottom: -2,
     right: -2,
-    backgroundColor: '#121212',
+    backgroundColor: '#000000',
     borderRadius: wp('2%'),
   },
   stageInfo: {

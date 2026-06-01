@@ -207,7 +207,7 @@ const styles = StyleSheet.create({
     marginHorizontal: wp('3%'),
     marginVertical: hp('1%'),
     borderRadius: 16,
-    backgroundColor: '#1A1A1A',
+    backgroundColor: '#141225',
     overflow: 'hidden',
     borderWidth: 1,
     borderColor: '#2A2A2A',

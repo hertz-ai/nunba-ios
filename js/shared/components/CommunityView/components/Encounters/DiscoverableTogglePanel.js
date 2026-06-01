@@ -57,7 +57,7 @@ import {
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 import { bleEncounterApi } from '../../../../services/socialApi';
 
-const ACCENT = '#00e89d';
+const ACCENT = '#6C63FF';
 const ERR = '#ff6b6b';
 
 // Isolate the 1Hz ticker so toggling parent state doesn't cascade
@@ -182,6 +182,15 @@ const DiscoverableTogglePanel = () => {
         // non-2xx with the status text in message; HARTOS returns
         // {error: 'toggle limit reached ...'} on 429.
         const msg = e.message || '';
+        // UX-AUDIT 2026-05-19 (BROKEN-B7): mirror the initial-load
+        // suppression of JSON parse errors. Server returning HTML
+        // (login page, 502, etc.) bubbles up as "JSON Parse error:
+        // Unexpected character: <" which is technical + unactionable
+        // for the user. Replace with a friendly retry-style message.
+        const isParseError =
+          msg.includes('JSON Parse error') ||
+          msg.includes('Unexpected token') ||
+          msg.includes('Unexpected character');
         if (msg.includes('429') || msg.includes('toggle limit')) {
           setRateLimited(true);
           setError(
@@ -190,6 +199,8 @@ const DiscoverableTogglePanel = () => {
           );
         } else if (msg.includes('403') || msg.includes('age_claim')) {
           setError('Confirm 18+ to enable discoverable.');
+        } else if (isParseError) {
+          setError("Couldn't reach the server — try again in a moment.");
         } else {
           setError(`Failed: ${msg}`);
         }
@@ -219,7 +230,7 @@ const DiscoverableTogglePanel = () => {
           value={enabled}
           onValueChange={handleToggle}
           disabled={switchDisabled}
-          trackColor={{ false: '#3a3a4e', true: '#00e89d55' }}
+          trackColor={{ false: '#3a3a4e', true: '#6C63FF55' }}
           thumbColor={enabled ? ACCENT : '#888'}
           accessibilityLabel="Discoverable on Hevolve nearby"
           accessibilityState={{ checked: enabled, disabled: switchDisabled }}

@@ -28,7 +28,7 @@ const ProximityMatchCard = ({ match, currentUserId, onReveal, onChat }) => {
     <View style={styles.card}>
       <View style={styles.iconContainer}>
         {isMatched ? (
-          <Ionicons name="people" size={36} color="#00e89d" />
+          <Ionicons name="people" size={36} color="#6C63FF" />
         ) : (
           <Ionicons name="person-outline" size={36} color="#888" />
         )}
@@ -52,7 +52,7 @@ const ProximityMatchCard = ({ match, currentUserId, onReveal, onChat }) => {
           <>
             <Text style={styles.statusText}>You revealed yourself</Text>
             <View style={styles.waitingRow}>
-              <ActivityIndicator size="small" color="#00e89d" />
+              <ActivityIndicator size="small" color="#6C63FF" />
               <Text style={styles.waitingText}>Waiting for them...</Text>
             </View>
           </>
@@ -74,7 +74,7 @@ const ProximityMatchCard = ({ match, currentUserId, onReveal, onChat }) => {
                 onChat && onChat(otherUserId);
               }}
             >
-              <Ionicons name="chatbubble-outline" size={16} color="#1a1a2e" />
+              <Ionicons name="chatbubble-outline" size={16} color="#000000" />
               <Text style={styles.chatButtonText}>Start Chat</Text>
             </TouchableOpacity>
           </>
@@ -96,7 +96,7 @@ const styles = StyleSheet.create({
     width: 56,
     height: 56,
     borderRadius: 28,
-    backgroundColor: '#1a1a2e',
+    backgroundColor: '#000000',
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: wp('3%'),
@@ -106,7 +106,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   distanceText: {
-    color: '#00e89d',
+    color: '#6C63FF',
     fontSize: wp('3.5%'),
     fontWeight: '700',
     marginBottom: 4,
@@ -118,13 +118,13 @@ const styles = StyleSheet.create({
   },
   revealButton: {
     alignSelf: 'flex-start',
-    backgroundColor: '#00e89d',
+    backgroundColor: '#6C63FF',
     paddingHorizontal: wp('4%'),
     paddingVertical: hp('0.8%'),
     borderRadius: 16,
   },
   revealButtonText: {
-    color: '#1a1a2e',
+    color: '#000000',
     fontSize: wp('3.2%'),
     fontWeight: '700',
   },
@@ -144,7 +144,7 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   matchedLabel: {
-    color: '#00e89d',
+    color: '#6C63FF',
     fontSize: wp('3%'),
     fontWeight: '600',
     marginBottom: 8,
@@ -153,13 +153,13 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignSelf: 'flex-start',
     alignItems: 'center',
-    backgroundColor: '#00e89d',
+    backgroundColor: '#6C63FF',
     paddingHorizontal: wp('4%'),
     paddingVertical: hp('0.8%'),
     borderRadius: 16,
   },
   chatButtonText: {
-    color: '#1a1a2e',
+    color: '#000000',
     fontSize: wp('3.2%'),
     fontWeight: '700',
     marginLeft: 6,

@@ -4,7 +4,7 @@ import { View, StyleSheet, Animated, Dimensions } from 'react-native';
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
 const CONFETTI_COLORS = [
-  '#00e89d',
+  '#6C63FF',
   '#FFD700',
   '#00D9FF',
   '#9D4EDD',

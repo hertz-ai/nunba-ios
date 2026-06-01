@@ -4,6 +4,8 @@ import {
   SafeAreaView, StatusBar, RefreshControl, ActivityIndicator, Alert, Animated,
 } from 'react-native';
 import ParallaxHero from '../../shared/ParallaxHero';
+import OpenStatusDot from '../../shared/OpenStatusDot';
+import FilterChips from '../../shared/FilterChips';
 import {
   widthPercentageToDP as wp,
   heightPercentageToDP as hp,
@@ -15,6 +17,26 @@ import { useNavigation, useRoute } from '@react-navigation/native';
 import { usersApi, friendsApi } from '../../../services/socialApi';
 import ContextBridge from '../components/ContextBridge';
 import usePressAnimation from '../../../hooks/usePressAnimation';
+
+// UX-AUDIT 2026-05-20 REDESIGN-R4: Part X.4.3 wireframe deltas:
+//   1. Agent badge — purple "AGENT" pill next to display name when
+//      `user.is_agent` or `user.agent_kind === 'agent'`.
+//   2. OpenStatusDot — green/yellow/grey presence dot near display name.
+//   3. "In a call" pill — surfaces when `user.in_call` is set.
+//   4. Tabs strip (Posts / Encounters / Reactions / Saved) — Posts is
+//      wired today; the other three are nav stubs that route to the
+//      already-existing screens (no parallel data fetch).
+//
+// The full edit-in-sheet pattern stays as-is (existing inline editor
+// works on-device); upgrading it to a real BottomSheet is a deferred
+// follow-up not blocking the visible redesign.
+
+const PROFILE_TABS = [
+  { value: 'posts', label: 'Posts' },
+  { value: 'encounters', label: 'Encounters' },
+  { value: 'reactions', label: 'Reactions' },
+  { value: 'saved', label: 'Saved' },
+];
 
 const ProfileScreen = () => {
   const navigation = useNavigation();
@@ -28,6 +50,9 @@ const ProfileScreen = () => {
   const [editing, setEditing] = useState(false);
   const [editName, setEditName] = useState('');
   const [editBio, setEditBio] = useState('');
+  // REDESIGN-R4: active profile tab (only 'posts' renders inline; the
+  // other tabs route to dedicated screens).
+  const [profileTab, setProfileTab] = useState('posts');
   const expCtx = null;
   const resonanceCtx = null;
   const achCtx = null;
@@ -228,7 +253,7 @@ const ProfileScreen = () => {
               {isOwnProfile ? (
                 <View style={styles.profileActionsRow}>
                   <TouchableOpacity style={styles.editProfileBtn} onPress={() => setEditing(true)}>
-                    <Ionicons name="create-outline" size={16} color="#00e89d" />
+                    <Ionicons name="create-outline" size={16} color="#6C63FF" />
                     <Text style={styles.editProfileText}>Edit Profile</Text>
                   </TouchableOpacity>
                   <TouchableOpacity
@@ -236,7 +261,7 @@ const ProfileScreen = () => {
                     onPress={() => navigation.navigate('Friends')}
                     accessibilityLabel="Manage friends, pending requests, and blocks"
                   >
-                    <MaterialCommunityIcons name="account-multiple" size={16} color="#00e89d" />
+                    <MaterialCommunityIcons name="account-multiple" size={16} color="#6C63FF" />
                     <Text style={styles.editProfileText}>Friends</Text>
                   </TouchableOpacity>
                 </View>
@@ -267,7 +292,7 @@ const ProfileScreen = () => {
                     <Ionicons
                       name={friendRequestSent ? 'time-outline' : 'person-add-outline'}
                       size={14}
-                      color={friendRequestSent ? '#888' : '#00e89d'}
+                      color={friendRequestSent ? '#888' : '#6C63FF'}
                     />
                     <Text style={[
                       styles.friendBtnText,
@@ -290,9 +315,9 @@ const ProfileScreen = () => {
   if (loading) {
     return (
       <SafeAreaView style={styles.container}>
-        <StatusBar barStyle="light-content" backgroundColor="#121212" />
+        <StatusBar barStyle="light-content" backgroundColor="#000000" />
         <View style={styles.centerContainer}>
-          <ActivityIndicator size="large" color="#00e89d" />
+          <ActivityIndicator size="large" color="#6C63FF" />
         </View>
       </SafeAreaView>
     );
@@ -300,7 +325,7 @@ const ProfileScreen = () => {
 
   return (
     <SafeAreaView style={styles.container}>
-      <StatusBar barStyle="light-content" backgroundColor="#121212" />
+      <StatusBar barStyle="light-content" backgroundColor="#000000" />
 
       <View style={styles.header}>
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton} hitSlop={{top: 10, bottom: 10, left: 10, right: 10}}>
@@ -328,7 +353,74 @@ const ProfileScreen = () => {
               subtitle={user?.handle ? `@${user.handle}` : (user?.bio || '')}
               height={200}
             />
+            {/* REDESIGN-R4: identity ribbon — presence dot + agent
+                badge + in-call pill.  Wired off `user.online_status`,
+                `is_agent`, `in_call`.  All optional; absent fields
+                render nothing. */}
+            {user ? (
+              <View style={styles.identityRibbon}>
+                {user.online_status ? (
+                  <View style={styles.ribbonItem}>
+                    <OpenStatusDot status={user.online_status} size={10} />
+                    <Text style={styles.ribbonText}>
+                      {user.online_status === 'online'
+                        ? 'Online'
+                        : user.online_status === 'in_call'
+                        ? 'In a call'
+                        : user.online_status === 'idle'
+                        ? 'Idle'
+                        : 'Offline'}
+                    </Text>
+                  </View>
+                ) : null}
+                {user.is_agent || user.agent_kind === 'agent' ? (
+                  <View style={styles.agentRibbonBadge}>
+                    <MaterialCommunityIcons
+                      name="lightning-bolt"
+                      size={12}
+                      color="#a78bfa"
+                    />
+                    <Text style={styles.agentRibbonText}>AGENT</Text>
+                  </View>
+                ) : null}
+                {user.in_call ? (
+                  <TouchableOpacity
+                    style={styles.inCallPill}
+                    onPress={() => {
+                      try {
+                        navigation.navigate('CallChannel', {
+                          call_id: user.in_call.call_id || user.in_call,
+                        });
+                      } catch (_) { /* silent — route missing */ }
+                    }}
+                  >
+                    <Ionicons name="call" size={12} color="#6C63FF" />
+                    <Text style={styles.inCallPillText}>Join call</Text>
+                  </TouchableOpacity>
+                ) : null}
+              </View>
+            ) : null}
             {renderHeader()}
+            {/* REDESIGN-R4: 4-tab strip. Posts tab keeps the existing
+                FlatList data; the other three navigate to their
+                dedicated screens (no parallel data fetch in profile). */}
+            <FilterChips
+              items={PROFILE_TABS}
+              value={profileTab}
+              onChange={(next) => {
+                if (next === 'posts') {
+                  setProfileTab('posts');
+                  return;
+                }
+                if (next === 'encounters') {
+                  try { navigation.navigate('Encounters'); } catch (_) {}
+                } else if (next === 'reactions') {
+                  try { navigation.navigate('Notifications'); } catch (_) {}
+                } else if (next === 'saved') {
+                  try { navigation.navigate('SavedPosts'); } catch (_) {}
+                }
+              }}
+            />
           </>
         }
         ListEmptyComponent={
@@ -345,7 +437,7 @@ const ProfileScreen = () => {
         )}
         scrollEventThrottle={16}
         refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#00e89d" />
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#6C63FF" />
         }
       />
     </SafeAreaView>
@@ -353,7 +445,7 @@ const ProfileScreen = () => {
 };
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#121212' },
+  container: { flex: 1, backgroundColor: '#000000' },
   header: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: wp('4%'), paddingVertical: hp('1.5%') },
   backButton: { padding: 10 },
   headerTitle: { flex: 1, color: '#FFF', fontSize: wp('5%'), fontWeight: '700', textAlign: 'center' },
@@ -362,14 +454,14 @@ const styles = StyleSheet.create({
   emptyText: { color: '#888', fontSize: wp('3.5%'), marginTop: hp('2%') },
   listContent: { paddingHorizontal: wp('4%'), paddingBottom: hp('10%') },
   profileCard: {
-    backgroundColor: '#1A1A1A', borderRadius: 16, padding: wp('5%'),
+    backgroundColor: '#141225', borderRadius: 16, padding: wp('5%'),
     marginBottom: hp('2%'), borderWidth: 1, borderColor: '#2A2A2A', alignItems: 'center',
   },
   avatarLarge: {
-    width: 80, height: 80, borderRadius: 40, backgroundColor: '#00e89d22',
+    width: 80, height: 80, borderRadius: 40, backgroundColor: '#6C63FF22',
     justifyContent: 'center', alignItems: 'center', marginBottom: 12,
   },
-  avatarLargeText: { color: '#00e89d', fontSize: wp('8%'), fontWeight: '700' },
+  avatarLargeText: { color: '#6C63FF', fontSize: wp('8%'), fontWeight: '700' },
   displayName: { color: '#FFF', fontSize: wp('5%'), fontWeight: '700', marginBottom: 2 },
   username: { color: '#888', fontSize: wp('3.5%'), marginBottom: 8 },
   bio: { color: '#AAA', fontSize: wp('3.5%'), textAlign: 'center', marginBottom: 12 },
@@ -381,37 +473,70 @@ const styles = StyleSheet.create({
   editProfileBtn: {
     flexDirection: 'row', alignItems: 'center', gap: 6,
     paddingHorizontal: wp('5%'), paddingVertical: hp('1%'), borderRadius: 20,
-    borderWidth: 1, borderColor: '#00e89d',
+    borderWidth: 1, borderColor: '#6C63FF',
   },
-  editProfileText: { color: '#00e89d', fontWeight: '600', fontSize: wp('3.2%') },
+  editProfileText: { color: '#6C63FF', fontWeight: '600', fontSize: wp('3.2%') },
   followBtn: {
-    paddingHorizontal: wp('8%'), paddingVertical: hp('1%'), borderRadius: 20, backgroundColor: '#00e89d',
+    paddingHorizontal: wp('8%'), paddingVertical: hp('1%'), borderRadius: 20, backgroundColor: '#6C63FF',
   },
-  followingBtn: { backgroundColor: 'transparent', borderWidth: 1, borderColor: '#00e89d' },
-  followText: { color: '#121212', fontWeight: '700', fontSize: wp('3.5%') },
-  followingText: { color: '#00e89d' },
+  followingBtn: { backgroundColor: 'transparent', borderWidth: 1, borderColor: '#6C63FF' },
+  followText: { color: '#000000', fontWeight: '700', fontSize: wp('3.5%') },
+  followingText: { color: '#6C63FF' },
   profileActionsRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   friendBtn: {
     flexDirection: 'row', alignItems: 'center', gap: 4,
     paddingHorizontal: wp('4%'), paddingVertical: hp('1%'), borderRadius: 20,
-    borderWidth: 1, borderColor: '#00e89d', backgroundColor: 'transparent',
+    borderWidth: 1, borderColor: '#6C63FF', backgroundColor: 'transparent',
   },
   friendBtnPending: { borderColor: '#444' },
-  friendBtnText: { color: '#00e89d', fontWeight: '600', fontSize: wp('3.2%') },
+  friendBtnText: { color: '#6C63FF', fontWeight: '600', fontSize: wp('3.2%') },
   friendBtnPendingText: { color: '#888' },
   editSection: { width: '100%', marginTop: 8 },
   editInput: {
-    backgroundColor: '#121212', borderRadius: 12, padding: wp('3%'), color: '#FFF',
+    backgroundColor: '#000000', borderRadius: 12, padding: wp('3%'), color: '#FFF',
     fontSize: wp('3.5%'), marginBottom: 8, borderWidth: 1, borderColor: '#2A2A2A',
   },
   editActions: { flexDirection: 'row', justifyContent: 'flex-end', gap: 12, marginTop: 4 },
   cancelBtn: { paddingHorizontal: wp('4%'), paddingVertical: hp('0.8%') },
   cancelText: { color: '#888', fontWeight: '600' },
-  saveBtn: { paddingHorizontal: wp('5%'), paddingVertical: hp('0.8%'), borderRadius: 20, backgroundColor: '#00e89d' },
-  saveText: { color: '#121212', fontWeight: '700' },
+
+  // REDESIGN-R4 — identity ribbon below ParallaxHero.
+  identityRibbon: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    flexWrap: 'wrap',
+    marginHorizontal: wp('4%'),
+    marginTop: hp('1%'),
+  },
+  ribbonItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  ribbonText: { color: '#CCC', fontSize: wp('3%'), fontWeight: '600' },
+  agentRibbonBadge: {
+    flexDirection: 'row', alignItems: 'center', gap: 4,
+    paddingHorizontal: 8, paddingVertical: 2,
+    backgroundColor: 'rgba(167,139,250,0.18)',
+    borderRadius: 8,
+  },
+  agentRibbonText: {
+    color: '#a78bfa', fontSize: 10, fontWeight: '700', letterSpacing: 0.5,
+  },
+  inCallPill: {
+    flexDirection: 'row', alignItems: 'center', gap: 4,
+    paddingHorizontal: 10, paddingVertical: 4,
+    backgroundColor: 'rgba(0,232,157,0.12)',
+    borderRadius: 12,
+    borderWidth: 1, borderColor: 'rgba(0,232,157,0.35)',
+  },
+  inCallPillText: { color: '#6C63FF', fontSize: wp('3%'), fontWeight: '700' },
+  saveBtn: { paddingHorizontal: wp('5%'), paddingVertical: hp('0.8%'), borderRadius: 20, backgroundColor: '#6C63FF' },
+  saveText: { color: '#000000', fontWeight: '700' },
   sectionTitle: { color: '#FFF', fontSize: wp('4%'), fontWeight: '700', marginBottom: hp('1%') },
   postCard: {
-    backgroundColor: '#1A1A1A', borderRadius: 12, padding: wp('4%'),
+    backgroundColor: '#141225', borderRadius: 12, padding: wp('4%'),
     marginBottom: hp('1%'), borderWidth: 1, borderColor: '#2A2A2A',
   },
   postContent: { color: '#FFF', fontSize: wp('3.5%'), marginBottom: 8 },

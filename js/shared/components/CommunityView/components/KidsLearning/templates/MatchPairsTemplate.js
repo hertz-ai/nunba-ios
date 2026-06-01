@@ -58,7 +58,7 @@ const MatchPairsTemplate = ({config, onAnswer, onComplete}) => {
   const [showVisualHint, setShowVisualHint] = useState(true);
 
   // Animation refs
-  const containerAnim = useRef(new Animated.Value(0)).current;
+  const containerAnim = useRef(new Animated.Value(1)).current;
   const shakeAnims = useRef({});
   const fadeAnims = useRef({});
   const dimOpacityValue = useRef(new Animated.Value(0.4)).current;
@@ -70,7 +70,7 @@ const MatchPairsTemplate = ({config, onAnswer, onComplete}) => {
   // Initialize animations for each pair
   const getShakeAnim = useCallback((id) => {
     if (!shakeAnims.current[id]) {
-      shakeAnims.current[id] = new Animated.Value(0);
+      shakeAnims.current[id] = new Animated.Value(1);
     }
     return shakeAnims.current[id];
   }, []);
@@ -101,8 +101,8 @@ const MatchPairsTemplate = ({config, onAnswer, onComplete}) => {
 
       // Initialize animation values
       configPairs.forEach(p => {
-        shakeAnims.current[`left-${p.id}`] = new Animated.Value(0);
-        shakeAnims.current[`right-${p.id}`] = new Animated.Value(0);
+        shakeAnims.current[`left-${p.id}`] = new Animated.Value(1);
+        shakeAnims.current[`right-${p.id}`] = new Animated.Value(1);
         fadeAnims.current[`left-${p.id}`] = new Animated.Value(1);
         fadeAnims.current[`right-${p.id}`] = new Animated.Value(1);
       });
@@ -325,7 +325,7 @@ const MatchPairsTemplate = ({config, onAnswer, onComplete}) => {
                 const isMatched = matchedPairs.has(item.id);
                 const isSelected = selectedLeft?.id === item.id;
                 const leftKey = `left-${item.id}`;
-                const shake = shakeAnims.current[leftKey] || new Animated.Value(0);
+                const shake = shakeAnims.current[leftKey] || new Animated.Value(1);
                 const fade = fadeAnims.current[leftKey] || new Animated.Value(1);
 
                 return (
@@ -386,7 +386,7 @@ const MatchPairsTemplate = ({config, onAnswer, onComplete}) => {
                 const isSelected = selectedRight?.id === item.id;
                 const isHinted = hintedRightId === item.id;
                 const rightKey = `right-${item.id}`;
-                const shake = shakeAnims.current[rightKey] || new Animated.Value(0);
+                const shake = shakeAnims.current[rightKey] || new Animated.Value(1);
                 const fade = fadeAnims.current[rightKey] || new Animated.Value(1);
 
                 // In easy mode, dim non-hinted, non-matched items when a left is selected

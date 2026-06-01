@@ -33,9 +33,9 @@ import { View, Text, TouchableOpacity, ScrollView, StyleSheet } from 'react-nati
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
 import { optimistic } from '../../services/optimistic';
 
-const ACCENT = '#00e89d';
-const BG_DARK = '#1A1A2E';
-const BG_DARK_MINE = '#00e89d22';
+const ACCENT = '#6C63FF';
+const BG_DARK = '#15131F';  // AMOLED card token (matches colors.card)
+const BG_DARK_MINE = '#6C63FF22';
 const TEXT_LIGHT = '#FFFFFF';
 const TEXT_MUTED = '#AAAAAA';
 

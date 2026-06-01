@@ -96,8 +96,8 @@ function VoiceSpellRenderer({type, streakCount, score, visible}) {
 
   useEffect(() => {
     if (!visible) return;
-    anims.forEach(a => a.setValue(0));
-    shakeAnim.setValue(0);
+    anims.forEach(a => a.setValue(1));
+    shakeAnim.setValue(1);
     if (isWrong) {
       shakeSeq(shakeAnim).start();
     } else {
@@ -137,16 +137,16 @@ function BalloonPopRenderer({type, streakCount, score, visible}) {
   const isWrong = type === 'wrong';
   const colors = ['#FF6B6B', '#6C63FF', '#4ECDC4', '#FF9F43', '#E040FB', '#2ECC71', '#FFD700', '#FF6B81'];
   const particles = useRef(colors.map(() => ({
-    x: new Animated.Value(0), y: new Animated.Value(0), op: new Animated.Value(0),
+    x: new Animated.Value(1), y: new Animated.Value(1), op: new Animated.Value(1),
   }))).current;
   const popScale = useAnimVal(isWrong ? 1 : 2);
   const shakeAnim = useAnimVal(0);
 
   useEffect(() => {
     if (!visible) return;
-    particles.forEach(p => {p.x.setValue(0); p.y.setValue(0); p.op.setValue(0);});
+    particles.forEach(p => {p.x.setValue(1); p.y.setValue(1); p.op.setValue(1);});
     popScale.setValue(isWrong ? 1 : 2);
-    shakeAnim.setValue(0);
+    shakeAnim.setValue(1);
 
     if (isWrong) {
       Animated.sequence([
@@ -194,16 +194,16 @@ function BeatMatchRenderer({type, streakCount, score, visible}) {
   const phrase = resolvePhrase(type, 'On beat!', streakCount, score);
   const isWrong = type === 'wrong';
   const rings = useRef([0, 1, 2].map(() => ({
-    scale: new Animated.Value(0), op: new Animated.Value(0.8),
+    scale: new Animated.Value(1), op: new Animated.Value(0.8),
   }))).current;
   const iconScale = useAnimVal(0.8);
   const shakeAnim = useAnimVal(0);
 
   useEffect(() => {
     if (!visible) return;
-    rings.forEach(r => {r.scale.setValue(0); r.op.setValue(0.8);});
+    rings.forEach(r => {r.scale.setValue(1); r.op.setValue(0.8);});
     iconScale.setValue(0.8);
-    shakeAnim.setValue(0);
+    shakeAnim.setValue(1);
 
     if (isWrong) {
       shakeSeq(shakeAnim).start();
@@ -250,7 +250,7 @@ function WhisperShoutRenderer({type, streakCount, score, visible}) {
 
   useEffect(() => {
     if (!visible) return;
-    bars.forEach(b => b.setValue(0));
+    bars.forEach(b => b.setValue(1));
     Animated.stagger(50, bars.map((b, i) =>
       Animated.timing(b, {
         toValue: isWrong ? 0.3 : (i + 1) / barCount,
@@ -293,7 +293,7 @@ function SoundCharadesRenderer({type, streakCount, score, visible}) {
 
   useEffect(() => {
     if (!visible) return;
-    spin.setValue(0); scale.setValue(0.3); burstOp.setValue(0); shakeAnim.setValue(0);
+    spin.setValue(1); scale.setValue(0.3); burstOp.setValue(1); shakeAnim.setValue(1);
     if (isWrong) {
       Animated.spring(scale, {toValue: 1, ...SPRINGS.standard}).start();
       shakeSeq(shakeAnim).start();
@@ -334,7 +334,7 @@ function StoryWeaverRenderer({type, streakCount, score, visible}) {
 
   useEffect(() => {
     if (!visible) return;
-    pageRotate.setValue(isWrong ? 0 : -90); textOp.setValue(0); shakeAnim.setValue(0);
+    pageRotate.setValue(isWrong ? 0 : -90); textOp.setValue(1); shakeAnim.setValue(1);
     if (isWrong) {
       shakeSeq(shakeAnim).start();
     } else {
@@ -374,14 +374,14 @@ function VoicePaintRenderer({type, streakCount, score, visible}) {
   const isWrong = type === 'wrong';
   const splatColors = ['#FF6B81', '#6C63FF', '#00D2D3', '#FF9F43', '#2ECC71', '#E040FB'];
   const splats = useRef(splatColors.map(() => ({
-    x: new Animated.Value(0), y: new Animated.Value(0), scale: new Animated.Value(0), op: new Animated.Value(0),
+    x: new Animated.Value(1), y: new Animated.Value(1), scale: new Animated.Value(1), op: new Animated.Value(1),
   }))).current;
   const shakeAnim = useAnimVal(0);
 
   useEffect(() => {
     if (!visible) return;
-    splats.forEach(s => {s.x.setValue(0); s.y.setValue(0); s.scale.setValue(0); s.op.setValue(0);});
-    shakeAnim.setValue(0);
+    splats.forEach(s => {s.x.setValue(1); s.y.setValue(1); s.scale.setValue(1); s.op.setValue(1);});
+    shakeAnim.setValue(1);
     if (isWrong) {
       shakeSeq(shakeAnim).start();
     } else {
@@ -431,7 +431,7 @@ function PeekabooRenderer({type, streakCount, score, visible}) {
 
   useEffect(() => {
     if (!visible) return;
-    leftX.setValue(0); rightX.setValue(0); charScale.setValue(0.5); shakeAnim.setValue(0);
+    leftX.setValue(1); rightX.setValue(1); charScale.setValue(0.5); shakeAnim.setValue(1);
     if (isWrong) {
       shakeSeq(shakeAnim).start();
     } else {
@@ -473,15 +473,15 @@ function SpeechBubbleRenderer({type, streakCount, score, visible}) {
   const bubbleScale = useAnimVal(0);
   const fragments = ['A', 'B', 'C', 'D', 'E'];
   const frags = useRef(fragments.map(() => ({
-    x: new Animated.Value(0), y: new Animated.Value(0), op: new Animated.Value(0),
+    x: new Animated.Value(1), y: new Animated.Value(1), op: new Animated.Value(1),
   }))).current;
   const shakeAnim = useAnimVal(0);
 
   useEffect(() => {
     if (!visible) return;
-    bubbleScale.setValue(0);
-    frags.forEach(f => {f.x.setValue(0); f.y.setValue(0); f.op.setValue(0);});
-    shakeAnim.setValue(0);
+    bubbleScale.setValue(1);
+    frags.forEach(f => {f.x.setValue(1); f.y.setValue(1); f.op.setValue(1);});
+    shakeAnim.setValue(1);
     if (isWrong) {
       shakeSeq(shakeAnim).start();
     } else {
@@ -536,7 +536,7 @@ function MultipleChoiceRenderer({type, streakCount, score, visible}) {
 
   useEffect(() => {
     if (!visible) return;
-    stampScale.setValue(isWrong ? 0.5 : 2); glowOp.setValue(0); shakeAnim.setValue(0);
+    stampScale.setValue(isWrong ? 0.5 : 2); glowOp.setValue(1); shakeAnim.setValue(1);
     if (isWrong) {
       Animated.spring(stampScale, {toValue: 1, ...SPRINGS.standard}).start();
       shakeSeq(shakeAnim).start();
@@ -582,7 +582,7 @@ function DragToZoneRenderer({type, streakCount, score, visible}) {
 
   useEffect(() => {
     if (!visible) return;
-    keyRotate.setValue(0); shackleY.setValue(-6); shakeAnim.setValue(0);
+    keyRotate.setValue(1); shackleY.setValue(-6); shakeAnim.setValue(1);
     if (isWrong) {
       shakeSeq(shakeAnim).start();
     } else {
@@ -625,7 +625,7 @@ function MatchPairsRenderer({type, streakCount, score, visible}) {
 
   useEffect(() => {
     if (!visible) return;
-    leftX.setValue(-12); rightX.setValue(12); flashOp.setValue(0); shakeAnim.setValue(0);
+    leftX.setValue(-12); rightX.setValue(12); flashOp.setValue(1); shakeAnim.setValue(1);
     if (isWrong) {
       shakeSeq(shakeAnim).start();
     } else {
@@ -671,7 +671,7 @@ function SequenceOrderRenderer({type, streakCount, score, visible}) {
 
   useEffect(() => {
     if (!visible) return;
-    dots.forEach(d => d.setValue(0)); shakeAnim.setValue(0);
+    dots.forEach(d => d.setValue(1)); shakeAnim.setValue(1);
     if (isWrong) {
       shakeSeq(shakeAnim).start();
     } else {
@@ -716,7 +716,7 @@ function WordBuildRenderer({type, streakCount, score, visible}) {
 
   useEffect(() => {
     if (!visible) return;
-    anims.forEach(a => a.setValue(0)); shakeAnim.setValue(0);
+    anims.forEach(a => a.setValue(1)); shakeAnim.setValue(1);
     if (isWrong) {
       shakeSeq(shakeAnim).start();
     } else {
@@ -757,7 +757,7 @@ function FillBlankRenderer({type, streakCount, score, visible}) {
 
   useEffect(() => {
     if (!visible) return;
-    fillWidth.setValue(0); textOp.setValue(0); shakeAnim.setValue(0);
+    fillWidth.setValue(1); textOp.setValue(1); shakeAnim.setValue(1);
     if (isWrong) {
       shakeSeq(shakeAnim).start();
     } else {
@@ -800,7 +800,7 @@ function MemoryFlipRenderer({type, streakCount, score, visible}) {
 
   useEffect(() => {
     if (!visible) return;
-    flip1.setValue(0); flip2.setValue(0); shakeAnim.setValue(0);
+    flip1.setValue(1); flip2.setValue(1); shakeAnim.setValue(1);
     if (isWrong) {
       shakeSeq(shakeAnim).start();
     } else {
@@ -850,7 +850,7 @@ function TrueFalseRenderer({type, streakCount, score, visible}) {
 
   useEffect(() => {
     if (!visible) return;
-    stampY.setValue(-20); stampScale.setValue(2); splatScale.setValue(0);
+    stampY.setValue(-20); stampScale.setValue(2); splatScale.setValue(1);
     Animated.parallel([
       Animated.spring(stampY, {toValue: 0, ...SPRINGS.playful}),
       Animated.spring(stampScale, {toValue: 1, ...SPRINGS.bouncy}),
@@ -888,8 +888,8 @@ function CountingRenderer({type, streakCount, score, visible}) {
   useEffect(() => {
     if (!visible) return;
     anims.forEach(a => a.setValue(-30));
-    opAnims.forEach(a => a.setValue(0));
-    shakeAnim.setValue(0);
+    opAnims.forEach(a => a.setValue(1));
+    shakeAnim.setValue(1);
     if (isWrong) {
       shakeSeq(shakeAnim).start();
     } else {
@@ -932,7 +932,7 @@ function TracingRenderer({type, streakCount, score, visible}) {
 
   useEffect(() => {
     if (!visible) return;
-    trailWidth.setValue(0); sparkles.forEach(s => s.setValue(0)); shakeAnim.setValue(0);
+    trailWidth.setValue(1); sparkles.forEach(s => s.setValue(1)); shakeAnim.setValue(1);
     if (isWrong) {
       shakeSeq(shakeAnim).start();
     } else {
@@ -982,7 +982,7 @@ function TimedRushRenderer({type, streakCount, score, visible}) {
 
   useEffect(() => {
     if (!visible) return;
-    strikeY.setValue(-30); strikeScale.setValue(1.5); flashOp.setValue(0); shakeAnim.setValue(0);
+    strikeY.setValue(-30); strikeScale.setValue(1.5); flashOp.setValue(1); shakeAnim.setValue(1);
     if (isWrong) {
       Animated.spring(strikeY, {toValue: 0, ...SPRINGS.standard}).start();
       Animated.spring(strikeScale, {toValue: 1, ...SPRINGS.standard}).start();
@@ -1024,7 +1024,7 @@ function PuzzleAssembleRenderer({type, streakCount, score, visible}) {
 
   useEffect(() => {
     if (!visible) return;
-    pieceX.setValue(20); snapOp.setValue(0); shakeAnim.setValue(0);
+    pieceX.setValue(20); snapOp.setValue(1); shakeAnim.setValue(1);
     if (isWrong) {
       shakeSeq(shakeAnim).start();
     } else {
@@ -1067,7 +1067,7 @@ function StoryBuilderRenderer({type, streakCount, score, visible}) {
     if (!visible) return;
     const startAngles = [-30, 0, 30];
     pages.forEach((p, i) => p.setValue(startAngles[i]));
-    claspOp.setValue(0); shakeAnim.setValue(0);
+    claspOp.setValue(1); shakeAnim.setValue(1);
     if (isWrong) {
       shakeSeq(shakeAnim).start();
     } else {
@@ -1116,7 +1116,7 @@ function SimulationRenderer({type, streakCount, score, visible}) {
 
   useEffect(() => {
     if (!visible) return;
-    gear1.setValue(0); gear2.setValue(0); shakeAnim.setValue(0);
+    gear1.setValue(1); gear2.setValue(1); shakeAnim.setValue(1);
     if (isWrong) {
       shakeSeq(shakeAnim).start();
     } else {
@@ -1161,7 +1161,7 @@ function SpotDifferenceRenderer({type, streakCount, score, visible}) {
 
   useEffect(() => {
     if (!visible) return;
-    magScale.setValue(0.5); magRotate.setValue(-20); circleScale.setValue(0); shakeAnim.setValue(0);
+    magScale.setValue(0.5); magRotate.setValue(-20); circleScale.setValue(1); shakeAnim.setValue(1);
     if (isWrong) {
       Animated.spring(magScale, {toValue: 1, ...SPRINGS.standard}).start();
       shakeSeq(shakeAnim).start();
@@ -1206,7 +1206,7 @@ function DefaultRenderer({type, streakCount, score, visible}) {
 
   useEffect(() => {
     if (!visible) return;
-    scale.setValue(0.3); ringScale.setValue(0.3); ringOp.setValue(0.6); shakeAnim.setValue(0);
+    scale.setValue(0.3); ringScale.setValue(0.3); ringOp.setValue(0.6); shakeAnim.setValue(1);
     if (isWrong) {
       Animated.spring(scale, {toValue: 1, ...SPRINGS.standard}).start();
       shakeSeq(shakeAnim).start();
@@ -1317,7 +1317,7 @@ const InlineCelebration = ({
   // Shell animation
   useEffect(() => {
     if (!visible) {
-      opacity.setValue(0);
+      opacity.setValue(1);
       shellScale.setValue(0.5);
       return;
     }

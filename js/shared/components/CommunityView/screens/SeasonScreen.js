@@ -60,7 +60,7 @@ const SeasonScreen = () => {
   if (loading) {
     return (
       <SafeAreaView style={styles.container}>
-        <StatusBar barStyle="light-content" backgroundColor="#121212" />
+        <StatusBar barStyle="light-content" backgroundColor="#000000" />
         <View style={styles.header}>
           <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
             <Ionicons name="arrow-back" size={24} color="#FFF" />
@@ -86,7 +86,7 @@ const SeasonScreen = () => {
 
   return (
     <SafeAreaView style={styles.container}>
-      <StatusBar barStyle="light-content" backgroundColor="#121212" />
+      <StatusBar barStyle="light-content" backgroundColor="#000000" />
 
       {/* Header */}
       <View style={styles.header}>
@@ -102,11 +102,11 @@ const SeasonScreen = () => {
       <ScrollView
         showsVerticalScrollIndicator={false}
         refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#00e89d" />
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#6C63FF" />
         }
       >
         {/* Season Banner */}
-        <Animatable.View animation="fadeIn" style={styles.bannerContainer}>
+        <View style={styles.bannerContainer}>
           <View style={[styles.banner, { backgroundColor: '#1E1E2E' }]}>
             <View style={styles.bannerOverlay}>
               <MaterialCommunityIcons name="snowflake" size={80} color="#9D4EDD33" style={styles.bannerIcon} />
@@ -126,10 +126,10 @@ const SeasonScreen = () => {
               </View>
             </View>
           </View>
-        </Animatable.View>
+        </View>
 
         {/* Tier Progress */}
-        <Animatable.View animation="fadeInUp" delay={100} style={styles.tierSection}>
+        <View style={styles.tierSection}>
           <Text style={styles.sectionTitle}>Season Tiers</Text>
           <View style={styles.tierProgressCard}>
             <TierProgressBar
@@ -147,10 +147,8 @@ const SeasonScreen = () => {
               const config = TIER_CONFIG[tier];
               const isUnlocked = index <= currentTierIndex;
               return (
-                <Animatable.View
+                <View
                   key={tier}
-                  animation="fadeInRight"
-                  delay={index * 100}
                   style={[
                     styles.tierRewardCard,
                     isUnlocked && styles.tierRewardCardUnlocked,
@@ -178,14 +176,14 @@ const SeasonScreen = () => {
                       <Ionicons name="checkmark-circle" size={18} color="#10B981" />
                     </View>
                   )}
-                </Animatable.View>
+                </View>
               );
             })}
           </View>
-        </Animatable.View>
+        </View>
 
         {/* My Progress Card */}
-        <Animatable.View animation="fadeInUp" delay={200} style={styles.section}>
+        <View style={styles.section}>
           <Text style={styles.sectionTitle}>My Progress</Text>
           <View style={styles.myProgressCard}>
             <View style={styles.myProgressHeader}>
@@ -210,9 +208,7 @@ const SeasonScreen = () => {
                   </Text>
                 </Text>
                 <View style={styles.myProgressBar}>
-                  <Animatable.View
-                    animation="slideInLeft"
-                    duration={800}
+                  <View
                     style={[
                       styles.myProgressFill,
                       { width: `${progressToNext}%`, backgroundColor: nextTierConfig.color },
@@ -222,10 +218,10 @@ const SeasonScreen = () => {
               </View>
             )}
           </View>
-        </Animatable.View>
+        </View>
 
         {/* Season Leaderboard */}
-        <Animatable.View animation="fadeInUp" delay={300} style={styles.section}>
+        <View style={styles.section}>
           <View style={styles.sectionHeader}>
             <Text style={styles.sectionTitle}>Season Leaderboard</Text>
             <TouchableOpacity>
@@ -263,10 +259,10 @@ const SeasonScreen = () => {
               </View>
             ))}
           </View>
-        </Animatable.View>
+        </View>
 
         {/* Season Achievements */}
-        <Animatable.View animation="fadeInUp" delay={400} style={styles.section}>
+        <View style={styles.section}>
           <Text style={styles.sectionTitle}>Season Achievements</Text>
           {season.achievements.map((achievement, index) => (
             <AchievementCard
@@ -281,7 +277,7 @@ const SeasonScreen = () => {
               onPress={() => {}}
             />
           ))}
-        </Animatable.View>
+        </View>
 
         <View style={styles.bottomSpacer} />
       </ScrollView>
@@ -301,7 +297,7 @@ const getRankStyle = (rank) => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#121212',
+    backgroundColor: '#000000',
   },
   header: {
     flexDirection: 'row',
@@ -409,12 +405,12 @@ const styles = StyleSheet.create({
     marginBottom: hp('1.5%'),
   },
   viewAllText: {
-    color: '#00e89d',
+    color: '#6C63FF',
     fontSize: wp('3.2%'),
     fontWeight: '600',
   },
   tierProgressCard: {
-    backgroundColor: '#1A1A1A',
+    backgroundColor: '#141225',
     borderRadius: 16,
     borderWidth: 1,
     borderColor: '#2A2A2A',
@@ -426,7 +422,7 @@ const styles = StyleSheet.create({
   },
   tierRewardCard: {
     flex: 1,
-    backgroundColor: '#1A1A1A',
+    backgroundColor: '#141225',
     borderRadius: 12,
     padding: wp('2.5%'),
     alignItems: 'center',
@@ -471,7 +467,7 @@ const styles = StyleSheet.create({
     marginBottom: hp('2%'),
   },
   myProgressCard: {
-    backgroundColor: '#1A1A1A',
+    backgroundColor: '#141225',
     borderRadius: 16,
     padding: wp('4%'),
     borderWidth: 1,
@@ -519,7 +515,7 @@ const styles = StyleSheet.create({
     borderRadius: 4,
   },
   leaderboardContainer: {
-    backgroundColor: '#1A1A1A',
+    backgroundColor: '#141225',
     borderRadius: 16,
     overflow: 'hidden',
     borderWidth: 1,

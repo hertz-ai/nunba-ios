@@ -93,7 +93,7 @@ const ONBOARDING_STEPS = [
   {
     id: 'create',
     icon: 'plus-circle',
-    iconColor: '#00e89d',
+    iconColor: '#6C63FF',
     title: 'Create Something',
     description: 'Share your first post with the world. It can be anything - a thought, image, or idea!',
     reward: 100,
@@ -261,7 +261,7 @@ const OnboardingOverlayScreen = () => {
                   {interest}
                 </Text>
                 {selectedInterests.includes(interest) && (
-                  <Ionicons name="checkmark" size={16} color="#00e89d" style={{ marginLeft: 4 }} />
+                  <Ionicons name="checkmark" size={16} color="#6C63FF" style={{ marginLeft: 4 }} />
                 )}
               </TouchableOpacity>
             ))}
@@ -393,7 +393,7 @@ const OnboardingOverlayScreen = () => {
         return (
           <View style={styles.createSection}>
             <TouchableOpacity style={styles.createButton} onPress={handleNext}>
-              <MaterialCommunityIcons name="pencil-plus" size={32} color="#00e89d" />
+              <MaterialCommunityIcons name="pencil-plus" size={32} color="#6C63FF" />
               <Text style={styles.createButtonText}>Create Your First Post</Text>
             </TouchableOpacity>
             <Text style={styles.createHint}>Don't worry, you can skip this for now</Text>
@@ -431,7 +431,7 @@ const OnboardingOverlayScreen = () => {
 
   return (
     <SafeAreaView style={styles.container}>
-      <StatusBar barStyle="light-content" backgroundColor="#121212" />
+      <StatusBar barStyle="light-content" backgroundColor="#000000" />
 
       {/* Header */}
       <View style={styles.header}>
@@ -487,7 +487,7 @@ const OnboardingOverlayScreen = () => {
           <Text style={styles.nextButtonText}>
             {currentStep === ONBOARDING_STEPS.length - 1 ? 'Complete' : 'Continue'}
           </Text>
-          <Ionicons name="arrow-forward" size={20} color="#121212" />
+          <Ionicons name="arrow-forward" size={20} color="#000000" />
         </TouchableOpacity>
       </View>
 
@@ -515,7 +515,7 @@ const OnboardingOverlayScreen = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#121212',
+    backgroundColor: '#000000',
   },
   header: {
     flexDirection: 'row',
@@ -540,10 +540,10 @@ const styles = StyleSheet.create({
   },
   stepDotActive: {
     width: 24,
-    backgroundColor: '#00e89d',
+    backgroundColor: '#6C63FF',
   },
   stepDotCompleted: {
-    backgroundColor: '#00e89d',
+    backgroundColor: '#6C63FF',
   },
   skipButton: {
     padding: 4,
@@ -614,14 +614,14 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingHorizontal: wp('4%'),
     paddingVertical: hp('1%'),
-    backgroundColor: '#1A1A1A',
+    backgroundColor: '#141225',
     borderRadius: 20,
     borderWidth: 1,
     borderColor: '#2A2A2A',
   },
   interestChipActive: {
-    backgroundColor: '#00e89d22',
-    borderColor: '#00e89d',
+    backgroundColor: '#6C63FF22',
+    borderColor: '#6C63FF',
   },
   interestText: {
     color: '#888',
@@ -629,7 +629,7 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   interestTextActive: {
-    color: '#00e89d',
+    color: '#6C63FF',
   },
   selectionHint: {
     color: '#666',
@@ -645,7 +645,7 @@ const styles = StyleSheet.create({
   handleInputContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#1A1A1A',
+    backgroundColor: '#141225',
     borderRadius: 12,
     paddingHorizontal: wp('4%'),
     paddingVertical: hp('1.5%'),
@@ -675,7 +675,7 @@ const styles = StyleSheet.create({
   suggestionCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#1A1A1A',
+    backgroundColor: '#141225',
     borderRadius: 12,
     padding: wp('3%'),
     borderWidth: 1,
@@ -705,27 +705,27 @@ const styles = StyleSheet.create({
   followButton: {
     paddingHorizontal: wp('4%'),
     paddingVertical: hp('0.8%'),
-    backgroundColor: '#00e89d',
+    backgroundColor: '#6C63FF',
     borderRadius: 16,
   },
   followButtonActive: {
-    backgroundColor: '#00e89d22',
+    backgroundColor: '#6C63FF22',
     borderWidth: 1,
-    borderColor: '#00e89d',
+    borderColor: '#6C63FF',
   },
   followButtonText: {
-    color: '#121212',
+    color: '#000000',
     fontSize: wp('3.2%'),
     fontWeight: '700',
   },
   followButtonTextActive: {
-    color: '#00e89d',
+    color: '#6C63FF',
   },
   samplePostSection: {
     width: '100%',
   },
   samplePost: {
-    backgroundColor: '#1A1A1A',
+    backgroundColor: '#141225',
     borderRadius: 16,
     padding: wp('4%'),
     borderWidth: 1,
@@ -785,7 +785,7 @@ const styles = StyleSheet.create({
   regionCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#1A1A1A',
+    backgroundColor: '#141225',
     borderRadius: 12,
     padding: wp('3%'),
     borderWidth: 2,
@@ -822,16 +822,16 @@ const styles = StyleSheet.create({
   },
   createButton: {
     alignItems: 'center',
-    backgroundColor: '#00e89d22',
+    backgroundColor: '#6C63FF22',
     borderRadius: 16,
     padding: wp('6%'),
     width: '100%',
     borderWidth: 2,
-    borderColor: '#00e89d',
+    borderColor: '#6C63FF',
     borderStyle: 'dashed',
   },
   createButtonText: {
-    color: '#00e89d',
+    color: '#6C63FF',
     fontSize: wp('4%'),
     fontWeight: '700',
     marginTop: hp('1%'),
@@ -862,7 +862,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#00e89d',
+    backgroundColor: '#6C63FF',
     paddingVertical: hp('1.8%'),
     borderRadius: 12,
   },
@@ -870,7 +870,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#3A3A4E',
   },
   nextButtonText: {
-    color: '#121212',
+    color: '#000000',
     fontSize: wp('4%'),
     fontWeight: '700',
     marginRight: 8,
@@ -883,7 +883,7 @@ const styles = StyleSheet.create({
     zIndex: 1000,
   },
   celebrationCard: {
-    backgroundColor: '#1A1A1A',
+    backgroundColor: '#141225',
     borderRadius: 24,
     padding: wp('8%'),
     alignItems: 'center',

@@ -51,7 +51,7 @@ const styles = StyleSheet.create({
     width: 10,
     height: 10,
     borderRadius: 5,
-    backgroundColor: '#00e89d',
+    backgroundColor: '#6C63FF',
     marginRight: 10,
   },
   countText: {
@@ -60,13 +60,13 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   liveBadge: {
-    backgroundColor: '#00e89d',
+    backgroundColor: '#6C63FF',
     paddingHorizontal: 10,
     paddingVertical: 3,
     borderRadius: 10,
   },
   liveText: {
-    color: '#1a1a2e',
+    color: '#000000',
     fontSize: wp('2.5%'),
     fontWeight: '800',
     letterSpacing: 1,

@@ -51,7 +51,7 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         alignItems: 'center',
         padding: 10,
-        backgroundColor: '#121212',
+        backgroundColor: '#000000',
     },
     icon: {
         color: '#fff',
@@ -67,7 +67,7 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         alignItems: 'center',
         marginBottom: 15,
-        backgroundColor: '#121212',
+        backgroundColor: '#000000',
         padding: 10,
         borderRadius: 8,
         marginHorizontal: 10,

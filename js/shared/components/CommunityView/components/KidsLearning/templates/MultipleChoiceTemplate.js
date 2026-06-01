@@ -50,8 +50,8 @@ const MultipleChoiceTemplate = ({config, onAnswer, onComplete}) => {
   const [showVisualHint, setShowVisualHint] = useState(true);
 
   // Animation refs
-  const questionAnim = useRef(new Animated.Value(0)).current;
-  const hintAnim = useRef(new Animated.Value(0)).current;
+  const questionAnim = useRef(new Animated.Value(1)).current;
+  const hintAnim = useRef(new Animated.Value(1)).current;
   const startTimeRef = useRef(Date.now());
   const completedRef = useRef(false);
   const mountedRef = useRef(true);
@@ -71,7 +71,7 @@ const MultipleChoiceTemplate = ({config, onAnswer, onComplete}) => {
   // Animate question entry
   useEffect(() => {
     if (questions.length > 0 && currentIndex < questions.length) {
-      questionAnim.setValue(0);
+      questionAnim.setValue(1);
       Animated.spring(questionAnim, {
         toValue: 1,
         ...SPRINGS.standard,
@@ -81,7 +81,7 @@ const MultipleChoiceTemplate = ({config, onAnswer, onComplete}) => {
       setWrongCountForCurrent(0);
       setOptionStates({});
       setReducedOptions(null);
-      hintAnim.setValue(0);
+      hintAnim.setValue(1);
 
       // In easy mode, automatically reduce options
       if (adaptiveMode === 'easy' && questions[currentIndex]?.options?.length > 2) {

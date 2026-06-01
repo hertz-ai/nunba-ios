@@ -467,7 +467,7 @@ const SPECIES_RENDERERS = {
  * Idle: gentle bouncing translateY
  */
 function useIdleAnimation() {
-  const translateY = useRef(new Animated.Value(0)).current;
+  const translateY = useRef(new Animated.Value(1)).current;
   const animRef = useRef(null);
 
   useEffect(() => {
@@ -489,8 +489,8 @@ function useIdleAnimation() {
  */
 function useCelebrateAnimation() {
   const scale = useRef(new Animated.Value(1)).current;
-  const rotate = useRef(new Animated.Value(0)).current;
-  const translateY = useRef(new Animated.Value(0)).current;
+  const rotate = useRef(new Animated.Value(1)).current;
+  const translateY = useRef(new Animated.Value(1)).current;
   const animRef = useRef(null);
 
   useEffect(() => {
@@ -532,7 +532,7 @@ function useCelebrateAnimation() {
  * Encourage: gentle sway left/right
  */
 function useEncourageAnimation() {
-  const rotate = useRef(new Animated.Value(0)).current;
+  const rotate = useRef(new Animated.Value(1)).current;
   const animRef = useRef(null);
 
   useEffect(() => {
@@ -579,8 +579,8 @@ function useTalkAnimation() {
  * Think: head tilt + slight bounce
  */
 function useThinkAnimation() {
-  const rotate = useRef(new Animated.Value(0)).current;
-  const translateY = useRef(new Animated.Value(0)).current;
+  const rotate = useRef(new Animated.Value(1)).current;
+  const translateY = useRef(new Animated.Value(1)).current;
   const animRef = useRef(null);
 
   useEffect(() => {
@@ -613,7 +613,7 @@ function useThinkAnimation() {
  */
 function useSleepAnimation() {
   const scale = useRef(new Animated.Value(1)).current;
-  const translateY = useRef(new Animated.Value(0)).current;
+  const translateY = useRef(new Animated.Value(1)).current;
   const animRef = useRef(null);
 
   useEffect(() => {

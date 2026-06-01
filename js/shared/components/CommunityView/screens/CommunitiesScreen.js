@@ -80,7 +80,7 @@ const CommunitiesScreen = () => {
       >
         <View style={styles.cardHeader}>
           <View style={styles.iconBg}>
-            <MaterialCommunityIcons name="account-group" size={24} color="#00e89d" />
+            <MaterialCommunityIcons name="account-group" size={24} color="#6C63FF" />
           </View>
           <View style={{ flex: 1 }}>
             <Text style={styles.cardTitle}>h/{item.name}</Text>
@@ -104,7 +104,7 @@ const CommunitiesScreen = () => {
 
   return (
     <SafeAreaView style={styles.container}>
-      <StatusBar barStyle="light-content" backgroundColor="#121212" />
+      <StatusBar barStyle="light-content" backgroundColor="#000000" />
 
       <View style={styles.header}>
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
@@ -132,7 +132,7 @@ const CommunitiesScreen = () => {
 
       {loading ? (
         <View style={styles.centerContainer}>
-          <ActivityIndicator size="large" color="#00e89d" />
+          <ActivityIndicator size="large" color="#6C63FF" />
         </View>
       ) : (
         <FlatList
@@ -145,7 +145,7 @@ const CommunitiesScreen = () => {
           contentContainerStyle={styles.listContent}
           showsVerticalScrollIndicator={false}
           refreshControl={
-            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#00e89d" />
+            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#6C63FF" />
           }
         />
       )}
@@ -154,13 +154,13 @@ const CommunitiesScreen = () => {
 };
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#121212' },
+  container: { flex: 1, backgroundColor: '#000000' },
   header: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: wp('4%'), paddingVertical: hp('1.5%') },
   backButton: { padding: 4 },
   headerTitle: { flex: 1, color: '#FFF', fontSize: wp('5%'), fontWeight: '700', textAlign: 'center' },
   headerSpacer: { width: 32 },
   searchContainer: {
-    flexDirection: 'row', alignItems: 'center', backgroundColor: '#1A1A1A',
+    flexDirection: 'row', alignItems: 'center', backgroundColor: '#141225',
     borderRadius: 12, paddingHorizontal: wp('4%'), paddingVertical: hp('1.2%'),
     marginHorizontal: wp('4%'), marginBottom: hp('1.5%'), borderWidth: 1, borderColor: '#2A2A2A',
   },
@@ -169,21 +169,21 @@ const styles = StyleSheet.create({
   emptyText: { color: '#888', fontSize: wp('3.5%'), marginTop: hp('2%') },
   listContent: { paddingHorizontal: wp('4%'), paddingBottom: hp('10%') },
   card: {
-    backgroundColor: '#1A1A1A', borderRadius: 12, padding: wp('4%'),
+    backgroundColor: '#141225', borderRadius: 12, padding: wp('4%'),
     marginBottom: hp('1%'), borderWidth: 1, borderColor: '#2A2A2A',
   },
   cardHeader: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  iconBg: { width: 44, height: 44, borderRadius: 22, backgroundColor: '#00e89d22', justifyContent: 'center', alignItems: 'center' },
+  iconBg: { width: 44, height: 44, borderRadius: 22, backgroundColor: '#6C63FF22', justifyContent: 'center', alignItems: 'center' },
   cardTitle: { color: '#FFF', fontSize: wp('3.8%'), fontWeight: '700' },
   cardMeta: { color: '#888', fontSize: wp('3%') },
   cardDesc: { color: '#AAA', fontSize: wp('3.2%'), marginTop: 8 },
   joinBtn: {
     paddingHorizontal: wp('4%'), paddingVertical: hp('0.8%'),
-    borderRadius: 20, backgroundColor: '#00e89d',
+    borderRadius: 20, backgroundColor: '#6C63FF',
   },
-  joinedBtn: { backgroundColor: 'transparent', borderWidth: 1, borderColor: '#00e89d' },
-  joinText: { color: '#121212', fontWeight: '700', fontSize: wp('3%') },
-  joinedText: { color: '#00e89d' },
+  joinedBtn: { backgroundColor: 'transparent', borderWidth: 1, borderColor: '#6C63FF' },
+  joinText: { color: '#000000', fontWeight: '700', fontSize: wp('3%') },
+  joinedText: { color: '#6C63FF' },
 });
 
 export default CommunitiesScreen;

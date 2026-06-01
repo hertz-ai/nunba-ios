@@ -43,7 +43,7 @@
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 
-const ACCENT = '#00e89d';
+const ACCENT = '#6C63FF';
 
 const ProgressRing = ({
   percent = 0,

@@ -56,13 +56,13 @@ const LocationSettingsToggle = () => {
   return (
     <View style={styles.container}>
       <View style={styles.row}>
-        <MaterialIcons name="my-location" size={22} color="#00e89d" />
+        <MaterialIcons name="my-location" size={22} color="#6C63FF" />
         <Text style={styles.label}>Location Sharing</Text>
         <Switch
           value={isTracking}
           onValueChange={handleToggle}
-          trackColor={{ false: '#3a3a4e', true: '#00e89d55' }}
-          thumbColor={isTracking ? '#00e89d' : '#888'}
+          trackColor={{ false: '#3a3a4e', true: '#6C63FF55' }}
+          thumbColor={isTracking ? '#6C63FF' : '#888'}
         />
       </View>
       <Text style={styles.privacyText}>

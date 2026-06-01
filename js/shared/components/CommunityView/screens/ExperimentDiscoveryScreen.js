@@ -33,11 +33,13 @@ import { experimentsApi, encountersApi } from '../../../services/socialApi';
 import ThoughtExperimentCard from '../components/Experiments/ThoughtExperimentCard';
 import ExperimentMetricsCard from '../components/Experiments/ExperimentMetricsCard';
 import ContextBridge from '../components/ContextBridge';
-import colors, {
-  INTENT_COLORS,
-  INTENT_LABELS,
-  INTENT_ICONS,
-} from '../../../theme/colors';
+// UX-AUDIT 2026-05-19 (BROKEN-B5): the previous default import bound
+// `colors` to the WHOLE theme object (which has no `.background` key —
+// the dark `#0F0E17` lives at `theme.colors.background`), so every
+// `colors.background` resolved to undefined and Android painted the
+// screen WHITE. Switched to the named `colors` export which matches
+// the convention used by the rest of the social surfaces.
+import { colors, INTENT_COLORS, INTENT_LABELS, INTENT_ICONS } from '../../../theme/colors';
 
 const TABS = [
   { label: 'For You', key: 'recommended', icon: 'trending-up' },
@@ -180,7 +182,7 @@ const ExperimentDiscoveryScreen = () => {
           targetScreen="Encounters"
           icon="people"
           iconType="material"
-          color="#00e89d"
+          color="#6C63FF"
           title={`${nearbyCount} experimenter${nearbyCount !== 1 ? 's' : ''} near you`}
           subtitle="Discover who's exploring nearby"
         />

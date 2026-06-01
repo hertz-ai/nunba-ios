@@ -18,7 +18,7 @@ import { emptyStatePreset } from '../../shared/emptyStatePresets';
 const STATUS_COLORS = {
   open: '#0078ff',
   assigned: '#FFD700',
-  completed: '#00e89d',
+  completed: '#6C63FF',
   cancelled: '#888',
 };
 
@@ -94,7 +94,7 @@ const TasksScreen = () => {
           {item.status !== 'completed' && item.status !== 'cancelled' && (
             <View style={styles.cardActions}>
               <TouchableOpacity style={styles.completeBtn} onPress={() => handleComplete(item.id)}>
-                <Ionicons name="checkmark-circle" size={16} color="#00e89d" />
+                <Ionicons name="checkmark-circle" size={16} color="#6C63FF" />
                 <Text style={styles.completeText}>Complete</Text>
               </TouchableOpacity>
             </View>
@@ -106,7 +106,7 @@ const TasksScreen = () => {
 
   return (
     <SafeAreaView style={styles.container}>
-      <StatusBar barStyle="light-content" backgroundColor="#121212" />
+      <StatusBar barStyle="light-content" backgroundColor="#000000" />
 
       <View style={styles.header}>
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
@@ -118,7 +118,7 @@ const TasksScreen = () => {
 
       {loading ? (
         <View style={styles.centerContainer}>
-          <ActivityIndicator size="large" color="#00e89d" />
+          <ActivityIndicator size="large" color="#6C63FF" />
         </View>
       ) : (
         <FlatList
@@ -130,14 +130,14 @@ const TasksScreen = () => {
           contentContainerStyle={styles.listContent}
           showsVerticalScrollIndicator={false}
           refreshControl={
-            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#00e89d" />
+            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#6C63FF" />
           }
         />
       )}
 
       {/* Create Task FAB */}
       <TouchableOpacity style={styles.fab} onPress={() => setShowCreate(true)} activeOpacity={0.8}>
-        <MaterialCommunityIcons name="plus" size={28} color="#121212" />
+        <MaterialCommunityIcons name="plus" size={28} color="#000000" />
       </TouchableOpacity>
 
       {/* Create Task Modal */}
@@ -176,7 +176,7 @@ const TasksScreen = () => {
 };
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#121212' },
+  container: { flex: 1, backgroundColor: '#000000' },
   header: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: wp('4%'), paddingVertical: hp('1.5%') },
   backButton: { padding: 4 },
   headerTitle: { flex: 1, color: '#FFF', fontSize: wp('5%'), fontWeight: '700', textAlign: 'center' },
@@ -185,7 +185,7 @@ const styles = StyleSheet.create({
   emptyText: { color: '#888', fontSize: wp('3.5%'), marginTop: hp('2%') },
   listContent: { paddingHorizontal: wp('4%'), paddingBottom: hp('12%') },
   card: {
-    backgroundColor: '#1A1A1A', borderRadius: 12, padding: wp('4%'),
+    backgroundColor: '#141225', borderRadius: 12, padding: wp('4%'),
     marginBottom: hp('1%'), borderWidth: 1, borderColor: '#2A2A2A',
   },
   cardHeader: { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 4 },
@@ -195,25 +195,25 @@ const styles = StyleSheet.create({
   cardDesc: { color: '#AAA', fontSize: wp('3.2%'), marginTop: 4, marginBottom: 4 },
   cardActions: { flexDirection: 'row', justifyContent: 'flex-end', marginTop: 8 },
   completeBtn: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-  completeText: { color: '#00e89d', fontWeight: '600', fontSize: wp('3%') },
+  completeText: { color: '#6C63FF', fontWeight: '600', fontSize: wp('3%') },
   fab: {
     position: 'absolute', bottom: hp('3%'), right: wp('5%'),
-    width: 56, height: 56, borderRadius: 28, backgroundColor: '#00e89d',
+    width: 56, height: 56, borderRadius: 28, backgroundColor: '#6C63FF',
     justifyContent: 'center', alignItems: 'center', elevation: 6,
-    shadowColor: '#00e89d', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.3, shadowRadius: 4,
+    shadowColor: '#6C63FF', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.3, shadowRadius: 4,
   },
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.7)', justifyContent: 'center', padding: wp('5%') },
-  modalContent: { backgroundColor: '#1A1A1A', borderRadius: 16, padding: wp('5%') },
+  modalContent: { backgroundColor: '#141225', borderRadius: 16, padding: wp('5%') },
   modalTitle: { color: '#FFF', fontSize: wp('5%'), fontWeight: '700', marginBottom: 16 },
   modalInput: {
-    backgroundColor: '#121212', borderRadius: 12, padding: wp('3.5%'), color: '#FFF',
+    backgroundColor: '#000000', borderRadius: 12, padding: wp('3.5%'), color: '#FFF',
     fontSize: wp('3.5%'), marginBottom: 12, borderWidth: 1, borderColor: '#2A2A2A',
   },
   modalActions: { flexDirection: 'row', justifyContent: 'flex-end', gap: 12, marginTop: 8 },
   modalCancelBtn: { paddingHorizontal: wp('4%'), paddingVertical: hp('1%') },
   modalCancelText: { color: '#888', fontWeight: '600' },
-  modalCreateBtn: { paddingHorizontal: wp('6%'), paddingVertical: hp('1%'), borderRadius: 20, backgroundColor: '#00e89d' },
-  modalCreateText: { color: '#121212', fontWeight: '700' },
+  modalCreateBtn: { paddingHorizontal: wp('6%'), paddingVertical: hp('1%'), borderRadius: 20, backgroundColor: '#6C63FF' },
+  modalCreateText: { color: '#000000', fontWeight: '700' },
 });
 
 export default TasksScreen;

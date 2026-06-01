@@ -222,7 +222,7 @@ const styles = StyleSheet.create({
     bottom: hp('10%'),
     right: wp('3%'),
     width: wp('80%'),
-    backgroundColor: '#1A1A1A',
+    backgroundColor: '#141225',
     borderRadius: 16,
     padding: wp('4%'),
     borderWidth: 1,

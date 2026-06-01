@@ -10,6 +10,30 @@ import {
 } from 'react-native-responsive-screen';
 import { colors, borderRadius, shadows, fontSize, fontWeight, spacing } from '../../../../theme/colors';
 import _ from 'lodash';
+
+// UX-AUDIT 2026-05-20 REDESIGN-R3: NunbaHero discoverability.
+// Previously the NunbaHero card was only reachable by drilling into
+// the Inbox tab — 2-3 hops from app launch. Material-first design
+// surfaces the primary action via a FAB anchored to the home Feed
+// itself. Tapping the FAB navigates to the same ConversationHistory
+// route the InboxScreen header uses, so there is exactly ONE path
+// to the morphable Nunba agent (no parallel route).
+const NunbaFab = ({ onPress }) => (
+  <TouchableOpacity
+    accessibilityRole="button"
+    accessibilityLabel="Open chat with Nunba"
+    accessibilityHint="Opens your default chat — the agent morphs to match what you need"
+    onPress={onPress}
+    activeOpacity={0.85}
+    style={fabStyles.fab}
+    testID="NunbaFab"
+  >
+    <View style={fabStyles.fabInner}>
+      <Text style={fabStyles.fabMark}>N</Text>
+    </View>
+  </TouchableOpacity>
+);
+
 const Feed = () => {
   const initialState = [];
   const initialMap = new Map(initialState.map(item => [item.id, item]));
@@ -178,6 +202,21 @@ const Feed = () => {
 
 
   const data = Array.from(postsMap.values()).sort((a, b) => b.id - a.id)
+
+  // R3 — opens the same ConversationHistory route the InboxScreen
+  // NunbaHeroCard uses. Same destination, surfaced higher in the
+  // navigation tree.
+  const openNunba = () => {
+    try {
+      navigation.navigate('ConversationHistory', {
+        conversation_id: 'nunba',
+        agent: 'nunba',
+        kind: 'agent',
+        peer: { name: 'Nunba', handle: 'nunba', is_agent: true },
+      });
+    } catch (_) { /* silent — route may not be registered in older builds */ }
+  };
+
   return (
     <>
       <FlatList
@@ -189,6 +228,7 @@ const Feed = () => {
         onEndReached={loadMorePosts}
         onEndReachedThreshold={0.7}
       />
+      <NunbaFab onPress={openNunba} />
       {isBottomSheetOpen && <Animated.View style={[styles.bottomSheet]}>
         {selectedPost && (userId === 1 || userId === 10202 || userId === Number(String(postUserID).split("'").join(''))) && (
           <TouchableOpacity onPress={deletePostHandler} style={styles.dropdownOption}>
@@ -237,6 +277,38 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     color: colors.textPrimary,
     fontWeight: fontWeight.medium,
+  },
+});
+
+// R3 — FAB sits above the bottom-nav (which lives in the parent
+// BottomNavigationActivity) so the touch target never overlaps a
+// system gesture inset.
+const fabStyles = StyleSheet.create({
+  fab: {
+    position: 'absolute',
+    right: 18,
+    bottom: 24,
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    backgroundColor: colors.accent || '#6C63FF',
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#6C63FF',
+    shadowOpacity: 0.45,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 8,
+    zIndex: 20,
+  },
+  fabInner: {
+    width: 60, height: 60, borderRadius: 30,
+    alignItems: 'center', justifyContent: 'center',
+  },
+  fabMark: {
+    color: '#0E1114',
+    fontSize: 26,
+    fontWeight: '800',
   },
 });
 

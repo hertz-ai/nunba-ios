@@ -1091,6 +1091,19 @@ export const themeApi = {
   getUserTheme: (userId) => get(`/users/${userId}/theme`),
 };
 
+// --- Marketing attribution (task #184 mobile parity) ---
+// Mirrors Nunba landing-page adminApi.marketingStats / .marketingIntents.
+// Backend: GET /api/social/marketing/stats (commit cbd0620) +
+// /api/social/marketing/intents (commit 486e115).  Used by the
+// MarketingFunnelCard RN component on the home feed to show
+// channel-by-channel download conversion + by the marketing agent
+// to pull ready-to-post intent URLs per platform.
+export const marketingApi = {
+  stats: (code) => get('/marketing/stats', code ? { code } : {}),
+  intents: (platform) =>
+    get('/marketing/intents', platform ? { platform } : {}),
+};
+
 // --- Marketplace ---
 // Parity with Nunba marketplaceApi (services/socialApi.js:937).
 // Backend: HARTOS routes/api_marketplace.py.  `listings` accepts

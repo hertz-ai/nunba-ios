@@ -41,7 +41,7 @@ import {
 } from 'react-native-responsive-screen';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 
-const ACCENT = '#00e89d';
+const ACCENT = '#6C63FF';
 const PRIMARY = '#6C63FF';
 
 function formatMatchedAt(ts) {
@@ -156,7 +156,7 @@ const BleMatchCard = ({ match, currentUserId, onIcebreaker, onHide }) => {
             <MaterialIcons
               name="chat-bubble-outline"
               size={16}
-              color={sendDisabled ? '#666' : '#1a1a2e'}
+              color={sendDisabled ? '#666' : '#000000'}
             />
             <Text
               style={[
@@ -253,7 +253,7 @@ const styles = StyleSheet.create({
   sendButton: { backgroundColor: ACCENT },
   sendButtonDisabled: { backgroundColor: '#3a3a4e' },
   sendText: {
-    color: '#1a1a2e',
+    color: '#000000',
     marginLeft: 4,
     fontSize: wp('3.2%'),
     fontWeight: '700',

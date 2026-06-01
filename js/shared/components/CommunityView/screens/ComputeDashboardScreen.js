@@ -46,7 +46,7 @@ import {
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 import { computeApi } from '../../../services/socialApi';
 
-const ACCENT = '#00e89d';
+const ACCENT = '#6C63FF';
 const ACCENT_BLUE = '#6C63FF';
 const ACCENT_AMBER = '#FFB740';
 const HEART = '#FF6B6B';
@@ -343,7 +343,7 @@ const ComputeDashboardScreen = () => {
 };
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#1a1a2e' },
+  container: { flex: 1, backgroundColor: '#000000' },
   loadingContainer: { justifyContent: 'center', alignItems: 'center' },
   content: { padding: wp('4%') },
   headerRow: {

@@ -53,7 +53,7 @@ import {
 import useThemeStore from '../../../colorThemeZustand';
 
 const ACCENT = '#6C63FF';
-const ACCENT_GREEN = '#00e89d';
+const ACCENT_GREEN = '#6C63FF';
 const MUTED = '#888';
 
 const unwrap = (res) => {
@@ -390,7 +390,7 @@ const ThemeSettingsScreen = () => {
 };
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#1a1a2e' },
+  container: { flex: 1, backgroundColor: '#000000' },
   content: { padding: wp('4%') },
   headerRow: {
     flexDirection: 'row',
@@ -481,7 +481,7 @@ const styles = StyleSheet.create({
   aiInputRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   aiInput: {
     flex: 1,
-    backgroundColor: '#1a1a2e',
+    backgroundColor: '#000000',
     color: '#FFF',
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.15)',

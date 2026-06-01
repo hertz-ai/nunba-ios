@@ -13,9 +13,9 @@ const Slider = ({
   value: propValue = 0,
   onValueChange,
   onSlidingComplete,
-  minimumTrackTintColor = '#00e89d',
+  minimumTrackTintColor = '#6C63FF',
   maximumTrackTintColor = '#3a3a4e',
-  thumbTintColor = '#00e89d',
+  thumbTintColor = '#6C63FF',
   style,
 }) => {
   const [sliderWidth, setSliderWidth] = useState(0);

@@ -90,7 +90,7 @@ const CampaignDetailScreen = () => {
   if (loading || !campaign) {
     return (
       <SafeAreaView style={styles.container}>
-        <StatusBar barStyle="light-content" backgroundColor="#121212" />
+        <StatusBar barStyle="light-content" backgroundColor="#000000" />
         <View style={styles.header}>
           <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
             <Ionicons name="arrow-back" size={24} color="#FFF" />
@@ -112,7 +112,7 @@ const CampaignDetailScreen = () => {
 
   return (
     <SafeAreaView style={styles.container}>
-      <StatusBar barStyle="light-content" backgroundColor="#121212" />
+      <StatusBar barStyle="light-content" backgroundColor="#000000" />
 
       {/* Header */}
       <View style={styles.header}>
@@ -128,7 +128,7 @@ const CampaignDetailScreen = () => {
       <ScrollView
         showsVerticalScrollIndicator={false}
         refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#00e89d" />
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#6C63FF" />
         }
       >
         {/* Campaign Header */}
@@ -150,7 +150,7 @@ const CampaignDetailScreen = () => {
         {/* Metrics Row */}
         <Animatable.View animation="fadeInUp" delay={100} style={styles.metricsRow}>
           <View style={styles.metricCard}>
-            <MaterialCommunityIcons name="eye" size={24} color="#00e89d" />
+            <MaterialCommunityIcons name="eye" size={24} color="#6C63FF" />
             <AnimatedCounter value={campaign.metrics.impressions} duration={1500} textStyle={styles.metricValue} />
             <Text style={styles.metricLabel}>Impressions</Text>
           </View>
@@ -299,7 +299,7 @@ const CampaignDetailScreen = () => {
             onPress={handleExtendCampaign}
             activeOpacity={0.8}
           >
-            <MaterialCommunityIcons name="arrow-expand-right" size={20} color="#00e89d" />
+            <MaterialCommunityIcons name="arrow-expand-right" size={20} color="#6C63FF" />
             <Text style={styles.extendButtonText}>Extend Campaign</Text>
           </TouchableOpacity>
         </Animatable.View>
@@ -313,7 +313,7 @@ const CampaignDetailScreen = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#121212',
+    backgroundColor: '#000000',
   },
   header: {
     flexDirection: 'row',
@@ -381,7 +381,7 @@ const styles = StyleSheet.create({
   },
   metricCard: {
     flex: 1,
-    backgroundColor: '#1A1A1A',
+    backgroundColor: '#141225',
     borderRadius: 12,
     padding: wp('3%'),
     alignItems: 'center',
@@ -410,7 +410,7 @@ const styles = StyleSheet.create({
     marginBottom: hp('1.5%'),
   },
   chartContainer: {
-    backgroundColor: '#1A1A1A',
+    backgroundColor: '#141225',
     borderRadius: 16,
     padding: wp('4%'),
     borderWidth: 1,
@@ -430,7 +430,7 @@ const styles = StyleSheet.create({
   },
   barFill: {
     width: '100%',
-    backgroundColor: '#00e89d',
+    backgroundColor: '#6C63FF',
     borderRadius: 4,
     minHeight: 4,
   },
@@ -444,7 +444,7 @@ const styles = StyleSheet.create({
     marginBottom: hp('2%'),
   },
   budgetCard: {
-    backgroundColor: '#1A1A1A',
+    backgroundColor: '#141225',
     borderRadius: 16,
     padding: wp('4%'),
     borderWidth: 1,
@@ -482,7 +482,7 @@ const styles = StyleSheet.create({
   postCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#1A1A1A',
+    backgroundColor: '#141225',
     borderRadius: 12,
     padding: wp('3%'),
     marginBottom: hp('1%'),
@@ -520,7 +520,7 @@ const styles = StyleSheet.create({
     width: 8,
     height: 8,
     borderRadius: 4,
-    backgroundColor: '#00e89d',
+    backgroundColor: '#6C63FF',
     marginTop: 6,
     marginRight: 12,
   },
@@ -575,14 +575,14 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#00e89d22',
+    backgroundColor: '#6C63FF22',
     paddingVertical: hp('1.5%'),
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: '#00e89d44',
+    borderColor: '#6C63FF44',
   },
   extendButtonText: {
-    color: '#00e89d',
+    color: '#6C63FF',
     fontSize: wp('4%'),
     fontWeight: '700',
     marginLeft: 8,

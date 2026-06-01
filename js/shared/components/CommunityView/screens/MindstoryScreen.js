@@ -28,7 +28,7 @@ const MindstoryScreen = () => {
 };
 
 const styles = StyleSheet.create({
-  container: {flex: 1, backgroundColor: colors.background || '#0F0E17'},
+  container: {flex: 1, backgroundColor: colors.background || '#000000'},
   webview: {flex: 1},
 });
 

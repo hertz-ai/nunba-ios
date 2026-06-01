@@ -19,7 +19,7 @@ const PAGE_SIZE = 20;
 
 const ROLE_COLORS = {
   user: '#6C63FF',
-  assistant: '#00e89d',
+  assistant: '#6C63FF',
   system: '#FF6B35',
   agent: '#9D4EDD',
   default: '#888',
@@ -31,7 +31,7 @@ const CHANNEL_COLORS = {
   discord: '#5865F2',
   slack: '#4A154B',
   email: '#EA4335',
-  sms: '#00e89d',
+  sms: '#6C63FF',
   webhook: '#FF6B35',
   default: '#6C63FF',
 };
@@ -158,7 +158,7 @@ const ConversationHistoryScreen = () => {
 
   return (
     <SafeAreaView style={styles.container}>
-      <StatusBar barStyle="light-content" backgroundColor="#0F0E17" />
+      <StatusBar barStyle="light-content" backgroundColor="#000000" />
 
       {/* Header */}
       <View style={styles.header}>
@@ -225,7 +225,7 @@ const ConversationHistoryScreen = () => {
 };
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#0F0E17' },
+  container: { flex: 1, backgroundColor: '#000000' },
   header: {
     flexDirection: 'row', alignItems: 'center',
     paddingHorizontal: wp('4%'), paddingVertical: hp('1.5%'),

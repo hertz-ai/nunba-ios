@@ -2,8 +2,8 @@
   "$schema": "./SHARED_JS_MANIFEST.schema.json",
   "description": "Source-of-truth list of JS files vendored from Hevolve_React_Native into Nunba-Companion-iOS. Read by scripts/sync-from-android.sh. Each entry maps a source path (relative to the Android repo root) to a destination path (relative to js/shared/). Files are copied verbatim — destinations should NEVER be hand-edited.",
   "android_repo_path": "../Hevolve_React_Native",
-  "synced_at": "2026-05-19T03:30:00.000Z",
-  "synced_from_commit": "Batch B+C DRY sweep — emptyStatePresets+5 new keys, flatListVirtualizationProps adoption, useDebouncedCallback adoption (AutoSuggestInput/MarketplaceScreen/KidsHub/InvitesScreen), 6 screens migrated to EmptyState presets, FriendsScreen + InvitesScreen added to manifest",
+  "synced_at": "2026-06-01T16:26:23.000Z",
+  "synced_from_commit": "c88d5ee7 — voice template config.content.questions fix (9acb4242), GameHub category tab key alignment (c88d5ee7), test coverage for both. Android-only Java fixes (back-nav 18a6229a, People-tab navigateTo 64066ad5) not applicable to iOS.",
   "groups": [
     {
       "name": "stores",

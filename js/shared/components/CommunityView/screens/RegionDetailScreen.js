@@ -87,7 +87,7 @@ const RegionDetailScreen = () => {
   if (loading || !region) {
     return (
       <SafeAreaView style={styles.container}>
-        <StatusBar barStyle="light-content" backgroundColor="#121212" />
+        <StatusBar barStyle="light-content" backgroundColor="#000000" />
         <View style={styles.header}>
           <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
             <Ionicons name="arrow-back" size={24} color="#FFF" />
@@ -116,7 +116,7 @@ const RegionDetailScreen = () => {
       {/* Stats */}
       <View style={styles.statsGrid}>
         <View style={styles.statCard}>
-          <MaterialCommunityIcons name="account-group" size={24} color="#00e89d" />
+          <MaterialCommunityIcons name="account-group" size={24} color="#6C63FF" />
           <Text style={styles.statValue}>{formatCount(region.memberCount)}</Text>
           <Text style={styles.statLabel}>Members</Text>
         </View>
@@ -237,7 +237,7 @@ const RegionDetailScreen = () => {
             <Text style={styles.memberJoined}>Joined {new Date(member.joinedAt).toLocaleDateString()}</Text>
           </View>
           <TouchableOpacity style={styles.memberAction}>
-            <Ionicons name="person-add-outline" size={18} color="#00e89d" />
+            <Ionicons name="person-add-outline" size={18} color="#6C63FF" />
           </TouchableOpacity>
         </View>
       ))}
@@ -257,7 +257,7 @@ const RegionDetailScreen = () => {
 
   return (
     <SafeAreaView style={styles.container}>
-      <StatusBar barStyle="light-content" backgroundColor="#121212" />
+      <StatusBar barStyle="light-content" backgroundColor="#000000" />
 
       {/* Header */}
       <View style={styles.header}>
@@ -273,7 +273,7 @@ const RegionDetailScreen = () => {
       <ScrollView
         showsVerticalScrollIndicator={false}
         refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#00e89d" />
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#6C63FF" />
         }
       >
         {/* Region Header */}
@@ -358,7 +358,7 @@ const getRoleColor = (role) => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#121212',
+    backgroundColor: '#000000',
   },
   header: {
     flexDirection: 'row',
@@ -436,7 +436,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#00e89d',
+    backgroundColor: '#6C63FF',
     paddingVertical: hp('1.2%'),
     borderRadius: 12,
   },
@@ -446,7 +446,7 @@ const styles = StyleSheet.create({
     borderColor: '#10B981',
   },
   joinButtonText: {
-    color: '#121212',
+    color: '#000000',
     fontSize: wp('4%'),
     fontWeight: '700',
     marginLeft: 6,
@@ -469,7 +469,7 @@ const styles = StyleSheet.create({
     borderBottomColor: 'transparent',
   },
   tabActive: {
-    borderBottomColor: '#00e89d',
+    borderBottomColor: '#6C63FF',
   },
   tabText: {
     color: '#888',
@@ -477,14 +477,14 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   tabTextActive: {
-    color: '#00e89d',
+    color: '#6C63FF',
   },
   tabContent: {
     padding: wp('4%'),
     paddingBottom: hp('10%'),
   },
   descriptionCard: {
-    backgroundColor: '#1A1A1A',
+    backgroundColor: '#141225',
     borderRadius: 16,
     padding: wp('4%'),
     marginBottom: hp('2%'),
@@ -509,7 +509,7 @@ const styles = StyleSheet.create({
   },
   statCard: {
     flex: 1,
-    backgroundColor: '#1A1A1A',
+    backgroundColor: '#141225',
     borderRadius: 12,
     padding: wp('3%'),
     alignItems: 'center',
@@ -528,7 +528,7 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
   weeklyCard: {
-    backgroundColor: '#1A1A1A',
+    backgroundColor: '#141225',
     borderRadius: 16,
     padding: wp('4%'),
     borderWidth: 1,
@@ -580,7 +580,7 @@ const styles = StyleSheet.create({
   councilMember: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#1A1A1A',
+    backgroundColor: '#141225',
     borderRadius: 12,
     padding: wp('3%'),
     marginBottom: hp('1%'),
@@ -619,7 +619,7 @@ const styles = StyleSheet.create({
   memberSearchContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#1A1A1A',
+    backgroundColor: '#141225',
     borderRadius: 10,
     paddingHorizontal: wp('3%'),
     paddingVertical: hp('1%'),

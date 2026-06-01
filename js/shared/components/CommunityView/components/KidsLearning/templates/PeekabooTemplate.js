@@ -57,7 +57,7 @@ const ENCOURAGEMENTS = [
  */
 
 const HidingSpot = ({emoji, index, isPeeking, isCharacterHere, onTap, shakeAnim, spotSize}) => {
-  const peekAnim = useRef(new Animated.Value(0)).current;
+  const peekAnim = useRef(new Animated.Value(1)).current;
   const blinkAnim = useRef(new Animated.Value(1)).current;
   const mountedRef = useRef(true);
   const blinkTimerRef = useRef(null);
@@ -153,7 +153,9 @@ const HidingSpot = ({emoji, index, isPeeking, isCharacterHere, onTap, shakeAnim,
 
 const PeekabooTemplate = ({config, onComplete, onAnswer}) => {
   const difficulty = config?.difficulty || 1;
-  const customSpots = config?.questions?.[0]?.hidingSpots;
+  const firstQuestion =
+    config?.content?.questions?.[0] || config?.questions?.[0];
+  const customSpots = firstQuestion?.hidingSpots;
   const numSpots = customSpots
     ? customSpots.length
     : difficulty <= 1
@@ -161,7 +163,7 @@ const PeekabooTemplate = ({config, onComplete, onAnswer}) => {
     : difficulty <= 2
     ? 4
     : 5;
-  const peekTimeout = config?.questions?.[0]?.peekTimeout || 0;
+  const peekTimeout = firstQuestion?.peekTimeout || 0;
 
   const hidingSpots = useMemo(() => {
     if (customSpots) return customSpots;
@@ -184,16 +186,16 @@ const PeekabooTemplate = ({config, onComplete, onAnswer}) => {
 
   // Shake animations for each spot
   const shakeAnims = useRef(
-    hidingSpots.map(() => new Animated.Value(0)),
+    hidingSpots.map(() => new Animated.Value(1)),
   ).current;
 
   // Result animation
-  const resultScale = useRef(new Animated.Value(0)).current;
+  const resultScale = useRef(new Animated.Value(1)).current;
 
   const {amplitude, isListening, startListening, stopListening} =
     useMicAmplitude(1.0);
 
-  const totalRounds = config?.questions?.[0]?.rounds || TOTAL_ROUNDS;
+  const totalRounds = firstQuestion?.rounds || TOTAL_ROUNDS;
 
   // Initialize game
   useEffect(() => {

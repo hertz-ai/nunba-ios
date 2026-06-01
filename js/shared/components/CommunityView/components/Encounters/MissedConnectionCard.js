@@ -32,7 +32,7 @@ const MissedConnectionCard = ({ item, onPress }) => {
   return (
     <TouchableOpacity style={styles.card} onPress={onPress} activeOpacity={0.7}>
       <View style={styles.iconContainer}>
-        <MaterialIcons name="location-on" size={24} color="#00e89d" />
+        <MaterialIcons name="location-on" size={24} color="#6C63FF" />
       </View>
       <View style={styles.content}>
         <Text style={styles.locationName} numberOfLines={1}>
@@ -78,7 +78,7 @@ const styles = StyleSheet.create({
     width: 44,
     height: 44,
     borderRadius: 22,
-    backgroundColor: '#1a1a2e',
+    backgroundColor: '#000000',
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: wp('3%'),
@@ -111,7 +111,7 @@ const styles = StyleSheet.create({
     marginLeft: wp('2%'),
   },
   badgeActive: {
-    backgroundColor: '#00e89d',
+    backgroundColor: '#6C63FF',
   },
   badgeInactive: {
     backgroundColor: '#3a3a4e',
@@ -121,7 +121,7 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
   badgeTextActive: {
-    color: '#1a1a2e',
+    color: '#000000',
   },
   badgeTextInactive: {
     color: '#888',

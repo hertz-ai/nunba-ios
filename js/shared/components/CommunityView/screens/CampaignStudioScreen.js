@@ -26,7 +26,7 @@ import { useRoleAccess } from '../components/RoleGuard';
 const STEPS = ['Goal', 'Content', 'Audience', 'Budget', 'Preview'];
 
 const GOALS = [
-  { id: 'followers', icon: 'account-plus', label: 'Grow Followers', description: 'Increase your follower count', color: '#00e89d' },
+  { id: 'followers', icon: 'account-plus', label: 'Grow Followers', description: 'Increase your follower count', color: '#6C63FF' },
   { id: 'boost', icon: 'trending-up', label: 'Boost Post', description: 'Maximize reach on specific content', color: '#00D9FF' },
   { id: 'promote', icon: 'robot', label: 'Promote Agent', description: 'Showcase your AI agent', color: '#9D4EDD' },
   { id: 'community', icon: 'account-group', label: 'Grow Community', description: 'Expand your region membership', color: '#FF6B35' },
@@ -195,7 +195,7 @@ const CampaignStudioScreen = () => {
       <View style={styles.audienceSection}>
         <Text style={styles.audienceSectionTitle}>Regions</Text>
         <TouchableOpacity style={styles.selectButton}>
-          <MaterialCommunityIcons name="earth" size={20} color="#00e89d" />
+          <MaterialCommunityIcons name="earth" size={20} color="#6C63FF" />
           <Text style={styles.selectButtonText}>Select Regions</Text>
           <Ionicons name="chevron-forward" size={18} color="#888" />
         </TouchableOpacity>
@@ -386,7 +386,7 @@ const CampaignStudioScreen = () => {
   if (!isRegionalOrAbove) {
     return (
       <SafeAreaView style={styles.container}>
-        <StatusBar barStyle="light-content" backgroundColor="#121212" />
+        <StatusBar barStyle="light-content" backgroundColor="#000000" />
         <View style={styles.header}>
           <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
             <Ionicons name="close" size={24} color="#FFF" />
@@ -407,7 +407,7 @@ const CampaignStudioScreen = () => {
 
   return (
     <SafeAreaView style={styles.container}>
-      <StatusBar barStyle="light-content" backgroundColor="#121212" />
+      <StatusBar barStyle="light-content" backgroundColor="#000000" />
 
       {/* Header */}
       <View style={styles.header}>
@@ -450,9 +450,9 @@ const CampaignStudioScreen = () => {
             {currentStep === STEPS.length - 1 ? 'Launch Campaign' : 'Next'}
           </Text>
           {currentStep === STEPS.length - 1 ? (
-            <MaterialCommunityIcons name="rocket-launch" size={20} color="#121212" />
+            <MaterialCommunityIcons name="rocket-launch" size={20} color="#000000" />
           ) : (
-            <Ionicons name="arrow-forward" size={20} color="#121212" />
+            <Ionicons name="arrow-forward" size={20} color="#000000" />
           )}
         </TouchableOpacity>
       </View>
@@ -466,7 +466,7 @@ const CampaignStudioScreen = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#121212',
+    backgroundColor: '#000000',
   },
   header: {
     flexDirection: 'row',
@@ -488,7 +488,7 @@ const styles = StyleSheet.create({
     padding: 4,
   },
   draftButtonText: {
-    color: '#00e89d',
+    color: '#6C63FF',
     fontSize: wp('3.2%'),
     fontWeight: '600',
   },
@@ -512,7 +512,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   stepCircleActive: {
-    backgroundColor: '#00e89d',
+    backgroundColor: '#6C63FF',
   },
   stepCircleCurrent: {
     borderWidth: 2,
@@ -524,7 +524,7 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
   stepNumberActive: {
-    color: '#121212',
+    color: '#000000',
   },
   stepLabel: {
     color: '#666',
@@ -543,7 +543,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#2A2A3E',
   },
   stepConnectorActive: {
-    backgroundColor: '#00e89d',
+    backgroundColor: '#6C63FF',
   },
   scrollContent: {
     paddingBottom: hp('15%'),
@@ -570,7 +570,7 @@ const styles = StyleSheet.create({
   },
   goalCard: {
     width: '48%',
-    backgroundColor: '#1A1A1A',
+    backgroundColor: '#141225',
     borderRadius: 16,
     padding: wp('4%'),
     alignItems: 'center',
@@ -609,7 +609,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   contentPlaceholder: {
-    backgroundColor: '#1A1A1A',
+    backgroundColor: '#141225',
     borderRadius: 16,
     padding: wp('8%'),
     alignItems: 'center',
@@ -624,13 +624,13 @@ const styles = StyleSheet.create({
     marginBottom: hp('2%'),
   },
   selectContentButton: {
-    backgroundColor: '#00e89d',
+    backgroundColor: '#6C63FF',
     paddingHorizontal: wp('5%'),
     paddingVertical: hp('1%'),
     borderRadius: 20,
   },
   selectContentText: {
-    color: '#121212',
+    color: '#000000',
     fontSize: wp('3.5%'),
     fontWeight: '700',
   },
@@ -646,7 +646,7 @@ const styles = StyleSheet.create({
   selectButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#1A1A1A',
+    backgroundColor: '#141225',
     borderRadius: 12,
     paddingHorizontal: wp('4%'),
     paddingVertical: hp('1.5%'),
@@ -667,14 +667,14 @@ const styles = StyleSheet.create({
   interestChip: {
     paddingHorizontal: wp('4%'),
     paddingVertical: hp('0.8%'),
-    backgroundColor: '#1A1A1A',
+    backgroundColor: '#141225',
     borderRadius: 20,
     borderWidth: 1,
     borderColor: '#2A2A2A',
   },
   interestChipActive: {
-    backgroundColor: '#00e89d22',
-    borderColor: '#00e89d',
+    backgroundColor: '#6C63FF22',
+    borderColor: '#6C63FF',
   },
   interestChipText: {
     color: '#888',
@@ -682,13 +682,13 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   interestChipTextActive: {
-    color: '#00e89d',
+    color: '#6C63FF',
   },
   toggleRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    backgroundColor: '#1A1A1A',
+    backgroundColor: '#141225',
     borderRadius: 12,
     padding: wp('4%'),
     borderWidth: 1,
@@ -720,7 +720,7 @@ const styles = StyleSheet.create({
     padding: 2,
   },
   toggleActive: {
-    backgroundColor: '#00e89d',
+    backgroundColor: '#6C63FF',
   },
   toggleKnob: {
     width: 24,
@@ -733,7 +733,7 @@ const styles = StyleSheet.create({
     alignSelf: 'flex-end',
   },
   budgetCard: {
-    backgroundColor: '#1A1A1A',
+    backgroundColor: '#141225',
     borderRadius: 16,
     padding: wp('5%'),
     marginBottom: hp('2.5%'),
@@ -780,15 +780,15 @@ const styles = StyleSheet.create({
   durationOption: {
     flex: 1,
     paddingVertical: hp('1.2%'),
-    backgroundColor: '#1A1A1A',
+    backgroundColor: '#141225',
     borderRadius: 10,
     alignItems: 'center',
     borderWidth: 1,
     borderColor: '#2A2A2A',
   },
   durationOptionActive: {
-    backgroundColor: '#00e89d22',
-    borderColor: '#00e89d',
+    backgroundColor: '#6C63FF22',
+    borderColor: '#6C63FF',
   },
   durationText: {
     color: '#888',
@@ -796,13 +796,13 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   durationTextActive: {
-    color: '#00e89d',
+    color: '#6C63FF',
   },
   costSummary: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    backgroundColor: '#1A1A1A',
+    backgroundColor: '#141225',
     borderRadius: 12,
     padding: wp('4%'),
     borderWidth: 1,
@@ -832,7 +832,7 @@ const styles = StyleSheet.create({
     marginBottom: hp('1%'),
   },
   nameInput: {
-    backgroundColor: '#1A1A1A',
+    backgroundColor: '#141225',
     borderRadius: 12,
     paddingHorizontal: wp('4%'),
     paddingVertical: hp('1.5%'),
@@ -842,7 +842,7 @@ const styles = StyleSheet.create({
     borderColor: '#2A2A2A',
   },
   summaryCard: {
-    backgroundColor: '#1A1A1A',
+    backgroundColor: '#141225',
     borderRadius: 16,
     padding: wp('4%'),
     marginBottom: hp('2%'),
@@ -879,14 +879,14 @@ const styles = StyleSheet.create({
     marginLeft: 4,
   },
   estimateCard: {
-    backgroundColor: '#00e89d11',
+    backgroundColor: '#6C63FF11',
     borderRadius: 16,
     padding: wp('4%'),
     borderWidth: 1,
-    borderColor: '#00e89d44',
+    borderColor: '#6C63FF44',
   },
   estimateTitle: {
-    color: '#00e89d',
+    color: '#6C63FF',
     fontSize: wp('3.5%'),
     fontWeight: '700',
     marginBottom: hp('1.5%'),
@@ -917,7 +917,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     padding: wp('4%'),
-    backgroundColor: '#121212',
+    backgroundColor: '#000000',
     borderTopWidth: 1,
     borderTopColor: '#2A2A2A',
   },
@@ -938,7 +938,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#00e89d',
+    backgroundColor: '#6C63FF',
     paddingVertical: hp('1.5%'),
     borderRadius: 12,
   },
@@ -949,7 +949,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFD700',
   },
   nextButtonText: {
-    color: '#121212',
+    color: '#000000',
     fontSize: wp('4%'),
     fontWeight: '700',
     marginRight: 8,

@@ -49,8 +49,8 @@ const DragToZoneTemplate = ({config, onAnswer, onComplete}) => {
   const [showVisualHint, setShowVisualHint] = useState(true);
 
   // Animation refs
-  const containerAnim = useRef(new Animated.Value(0)).current;
-  const highlightAnim = useRef(new Animated.Value(0)).current;
+  const containerAnim = useRef(new Animated.Value(1)).current;
+  const highlightAnim = useRef(new Animated.Value(1)).current;
   const startTimeRef = useRef(Date.now());
   const currentItemRef = useRef(null);
   const completedRef = useRef(false);
@@ -91,7 +91,7 @@ const DragToZoneTemplate = ({config, onAnswer, onComplete}) => {
   // Highlight pulse animation in easy mode
   useEffect(() => {
     if (highlightedZone) {
-      highlightAnim.setValue(0);
+      highlightAnim.setValue(1);
       const highlightLoop = Animated.loop(
         Animated.sequence([
           Animated.timing(highlightAnim, {toValue: 1, duration: 800, useNativeDriver: false}),
@@ -102,7 +102,7 @@ const DragToZoneTemplate = ({config, onAnswer, onComplete}) => {
       return () => highlightLoop.stop();
     } else {
       highlightAnim.stopAnimation();
-      highlightAnim.setValue(0);
+      highlightAnim.setValue(1);
     }
   }, [highlightedZone]);
 

@@ -122,7 +122,7 @@ const AutoSuggestInput = ({ value, onChangeText, onSelect, currentLat, currentLo
       style={styles.suggestionItem}
       onPress={() => handleSelect(item)}
     >
-      <MaterialIcons name="location-on" size={18} color="#00e89d" />
+      <MaterialIcons name="location-on" size={18} color="#6C63FF" />
       <Text style={styles.suggestionText} numberOfLines={1}>
         {item.name}
       </Text>

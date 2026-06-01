@@ -28,9 +28,9 @@ import { colors } from '../../../theme/colors';
 const POLL_INTERVAL = 5000;
 
 const STATUS_COLORS = {
-  active: '#00e89d',
+  active: '#6C63FF',
   executing: '#3B82F6',
-  healthy: '#00e89d',
+  healthy: '#6C63FF',
   stalled: '#F59E0B',
   frozen: '#EF4444',
   idle: '#6B7280',
@@ -106,7 +106,7 @@ const SummaryCard = ({ summary }) => {
         <View
           style={[
             styles.sparkMeterFill,
-            { width: `${sparkPct}%`, backgroundColor: sparkPct > 80 ? '#EF4444' : '#00e89d' },
+            { width: `${sparkPct}%`, backgroundColor: sparkPct > 80 ? '#EF4444' : '#6C63FF' },
           ]}
         />
       </View>
@@ -203,7 +203,7 @@ const AgentHiveCard = ({ agent, index, onPress }) => {
                   styles.progressFill,
                   {
                     width: `${sparkPct}%`,
-                    backgroundColor: sparkPct > 80 ? '#EF4444' : '#00e89d',
+                    backgroundColor: sparkPct > 80 ? '#EF4444' : '#6C63FF',
                   },
                 ]}
               />
@@ -368,7 +368,7 @@ export default function AgentHiveScreen() {
             <RefreshControl
               refreshing={refreshing}
               onRefresh={onRefresh}
-              tintColor="#00e89d"
+              tintColor="#6C63FF"
             />
           }
           contentContainerStyle={styles.listContent}
@@ -381,7 +381,7 @@ export default function AgentHiveScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#0F0E17',
+    backgroundColor: '#000000',
   },
   header: {
     flexDirection: 'row',

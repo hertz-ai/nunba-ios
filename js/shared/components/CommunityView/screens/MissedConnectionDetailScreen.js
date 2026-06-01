@@ -131,9 +131,9 @@ const MissedConnectionDetailScreen = () => {
   if (loading) {
     return (
       <SafeAreaView style={styles.container}>
-        <StatusBar barStyle="light-content" backgroundColor="#1a1a2e" />
+        <StatusBar barStyle="light-content" backgroundColor="#000000" />
         <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#00e89d" />
+          <ActivityIndicator size="large" color="#6C63FF" />
         </View>
       </SafeAreaView>
     );
@@ -142,7 +142,7 @@ const MissedConnectionDetailScreen = () => {
   if (!detail) {
     return (
       <SafeAreaView style={styles.container}>
-        <StatusBar barStyle="light-content" backgroundColor="#1a1a2e" />
+        <StatusBar barStyle="light-content" backgroundColor="#000000" />
         <View style={styles.header}>
           <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
             <Ionicons name="arrow-back" size={24} color="#FFF" />
@@ -159,7 +159,7 @@ const MissedConnectionDetailScreen = () => {
 
   return (
     <SafeAreaView style={styles.container}>
-      <StatusBar barStyle="light-content" backgroundColor="#1a1a2e" />
+      <StatusBar barStyle="light-content" backgroundColor="#000000" />
       <View style={styles.header}>
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
           <Ionicons name="arrow-back" size={24} color="#FFF" />
@@ -186,7 +186,7 @@ const MissedConnectionDetailScreen = () => {
               >
                 <Marker
                   coordinate={{ latitude: detail.lat, longitude: detail.lon }}
-                  pinColor="#00e89d"
+                  pinColor="#6C63FF"
                 />
               </MapView>
             ) : (
@@ -194,7 +194,7 @@ const MissedConnectionDetailScreen = () => {
                 <MaterialIcons
                   name="location-on"
                   size={36}
-                  color="#00e89d"
+                  color="#6C63FF"
                 />
                 <Text style={styles.mapPlaceholderText}>
                   {detail.lat.toFixed(4)}, {detail.lon.toFixed(4)}
@@ -209,7 +209,7 @@ const MissedConnectionDetailScreen = () => {
 
         <View style={styles.detailCard}>
           <View style={styles.locationRow}>
-            <MaterialIcons name="location-on" size={20} color="#00e89d" />
+            <MaterialIcons name="location-on" size={20} color="#6C63FF" />
             <Text style={styles.locationName}>
               {detail.location_name || 'Unknown Location'}
             </Text>
@@ -239,7 +239,7 @@ const MissedConnectionDetailScreen = () => {
                 )}
                 {resp.accepted && (
                   <View style={styles.acceptedBadge}>
-                    <Ionicons name="checkmark-circle" size={16} color="#00e89d" />
+                    <Ionicons name="checkmark-circle" size={16} color="#6C63FF" />
                     <Text style={styles.acceptedText}>Accepted</Text>
                   </View>
                 )}
@@ -267,7 +267,7 @@ const MissedConnectionDetailScreen = () => {
               disabled={submitting || !message.trim()}
             >
               {submitting ? (
-                <ActivityIndicator size="small" color="#1a1a2e" />
+                <ActivityIndicator size="small" color="#000000" />
               ) : (
                 <Text style={styles.submitButtonText}>Submit</Text>
               )}
@@ -282,7 +282,7 @@ const MissedConnectionDetailScreen = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#1a1a2e',
+    backgroundColor: '#000000',
   },
   header: {
     flexDirection: 'row',
@@ -398,14 +398,14 @@ const styles = StyleSheet.create({
   },
   acceptButton: {
     alignSelf: 'flex-start',
-    backgroundColor: '#00e89d',
+    backgroundColor: '#6C63FF',
     paddingHorizontal: wp('4%'),
     paddingVertical: hp('0.8%'),
     borderRadius: 16,
     marginTop: 10,
   },
   acceptButtonText: {
-    color: '#1a1a2e',
+    color: '#000000',
     fontSize: wp('3.2%'),
     fontWeight: '700',
   },
@@ -415,7 +415,7 @@ const styles = StyleSheet.create({
     marginTop: 8,
   },
   acceptedText: {
-    color: '#00e89d',
+    color: '#6C63FF',
     fontSize: wp('3%'),
     marginLeft: 4,
   },
@@ -441,7 +441,7 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   submitButton: {
-    backgroundColor: '#00e89d',
+    backgroundColor: '#6C63FF',
     paddingVertical: hp('1.5%'),
     borderRadius: 24,
     alignItems: 'center',
@@ -450,7 +450,7 @@ const styles = StyleSheet.create({
     opacity: 0.6,
   },
   submitButtonText: {
-    color: '#1a1a2e',
+    color: '#000000',
     fontSize: wp('4%'),
     fontWeight: '700',
   },

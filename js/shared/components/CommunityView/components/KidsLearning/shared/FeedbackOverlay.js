@@ -44,26 +44,26 @@ const FeedbackOverlay = ({visible, isCorrect, message, onDismiss, speakFeedback,
   const feedbackStyle = feedbackStyleProp || contextStyle || 'stamp';
 
   // Shared
-  const opacity = useRef(new Animated.Value(0)).current;
+  const opacity = useRef(new Animated.Value(1)).current;
   const scale = useRef(new Animated.Value(0.5)).current;
-  const shakeAnim = useRef(new Animated.Value(0)).current;
+  const shakeAnim = useRef(new Animated.Value(1)).current;
   // Ripple
-  const rippleScale = useRef(new Animated.Value(0)).current;
+  const rippleScale = useRef(new Animated.Value(1)).current;
   const rippleOpacity = useRef(new Animated.Value(1)).current;
   // Flip
-  const flipAnim = useRef(new Animated.Value(0)).current;
+  const flipAnim = useRef(new Animated.Value(1)).current;
   // Pop particles
   const popParticles = useRef(
     Array.from({length: 8}).map(() => ({
-      x: new Animated.Value(0),
-      y: new Animated.Value(0),
-      op: new Animated.Value(0),
+      x: new Animated.Value(1),
+      y: new Animated.Value(1),
+      op: new Animated.Value(1),
     })),
   ).current;
   // Drop
   const dropY = useRef(new Animated.Value(-60)).current;
   // Glow
-  const glowOpacity = useRef(new Animated.Value(0)).current;
+  const glowOpacity = useRef(new Animated.Value(1)).current;
 
   const mountedRef = useRef(true);
   const ageGroup = useKidsLearningStore(s => s.ageGroup);
@@ -85,33 +85,33 @@ const FeedbackOverlay = ({visible, isCorrect, message, onDismiss, speakFeedback,
     if (isCorrect) { GameSounds.correct(); } else { GameSounds.wrong(); }
 
     // Reset everything
-    opacity.setValue(0);
+    opacity.setValue(1);
     scale.setValue(feedbackStyle === 'stamp' ? (isCorrect ? 2 : 0.5) : 0.5);
-    shakeAnim.setValue(0);
-    rippleScale.setValue(0);
+    shakeAnim.setValue(1);
+    rippleScale.setValue(1);
     rippleOpacity.setValue(1);
-    flipAnim.setValue(0);
+    flipAnim.setValue(1);
     dropY.setValue(-60);
-    glowOpacity.setValue(0);
-    popParticles.forEach(p => { p.x.setValue(0); p.y.setValue(0); p.op.setValue(0); });
+    glowOpacity.setValue(1);
+    popParticles.forEach(p => { p.x.setValue(1); p.y.setValue(1); p.op.setValue(1); });
 
     let timeout;
     const styleAnims = buildStyleAnimation(feedbackStyle, isCorrect, {
       scale, shakeAnim, rippleScale, rippleOpacity, flipAnim, popParticles, dropY, glowOpacity,
     });
 
+    // Hard guarantee dismiss after 1500ms regardless of animation state.
+    // Previously the dismiss was chained off Animated.parallel().start(cb),
+    // and on this device the native driver never invoked the completion
+    // callback — so "Try Again!" hung permanently with no way to continue.
+    timeout = setTimeout(() => {
+      if (mountedRef.current && onDismiss) onDismiss();
+    }, 1500);
+
     Animated.parallel([
       Animated.timing(opacity, {toValue: 1, duration: 200, useNativeDriver: true}),
       ...styleAnims,
-    ]).start(() => {
-      if (!mountedRef.current) return;
-      timeout = setTimeout(() => {
-        if (!mountedRef.current) return;
-        Animated.timing(opacity, {toValue: 0, duration: 300, useNativeDriver: true}).start(() => {
-          if (mountedRef.current && onDismiss) onDismiss();
-        });
-      }, 600);
-    });
+    ]).start();
     return () => { if (timeout) clearTimeout(timeout); };
   }, [visible]);
 
@@ -123,9 +123,11 @@ const FeedbackOverlay = ({visible, isCorrect, message, onDismiss, speakFeedback,
   return (
     <Animated.View
       style={[styles.overlay, {opacity}]}
-      pointerEvents="none"
+      pointerEvents="auto"
       accessibilityLiveRegion="polite"
       accessibilityLabel={message || defaultMessage}
+      onStartShouldSetResponder={() => true}
+      onResponderRelease={() => { if (onDismiss) onDismiss(); }}
     >
       {renderForStyle(feedbackStyle, {isCorrect, scale, shakeAnim, rippleScale, rippleOpacity, flipAnim, popParticles, dropY, glowOpacity, iconColor, message, defaultMessage})}
     </Animated.View>

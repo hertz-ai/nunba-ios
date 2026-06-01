@@ -21,7 +21,7 @@ const CHANNEL_COLORS = {
   discord: '#5865F2',
   slack: '#4A154B',
   email: '#EA4335',
-  sms: '#00e89d',
+  sms: '#6C63FF',
   webhook: '#FF6B35',
   default: '#6C63FF',
 };
@@ -87,7 +87,7 @@ const ChannelBindingsScreen = () => {
     const iconName = getChannelIcon(item.channel);
     const displayName = item.channel_name || item.channel || 'Channel';
     const statusText = item.status === 'active' ? 'Connected' : (item.status || 'Pending');
-    const statusColor = item.status === 'active' ? '#00e89d' : '#888';
+    const statusColor = item.status === 'active' ? '#6C63FF' : '#888';
 
     return (
       <Animatable.View animation="fadeInUp" delay={index * 60}>
@@ -134,7 +134,7 @@ const ChannelBindingsScreen = () => {
 
   return (
     <SafeAreaView style={styles.container}>
-      <StatusBar barStyle="light-content" backgroundColor="#0F0E17" />
+      <StatusBar barStyle="light-content" backgroundColor="#000000" />
 
       <View style={styles.header}>
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
@@ -190,7 +190,7 @@ const ChannelBindingsScreen = () => {
 };
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#0F0E17' },
+  container: { flex: 1, backgroundColor: '#000000' },
   header: {
     flexDirection: 'row', alignItems: 'center',
     paddingHorizontal: wp('4%'), paddingVertical: hp('1.5%'),

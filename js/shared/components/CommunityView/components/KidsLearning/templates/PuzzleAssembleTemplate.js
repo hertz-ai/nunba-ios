@@ -63,8 +63,8 @@ const PuzzleAssembleTemplate = ({config, onAnswer, onComplete}) => {
   // Animations
   const slotGlowAnims = useRef({});
   const pieceScaleAnims = useRef({});
-  const completionAnim = useRef(new Animated.Value(0)).current;
-  const titleAnim = useRef(new Animated.Value(0)).current;
+  const completionAnim = useRef(new Animated.Value(1)).current;
+  const titleAnim = useRef(new Animated.Value(1)).current;
 
   const currentPuzzle = puzzles[currentPuzzleIndex] || null;
   const pieces = currentPuzzle?.pieces || [];
@@ -80,7 +80,7 @@ const PuzzleAssembleTemplate = ({config, onAnswer, onComplete}) => {
       });
       for (let i = 0; i < totalSlots; i++) {
         if (!slotGlowAnims.current[i]) {
-          slotGlowAnims.current[i] = new Animated.Value(0);
+          slotGlowAnims.current[i] = new Animated.Value(1);
         }
       }
     }
@@ -88,7 +88,7 @@ const PuzzleAssembleTemplate = ({config, onAnswer, onComplete}) => {
 
   // Title animation on puzzle load
   useEffect(() => {
-    titleAnim.setValue(0);
+    titleAnim.setValue(1);
     Animated.spring(titleAnim, {
       toValue: 1,
       ...SPRINGS.playful,
@@ -240,7 +240,7 @@ const PuzzleAssembleTemplate = ({config, onAnswer, onComplete}) => {
     setResults(prev => [...prev, wasGood]);
 
     if (currentPuzzleIndex + 1 < puzzles.length) {
-      completionAnim.setValue(0);
+      completionAnim.setValue(1);
       setCurrentPuzzleIndex(prev => prev + 1);
     } else {
       setAllComplete(true);

@@ -2,17 +2,26 @@ import {useNavigation} from '@react-navigation/native';
 import React from 'react';
 import {Image,View, Text, TouchableOpacity} from 'react-native';
 import ProfilePicture from '../../ProfilePicture';
-import StoryRing from '../../../../shared/StoryRing';
 import styles from './styles';
 import VideoPlayer from 'react-native-video-controls';
 
+// UX-AUDIT 2026-05-19: the Pass X.P1 StoryRing wrap (committed
+// 2026-05-18) was geometrically wrong for this layout — the avatar
+// sits at top:-40 ABOVE the card and the parent rail clips the top
+// hemisphere of the ring, leaving only the bottom half visible as a
+// thick red arc on the card.  The StoryRing primitive itself is fine
+// (it's tested in __tests__/shared/StoryRing.test.js) but it needs to
+// be applied to a layout that gives it room to render as a full ring
+// around an avatar (Instagram-style — avatar centered inside a tile
+// with the ring outside the avatar but inside the tile bounds).  Until
+// that layout exists, restore the original bare ProfilePicture so the
+// Stories rail looks correct.
 const StoryCard = props => {
   const {story} = props;
   const {
     contentType,
     caption,
     resourceUri,
-    viewed,
     user: {imageUri, username}
   } = story;
   const navigation = useNavigation();
@@ -20,37 +29,6 @@ const StoryCard = props => {
   const onPress = () => {
     navigation.navigate('Story', {id: story.id, stories: story});
   };
-
-  // UX-AUDIT 2026-05-18 Pass X.P1: wrap the story's avatar in a
-  // StoryRing so unviewed stories carry the rainbow ring (gray once
-  // viewed).  ProfilePicture's default position is `absolute, top:-40`
-  // which overlaps the card; we keep that overall behaviour by
-  // wrapping the ring in an absolutely-positioned container and
-  // switching the inner ProfilePicture to position:relative so it
-  // sits inside the ring instead of pulling itself out of flow.
-  const renderRingedAvatar = () => (
-    <View
-      pointerEvents="none"
-      style={{
-        position: 'absolute',
-        top: -46,
-        alignSelf: 'center',
-        zIndex: 5,
-        alignItems: 'center',
-      }}
-      testID="StoryCard.ringedAvatar"
-    >
-      <StoryRing hasStory viewed={!!viewed} size={80}>
-        <ProfilePicture
-          uri={imageUri}
-          size={80}
-          position="relative"
-          top={0}
-          elevation={0}
-        />
-      </StoryRing>
-    </View>
-  );
 
 
    if (contentType === 'image') {
@@ -63,7 +41,7 @@ const StoryCard = props => {
               <Text style={styles.titleText}>{caption}{' '}</Text>
               <Image source={{uri: resourceUri}} style={styles.image} />
             </View>
-            {renderRingedAvatar()}
+            <ProfilePicture uri={imageUri} />
             <Text style={styles.description}>{username}</Text>
           </TouchableOpacity>
 
@@ -93,7 +71,7 @@ const StoryCard = props => {
 
                     tapAnywhereToPause={false} />
                   </View>
-                  {renderRingedAvatar()}
+                  <ProfilePicture uri={imageUri} />
                   <Text style={styles.description}>{username}</Text>
                 </TouchableOpacity>
 

@@ -47,7 +47,7 @@ import {
 } from '../../../autopilotStore';
 
 const ACCENT = '#6C63FF';
-const ACCENT_GREEN = '#00e89d';
+const ACCENT_GREEN = '#6C63FF';
 const MUTED = '#888';
 
 const SectionHeader = ({ icon, title }) => (
@@ -323,7 +323,7 @@ const AutopilotScreen = () => {
 };
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#1a1a2e' },
+  container: { flex: 1, backgroundColor: '#000000' },
   loadingContainer: { justifyContent: 'center', alignItems: 'center' },
   content: { padding: wp('4%') },
   headerCard: {

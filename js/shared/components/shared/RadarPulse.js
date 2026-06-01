@@ -39,7 +39,7 @@
 import React, { useEffect, useRef } from 'react';
 import { View, Animated, StyleSheet, Easing } from 'react-native';
 
-const ACCENT = '#00e89d';
+const ACCENT = '#6C63FF';
 const RING_DURATION = 1800;
 const RING_COUNT = 3;
 const RING_STAGGER = RING_DURATION / RING_COUNT;

@@ -15,7 +15,6 @@ import {
   widthPercentageToDP as wp,
   heightPercentageToDP as hp,
 } from 'react-native-responsive-screen';
-import * as Animatable from 'react-native-animatable';
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import { useNavigation } from '@react-navigation/native';
@@ -42,11 +41,7 @@ const TransactionItem = ({ item, index }) => {
   const currencyConfig = currencyIcons[item.currency] || currencyIcons.spark;
 
   return (
-    <Animatable.View
-      animation="fadeInUp"
-      delay={index * 50}
-      style={styles.transactionItem}
-    >
+    <View style={styles.transactionItem}>
       <View style={[styles.transactionIcon, { backgroundColor: `${currencyConfig.color}22` }]}>
         <MaterialCommunityIcons
           name={currencyConfig.icon}
@@ -63,7 +58,7 @@ const TransactionItem = ({ item, index }) => {
       <Text style={[styles.transactionAmount, { color: isEarn ? '#10B981' : '#EF4444' }]}>
         {isEarn ? '+' : '-'}{item.amount}
       </Text>
-    </Animatable.View>
+    </View>
   );
 };
 
@@ -79,9 +74,7 @@ const LeaderboardItem = ({ item, index, isCurrentUser }) => {
   const rankStyle = getRankStyle(item.rank);
 
   return (
-    <Animatable.View
-      animation="fadeInRight"
-      delay={index * 30}
+    <View
       style={[
         styles.leaderboardItem,
         isCurrentUser && styles.leaderboardItemCurrent,
@@ -109,7 +102,7 @@ const LeaderboardItem = ({ item, index, isCurrentUser }) => {
         <MaterialCommunityIcons name="lightning-bolt" size={16} color="#FFD700" />
         <Text style={styles.leaderboardAmount}>{item.currency.toLocaleString()}</Text>
       </View>
-    </Animatable.View>
+    </View>
   );
 };
 
@@ -170,8 +163,12 @@ const ResonanceDashboardScreen = () => {
     }
   };
 
+  // UX-AUDIT 2026-05-19 (BROKEN-B6): Animatable.View wrap of this tab
+  // was stuck at opacity 0 on-device, leaving the screen with only
+  // header + (empty wallet space) + tab bar + (empty content space).
+  // Visible regression. Replaced with plain View.
   const renderOverviewTab = () => (
-    <Animatable.View animation="fadeIn" style={styles.tabContent}>
+    <View style={styles.tabContent}>
       {/* Level Progress Card */}
       <View style={styles.card}>
         <View style={styles.cardHeader}>
@@ -181,9 +178,7 @@ const ResonanceDashboardScreen = () => {
           </View>
         </View>
         <View style={styles.progressBar}>
-          <Animatable.View
-            animation="slideInLeft"
-            duration={800}
+          <View
             style={[styles.progressFill, { width: `${(userData.currentXP / userData.xpToNextLevel) * 100}%` }]}
           />
         </View>
@@ -223,7 +218,7 @@ const ResonanceDashboardScreen = () => {
         <MaterialCommunityIcons
           name={hasCheckedIn ? 'check-circle' : 'calendar-check'}
           size={24}
-          color={hasCheckedIn ? '#10B981' : '#121212'}
+          color={hasCheckedIn ? '#10B981' : '#000000'}
         />
         <Text style={[styles.checkinButtonText, hasCheckedIn && styles.checkinButtonTextDone]}>
           {hasCheckedIn ? 'Checked In Today!' : 'Daily Check-in (+50 Sparks)'}
@@ -257,7 +252,7 @@ const ResonanceDashboardScreen = () => {
           title="Regions"
         />
       </View>
-    </Animatable.View>
+    </View>
   );
 
   const renderHistoryTab = () => (
@@ -303,7 +298,7 @@ const ResonanceDashboardScreen = () => {
 
   return (
     <SafeAreaView style={styles.container}>
-      <StatusBar barStyle="light-content" backgroundColor="#121212" />
+      <StatusBar barStyle="light-content" backgroundColor="#000000" />
 
       {/* Header */}
       <View style={styles.header}>
@@ -322,8 +317,8 @@ const ResonanceDashboardScreen = () => {
           <RefreshControl
             refreshing={refreshing}
             onRefresh={onRefresh}
-            tintColor="#00e89d"
-            colors={['#00e89d']}
+            tintColor="#6C63FF"
+            colors={['#6C63FF']}
           />
         }
       >
@@ -333,16 +328,14 @@ const ResonanceDashboardScreen = () => {
             <SkeletonLoader variant="wallet" />
           </View>
         ) : (
-          <Animatable.View animation="fadeInUp" duration={600}>
-            <ResonanceWallet
-              balances={userData.balances}
-              level={userData.level}
-              currentXP={userData.currentXP}
-              xpToNextLevel={userData.xpToNextLevel}
-              onCurrencyPress={(id) => console.log('Currency pressed:', id)}
-              onLevelPress={() => navigation.navigate('Achievements')}
-            />
-          </Animatable.View>
+          <ResonanceWallet
+            balances={userData.balances}
+            level={userData.level}
+            currentXP={userData.currentXP}
+            xpToNextLevel={userData.xpToNextLevel}
+            onCurrencyPress={(id) => console.log('Currency pressed:', id)}
+            onLevelPress={() => navigation.navigate('Achievements')}
+          />
         )}
 
         {/* Tab Bar */}
@@ -370,7 +363,7 @@ const ResonanceDashboardScreen = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#121212',
+    backgroundColor: '#000000',
   },
   header: {
     flexDirection: 'row',
@@ -410,7 +403,7 @@ const styles = StyleSheet.create({
     borderBottomColor: 'transparent',
   },
   tabActive: {
-    borderBottomColor: '#00e89d',
+    borderBottomColor: '#6C63FF',
   },
   tabText: {
     color: '#888',
@@ -418,7 +411,7 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   tabTextActive: {
-    color: '#00e89d',
+    color: '#6C63FF',
   },
   tabContent: {
     paddingHorizontal: wp('4%'),
@@ -426,7 +419,7 @@ const styles = StyleSheet.create({
     paddingBottom: hp('10%'),
   },
   card: {
-    backgroundColor: '#1A1A1A',
+    backgroundColor: '#141225',
     borderRadius: 16,
     padding: wp('4%'),
     marginBottom: hp('1.5%'),
@@ -445,13 +438,13 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
   levelBadge: {
-    backgroundColor: '#00e89d',
+    backgroundColor: '#6C63FF',
     paddingHorizontal: wp('3%'),
     paddingVertical: hp('0.5%'),
     borderRadius: 12,
   },
   levelText: {
-    color: '#121212',
+    color: '#000000',
     fontSize: wp('3%'),
     fontWeight: '800',
   },
@@ -463,7 +456,7 @@ const styles = StyleSheet.create({
   },
   progressFill: {
     height: '100%',
-    backgroundColor: '#00e89d',
+    backgroundColor: '#6C63FF',
     borderRadius: 4,
   },
   progressText: {
@@ -515,18 +508,18 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#00e89d',
+    backgroundColor: '#6C63FF',
     paddingVertical: hp('1.8%'),
     borderRadius: 12,
     marginBottom: hp('2%'),
   },
   checkinButtonDisabled: {
-    backgroundColor: '#1A1A1A',
+    backgroundColor: '#141225',
     borderWidth: 1,
     borderColor: '#10B981',
   },
   checkinButtonText: {
-    color: '#121212',
+    color: '#000000',
     fontSize: wp('4%'),
     fontWeight: '700',
     marginLeft: 8,
@@ -540,7 +533,7 @@ const styles = StyleSheet.create({
   },
   statCard: {
     flex: 1,
-    backgroundColor: '#1A1A1A',
+    backgroundColor: '#141225',
     borderRadius: 12,
     padding: wp('3%'),
     alignItems: 'center',
@@ -564,7 +557,7 @@ const styles = StyleSheet.create({
   transactionItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#1A1A1A',
+    backgroundColor: '#141225',
     borderRadius: 12,
     padding: wp('3%'),
     marginBottom: hp('1%'),
@@ -603,15 +596,15 @@ const styles = StyleSheet.create({
   leaderboardItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#1A1A1A',
+    backgroundColor: '#141225',
     borderRadius: 12,
     padding: wp('3%'),
     marginBottom: hp('1%'),
   },
   leaderboardItemCurrent: {
     borderWidth: 1,
-    borderColor: '#00e89d44',
-    backgroundColor: '#00e89d11',
+    borderColor: '#6C63FF44',
+    backgroundColor: '#6C63FF11',
   },
   rankBadge: {
     width: 32,

@@ -47,7 +47,7 @@ const SequenceOrderTemplate = ({config, onAnswer, onComplete}) => {
   const [wrongAttemptsForSeq, setWrongAttemptsForSeq] = useState(0);
 
   // Animation refs
-  const containerAnim = useRef(new Animated.Value(0)).current;
+  const containerAnim = useRef(new Animated.Value(1)).current;
   const slotAnims = useRef([]);
   const itemShakeAnims = useRef({});
   const startTimeRef = useRef(Date.now());
@@ -80,15 +80,15 @@ const SequenceOrderTemplate = ({config, onAnswer, onComplete}) => {
       setWrongAttemptsForSeq(0);
 
       // Initialize slot animations
-      slotAnims.current = seq.items.map(() => new Animated.Value(0));
+      slotAnims.current = seq.items.map(() => new Animated.Value(1));
       // Initialize item shake animations
       itemShakeAnims.current = {};
       items.forEach(item => {
-        itemShakeAnims.current[item.id] = new Animated.Value(0);
+        itemShakeAnims.current[item.id] = new Animated.Value(1);
       });
 
       // Bounce in
-      containerAnim.setValue(0);
+      containerAnim.setValue(1);
       Animated.spring(containerAnim, {
         toValue: 1,
         ...SPRINGS.standard,
@@ -124,7 +124,7 @@ const SequenceOrderTemplate = ({config, onAnswer, onComplete}) => {
   const animateSlotFill = useCallback((slotIndex) => {
     const anim = slotAnims.current[slotIndex];
     if (anim) {
-      anim.setValue(0);
+      anim.setValue(1);
       Animated.spring(anim, {
         toValue: 1,
         ...SPRINGS.playful,
@@ -284,7 +284,7 @@ const SequenceOrderTemplate = ({config, onAnswer, onComplete}) => {
             {Array.from({length: totalSlots}, (_, slotIdx) => {
               const filled = slotIdx < placedOrder.length;
               const filledItem = filled ? placedOrder[slotIdx] : null;
-              const slotAnim = slotAnims.current[slotIdx] || new Animated.Value(0);
+              const slotAnim = slotAnims.current[slotIdx] || new Animated.Value(1);
               const slotScale = slotAnim.interpolate({
                 inputRange: [0, 1],
                 outputRange: [0.5, 1],
@@ -324,7 +324,7 @@ const SequenceOrderTemplate = ({config, onAnswer, onComplete}) => {
               const isPlaced = placedOrder.some(p => p.id === item.id);
               const isWrong = wrongTapItem === item.id;
               const isHinted = hintItemId === item.id;
-              const shake = itemShakeAnims.current[item.id] || new Animated.Value(0);
+              const shake = itemShakeAnims.current[item.id] || new Animated.Value(1);
               const color = kidsColors.palette[idx % kidsColors.palette.length];
 
               if (isPlaced) {

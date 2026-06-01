@@ -43,7 +43,7 @@ const ENCOURAGEMENTS = [
 
 // Individual balloon component
 const Balloon = ({letter, color, index, isPopped, totalBalloons}) => {
-  const bobAnim = useRef(new Animated.Value(0)).current;
+  const bobAnim = useRef(new Animated.Value(1)).current;
   const popScale = useRef(new Animated.Value(1)).current;
   const popOpacity = useRef(new Animated.Value(1)).current;
   const mountedRef = useRef(true);
@@ -118,7 +118,7 @@ const Balloon = ({letter, color, index, isPopped, totalBalloons}) => {
 };
 
 const BalloonPopTemplate = ({config, onComplete, onAnswer}) => {
-  const questions = config?.questions || [];
+  const questions = config?.content?.questions || config?.questions || [];
   const questionIndexRef = useRef(0);
   const [questionIndex, setQuestionIndex] = useState(0);
   const [poppedCount, setPoppedCount] = useState(0);
@@ -143,10 +143,10 @@ const BalloonPopTemplate = ({config, onComplete, onAnswer}) => {
   const letters = currentQuestion.word.toUpperCase().split('');
 
   // Celebration scale animation
-  const celebrationScale = useRef(new Animated.Value(0)).current;
+  const celebrationScale = useRef(new Animated.Value(1)).current;
 
   // Voice level bar animation
-  const voiceLevelAnim = useRef(new Animated.Value(0)).current;
+  const voiceLevelAnim = useRef(new Animated.Value(1)).current;
 
   useEffect(() => {
     Animated.timing(voiceLevelAnim, {

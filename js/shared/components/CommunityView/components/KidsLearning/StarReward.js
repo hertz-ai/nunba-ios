@@ -5,9 +5,9 @@ import {kidsColors} from '../../../../theme/kidsColors';
 import {SPRINGS} from './shared/gameThemes';
 
 const StarReward = ({visible, count = 1, onComplete}) => {
-  const scaleAnim = useRef(new Animated.Value(0)).current;
-  const translateY = useRef(new Animated.Value(0)).current;
-  const opacityAnim = useRef(new Animated.Value(0)).current;
+  const scaleAnim = useRef(new Animated.Value(1)).current;
+  const translateY = useRef(new Animated.Value(1)).current;
+  const opacityAnim = useRef(new Animated.Value(1)).current;
 
   useEffect(() => {
     if (visible) {

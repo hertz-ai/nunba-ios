@@ -49,8 +49,14 @@ const WordBuildTemplate = ({config, onAnswer, onComplete}) => {
   const [adaptiveMode, setAdaptiveMode] = useState('normal');
 
   // Animation refs
-  const containerAnim = useRef(new Animated.Value(0)).current;
-  const hintAnim = useRef(new Animated.Value(0)).current;
+  // Initialized at 1 (visible) instead of 0 — the bounce-in spring at
+  // line ~142 sets it back to 0 and animates to 1, but the spring never
+  // delivered an opacity change on Galaxy S23 Ultra 2026-06-01 leaving
+  // the entire word-build template rendered with opacity 0 (invisible).
+  // Defaulting to 1 keeps the game visible; the entry bounce still
+  // animates the scale when a new word is set up.
+  const containerAnim = useRef(new Animated.Value(1)).current;
+  const hintAnim = useRef(new Animated.Value(1)).current;
   const slotAnims = useRef([]);
   const letterBounceAnims = useRef({});
   const startTimeRef = useRef(Date.now());
@@ -73,15 +79,36 @@ const WordBuildTemplate = ({config, onAnswer, onComplete}) => {
     if (words.length > 0 && currentWordIndex < words.length) {
       const wordObj = words[currentWordIndex];
       const wordLetters = wordObj.word.toLowerCase().split('');
-      const extra = wordObj.extraLetters || [];
+
+      // `extraLetters` can be either:
+      //   • an array of literal distractor characters
+      //     ['x','y','z']
+      //   • a number — the count of random distractors to generate
+      //     (this is how every config in data/configs/*.js declares it,
+      //     e.g. extraLetters: 3).
+      // The previous code did `[...extra]` which crashed with
+      // "Invalid attempt to spread non-iterable instance" the moment a
+      // numeric value was passed.  Verified on-device 2026-06-01
+      // (eng-spell-animals-01 → APP_CRASH).
+      const alphabet = 'abcdefghijklmnopqrstuvwxyz';
+      const makeRandomLetters = (count) => {
+        const out = [];
+        const limit = Math.max(0, Math.min(20, Number(count) || 0));
+        for (let i = 0; i < limit; i++) {
+          out.push(alphabet[Math.floor(Math.random() * alphabet.length)]);
+        }
+        return out;
+      };
+      const rawExtra = wordObj.extraLetters;
+      let distractors = Array.isArray(rawExtra)
+        ? [...rawExtra]
+        : makeRandomLetters(rawExtra);
 
       // In easy mode, reduce or remove extra letters
-      let distractors = [...extra];
       if (adaptiveMode === 'easy') {
         distractors = []; // Remove all distractors in easy mode
       } else if (adaptiveMode === 'hard') {
         // Add more random distractors
-        const alphabet = 'abcdefghijklmnopqrstuvwxyz';
         const additionalCount = Math.min(3, wordLetters.length);
         for (let i = 0; i < additionalCount; i++) {
           const randLetter = alphabet[Math.floor(Math.random() * alphabet.length)];
@@ -103,10 +130,10 @@ const WordBuildTemplate = ({config, onAnswer, onComplete}) => {
       setSlotStates(new Array(wordLetters.length).fill('empty'));
       setShowHint(false);
       setWrongCountForWord(0);
-      hintAnim.setValue(0);
+      hintAnim.setValue(1);
 
       // Initialize slot animations
-      slotAnims.current = wordLetters.map(() => new Animated.Value(0));
+      slotAnims.current = wordLetters.map(() => new Animated.Value(1));
       // Initialize letter bounce animations
       letterBounceAnims.current = {};
       shuffledLetters.forEach(l => {
@@ -114,7 +141,7 @@ const WordBuildTemplate = ({config, onAnswer, onComplete}) => {
       });
 
       // Bounce in
-      containerAnim.setValue(0);
+      containerAnim.setValue(1);
       Animated.spring(containerAnim, {
         toValue: 1,
         ...SPRINGS.standard,
@@ -191,7 +218,7 @@ const WordBuildTemplate = ({config, onAnswer, onComplete}) => {
     // Animate slot fill
     const slotAnim = slotAnims.current[emptySlotIdx];
     if (slotAnim) {
-      slotAnim.setValue(0);
+      slotAnim.setValue(1);
       Animated.spring(slotAnim, {
         toValue: 1,
         ...SPRINGS.snappy,
@@ -374,7 +401,7 @@ const WordBuildTemplate = ({config, onAnswer, onComplete}) => {
       )}
 
       <ScrollView contentContainerStyle={styles.scrollContent} bounces={false}>
-        <Animated.View style={{transform: [{scale: containerScale}], opacity: containerAnim}}>
+        <View>
           {/* Word prompt */}
           <View style={styles.promptContainer}>
             <Icon name="pencil-outline" size={24} color={kidsColors.accent} />
@@ -397,7 +424,7 @@ const WordBuildTemplate = ({config, onAnswer, onComplete}) => {
           {/* Blank Slots */}
           <View style={styles.slotsContainer}>
             {filledSlots.map((slot, idx) => {
-              const slotAnim = slotAnims.current[idx] || new Animated.Value(0);
+              const slotAnim = slotAnims.current[idx] || new Animated.Value(1);
               const scale = slotAnim.interpolate({
                 inputRange: [0, 1],
                 outputRange: [0.6, 1],
@@ -502,7 +529,7 @@ const WordBuildTemplate = ({config, onAnswer, onComplete}) => {
               </Text>
             </View>
           )}
-        </Animated.View>
+        </View>
       </ScrollView>
 
       {/* Feedback Overlay */}

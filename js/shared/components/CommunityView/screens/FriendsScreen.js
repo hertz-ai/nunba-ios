@@ -222,7 +222,7 @@ const FriendsScreen = () => {
               onPress={() => handleMessage(other.id)}
               disabled={busyId === other.id}
             >
-              <Ionicons name="chatbubble-outline" size={16} color="#121212" />
+              <Ionicons name="chatbubble-outline" size={16} color="#000000" />
               <Text style={styles.primaryBtnText}>Message</Text>
             </TouchableOpacity>
             <TouchableOpacity
@@ -268,7 +268,7 @@ const FriendsScreen = () => {
                 onPress={() => handleAccept(item.id)}
                 disabled={busyId === item.id}
               >
-                <Ionicons name="checkmark" size={16} color="#121212" />
+                <Ionicons name="checkmark" size={16} color="#000000" />
                 <Text style={styles.primaryBtnText}>Accept</Text>
               </TouchableOpacity>
               <TouchableOpacity
@@ -357,7 +357,7 @@ const FriendsScreen = () => {
 
   return (
     <SafeAreaView style={styles.container}>
-      <StatusBar barStyle="light-content" backgroundColor="#121212" />
+      <StatusBar barStyle="light-content" backgroundColor="#000000" />
 
       <View style={styles.header}>
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
@@ -379,7 +379,7 @@ const FriendsScreen = () => {
             <MaterialCommunityIcons
               name={t.icon}
               size={16}
-              color={activeTab === t.key ? '#121212' : '#888'}
+              color={activeTab === t.key ? '#000000' : '#888'}
             />
             <Text style={[styles.tabText, activeTab === t.key && styles.tabTextActive]}>
               {t.label}
@@ -397,7 +397,7 @@ const FriendsScreen = () => {
 
       {loading ? (
         <View style={styles.centerContainer}>
-          <ActivityIndicator size="large" color="#00e89d" />
+          <ActivityIndicator size="large" color="#6C63FF" />
         </View>
       ) : (
         <FlatList
@@ -426,7 +426,7 @@ const FriendsScreen = () => {
             <RefreshControl
               refreshing={refreshing}
               onRefresh={onRefresh}
-              tintColor="#00e89d"
+              tintColor="#6C63FF"
             />
           }
         />
@@ -436,7 +436,7 @@ const FriendsScreen = () => {
 };
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#121212' },
+  container: { flex: 1, backgroundColor: '#000000' },
 
   header: {
     flexDirection: 'row', alignItems: 'center',
@@ -453,7 +453,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     marginHorizontal: wp('4%'),
     marginBottom: hp('1.5%'),
-    backgroundColor: '#1A1A1A',
+    backgroundColor: '#141225',
     borderRadius: 12,
     padding: 4,
     borderWidth: 1,
@@ -468,9 +468,9 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     gap: 6,
   },
-  tabActive: { backgroundColor: '#00e89d' },
+  tabActive: { backgroundColor: '#6C63FF' },
   tabText: { color: '#888', fontSize: wp('3.2%'), fontWeight: '600' },
-  tabTextActive: { color: '#121212', fontWeight: '700' },
+  tabTextActive: { color: '#000000', fontWeight: '700' },
   badge: {
     backgroundColor: '#2A2A2A',
     borderRadius: 10,
@@ -478,14 +478,14 @@ const styles = StyleSheet.create({
     paddingVertical: 1,
     marginLeft: 4,
   },
-  badgeActive: { backgroundColor: '#121212' },
+  badgeActive: { backgroundColor: '#000000' },
   badgeText: { color: '#888', fontSize: wp('2.6%'), fontWeight: '700' },
-  badgeTextActive: { color: '#00e89d' },
+  badgeTextActive: { color: '#6C63FF' },
 
   listContent: { paddingHorizontal: wp('4%'), paddingBottom: hp('10%') },
 
   card: {
-    backgroundColor: '#1A1A1A',
+    backgroundColor: '#141225',
     borderRadius: 12,
     padding: wp('4%'),
     marginBottom: hp('1%'),
@@ -495,10 +495,10 @@ const styles = StyleSheet.create({
   row: { flexDirection: 'row', alignItems: 'center' },
   avatar: {
     width: 44, height: 44, borderRadius: 22,
-    backgroundColor: '#00e89d22',
+    backgroundColor: '#6C63FF22',
     justifyContent: 'center', alignItems: 'center',
   },
-  avatarText: { color: '#00e89d', fontSize: wp('3.6%'), fontWeight: '700' },
+  avatarText: { color: '#6C63FF', fontSize: wp('3.6%'), fontWeight: '700' },
   name: { color: '#FFF', fontSize: wp('3.8%'), fontWeight: '700' },
   handle: { color: '#888', fontSize: wp('3%'), marginTop: 2 },
   reason: { color: '#666', fontSize: wp('2.8%'), marginTop: 4, fontStyle: 'italic' },
@@ -512,13 +512,13 @@ const styles = StyleSheet.create({
   primaryBtn: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#00e89d',
+    backgroundColor: '#6C63FF',
     paddingHorizontal: wp('4%'),
     paddingVertical: hp('0.8%'),
     borderRadius: 20,
     gap: 4,
   },
-  primaryBtnText: { color: '#121212', fontWeight: '700', fontSize: wp('3%') },
+  primaryBtnText: { color: '#000000', fontWeight: '700', fontSize: wp('3%') },
   ghostBtn: {
     paddingHorizontal: wp('4%'),
     paddingVertical: hp('0.8%'),

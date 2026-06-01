@@ -23,10 +23,11 @@ import {
   heightPercentageToDP as hp,
 } from 'react-native-responsive-screen';
 import { colors, borderRadius, shadows, fontSize, fontWeight, spacing } from '../../../theme/colors';
-import { postsApi, feedApi, shareApi } from '../../../services/socialApi';
+import { postsApi, feedApi, shareApi, reactionsApi } from '../../../services/socialApi';
 import MentionInput from '../../shared/MentionInput';
 import ReactionsStrip from '../../shared/ReactionsStrip';
 import NewItemsPill from '../../shared/NewItemsPill';
+import { parseMentionPills } from '../../shared/mentionPills';
 
 const PostDetailScreen = () => {
   const navigation = useNavigation();
@@ -103,6 +104,34 @@ const PostDetailScreen = () => {
   useEffect(() => {
     fetchComments();
   }, [fetchComments]);
+
+  // Reactions wiring — `reactionsApi.forPost` returns
+  // [{emoji, count, users:[first 5], me_reacted}]; normalize to the
+  // ReactionsStrip prop shape {emoji, count, mine}.  Server-flag
+  // gated; an empty array (flag off OR no reactions yet) yields the
+  // strip's empty-state ("+" picker only) which is the same render
+  // path as a brand-new post.
+  const fetchReactions = useCallback(async () => {
+    const id = postId || post?.id;
+    if (!id) return;
+    try {
+      const res = await reactionsApi.forPost(id);
+      const list = Array.isArray(res?.data) ? res.data
+        : Array.isArray(res) ? res
+        : [];
+      setReactions(list.map((r) => ({
+        emoji: r.emoji,
+        count: r.count || 0,
+        mine: !!(r.me_reacted ?? r.mine),
+      })));
+    } catch (err) {
+      console.warn('Reactions fetch failed:', err);
+    }
+  }, [postId, post?.id]);
+
+  useEffect(() => {
+    fetchReactions();
+  }, [fetchReactions]);
 
   // Voting
   const handleVote = async (direction) => {
@@ -307,11 +336,19 @@ const PostDetailScreen = () => {
             via optimistic + server-side reaction_service. */}
         <ReactionsStrip
           reactions={reactions}
-          onToggle={(emoji) => {
-            // Server-side reactionsApi.toggle(post.id, emoji) lands as
-            // a follow-on; this scaffold returns a resolved Promise so
-            // the optimistic UI flip stands.
-            return Promise.resolve();
+          onToggle={async (emoji) => {
+            const id = postId || post?.id;
+            if (!id) return;
+            // togglePost is server-side toggle (same emoji+user adds first
+            // call, removes second).  ReactionsStrip already did the
+            // optimistic flip; we just persist + reconcile.
+            try {
+              await reactionsApi.togglePost(id, emoji);
+              fetchReactions();
+            } catch (err) {
+              console.warn('Reaction toggle failed:', err);
+              throw err; // let ReactionsStrip rollback
+            }
           }}
         />
 
@@ -326,36 +363,61 @@ const PostDetailScreen = () => {
           ) : comments.length === 0 ? (
             <Text style={s.emptyText}>No comments yet. Be the first!</Text>
           ) : (
-            comments.map((comment, idx) => (
-              <View key={comment.id || comment.comment_id || idx} style={s.commentCard}>
-                <Avatar
-                  size={32}
-                  rounded
-                  source={comment.author_avatar ? { uri: comment.author_avatar } : require('../../../images/user1.png')}
-                />
-                <View style={s.commentBody}>
-                  <View style={s.commentHeader}>
-                    <Text style={s.commentAuthor}>
-                      {comment.author_name || comment.name || 'User'}
+            // UX-AUDIT 2026-05-20 REDESIGN-R5: Part D.2 wireframe deltas:
+            //   1. Depth-based paddingLeft (capped at 8 levels × 12 px).
+            //   2. Inline mention pills via parseMentionPills — agent
+            //      mentions get the purple AGENT_COLOR, humans green.
+            //   3. Agent badge on comments whose author is an agent
+            //      (`is_agent` or `agent_kind === 'agent'`).
+            comments.map((comment, idx) => {
+              const depth = Math.min(comment.depth || 0, 8);
+              const isAgent =
+                comment.is_agent === true ||
+                comment.agent_kind === 'agent' ||
+                comment.author_kind === 'agent';
+              const authorLabel = comment.author_name || comment.name || 'User';
+              return (
+                <View
+                  key={comment.id || comment.comment_id || idx}
+                  style={[s.commentCard, { paddingLeft: depth * 12 + 12 }]}
+                >
+                  <Avatar
+                    size={32}
+                    rounded
+                    source={comment.author_avatar ? { uri: comment.author_avatar } : require('../../../images/user1.png')}
+                  />
+                  <View style={s.commentBody}>
+                    <View style={s.commentHeader}>
+                      <Text style={s.commentAuthor}>
+                        {authorLabel}
+                      </Text>
+                      {isAgent ? (
+                        <View style={s.agentBadge}>
+                          <Text style={s.agentBadgeText}>AGENT</Text>
+                        </View>
+                      ) : null}
+                      <Text style={s.commentTime}>
+                        {formatTime(comment.created_at || comment.creation_date)}
+                      </Text>
+                    </View>
+                    <Text style={s.commentText}>
+                      {parseMentionPills(
+                        comment.content || comment.comment || comment.text || '',
+                        { mentions: comment.mentions },
+                      )}
                     </Text>
-                    <Text style={s.commentTime}>
-                      {formatTime(comment.created_at || comment.creation_date)}
-                    </Text>
+                    <TouchableOpacity
+                      onPress={() => {
+                        setReplyTo(comment);
+                        setNewComment(`@${authorLabel} `);
+                      }}
+                    >
+                      <Text style={s.replyBtn}>Reply</Text>
+                    </TouchableOpacity>
                   </View>
-                  <Text style={s.commentText}>
-                    {comment.content || comment.comment || comment.text || ''}
-                  </Text>
-                  <TouchableOpacity
-                    onPress={() => {
-                      setReplyTo(comment);
-                      setNewComment(`@${comment.author_name || comment.name || 'User'} `);
-                    }}
-                  >
-                    <Text style={s.replyBtn}>Reply</Text>
-                  </TouchableOpacity>
                 </View>
-              </View>
-            ))
+              );
+            })
           )}
         </View>
       </ScrollView>
@@ -535,6 +597,21 @@ const s = StyleSheet.create({
     fontSize: fontSize.sm,
     fontWeight: fontWeight.semibold,
     color: colors.textPrimary,
+  },
+  // REDESIGN-R5 — purple agent badge next to comment author when the
+  // comment author is an autogen / HevolveAI agent.
+  agentBadge: {
+    marginLeft: 6,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 6,
+    backgroundColor: 'rgba(167, 139, 250, 0.18)',
+  },
+  agentBadgeText: {
+    color: '#a78bfa',
+    fontSize: 10,
+    fontWeight: '700',
+    letterSpacing: 0.5,
   },
   commentTime: {
     fontSize: fontSize.xs,

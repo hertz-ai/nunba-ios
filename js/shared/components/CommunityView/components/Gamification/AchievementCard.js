@@ -211,7 +211,7 @@ const AchievementCard = ({
 const styles = StyleSheet.create({
   container: {
     flexDirection: 'row',
-    backgroundColor: '#1A1A1A',
+    backgroundColor: '#141225',
     borderRadius: 16,
     padding: wp('4%'),
     marginVertical: hp('0.5%'),
@@ -240,7 +240,7 @@ const styles = StyleSheet.create({
     position: 'absolute',
     bottom: -2,
     right: -2,
-    backgroundColor: '#121212',
+    backgroundColor: '#000000',
     borderRadius: wp('2%'),
   },
   content: {

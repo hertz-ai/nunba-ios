@@ -63,7 +63,7 @@ const CodingAgentScreen = () => {
   };
 
   const getStatusColor = (status) => {
-    const colors = { active: '#00e89d', completed: '#0078ff', paused: '#FFD700' };
+    const colors = { active: '#6C63FF', completed: '#0078ff', paused: '#FFD700' };
     return colors[status] || '#888';
   };
 
@@ -99,8 +99,8 @@ const CodingAgentScreen = () => {
           <Switch
             value={optedIn}
             onValueChange={handleOptInToggle}
-            trackColor={{ false: '#3A3A4E', true: '#00e89d44' }}
-            thumbColor={optedIn ? '#00e89d' : '#888'}
+            trackColor={{ false: '#3A3A4E', true: '#6C63FF44' }}
+            thumbColor={optedIn ? '#6C63FF' : '#888'}
           />
         </View>
       </View>
@@ -111,7 +111,7 @@ const CodingAgentScreen = () => {
 
   return (
     <SafeAreaView style={styles.container}>
-      <StatusBar barStyle="light-content" backgroundColor="#121212" />
+      <StatusBar barStyle="light-content" backgroundColor="#000000" />
 
       <View style={styles.header}>
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
@@ -123,7 +123,7 @@ const CodingAgentScreen = () => {
 
       {loading ? (
         <View style={styles.centerContainer}>
-          <ActivityIndicator size="large" color="#00e89d" />
+          <ActivityIndicator size="large" color="#6C63FF" />
         </View>
       ) : (
         <FlatList
@@ -140,7 +140,7 @@ const CodingAgentScreen = () => {
           contentContainerStyle={styles.listContent}
           showsVerticalScrollIndicator={false}
           refreshControl={
-            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#00e89d" />
+            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#6C63FF" />
           }
         />
       )}
@@ -149,7 +149,7 @@ const CodingAgentScreen = () => {
 };
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#121212' },
+  container: { flex: 1, backgroundColor: '#000000' },
   header: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: wp('4%'), paddingVertical: hp('1.5%') },
   backButton: { padding: 4 },
   headerTitle: { flex: 1, color: '#FFF', fontSize: wp('5%'), fontWeight: '700', textAlign: 'center' },
@@ -158,7 +158,7 @@ const styles = StyleSheet.create({
   emptyText: { color: '#888', fontSize: wp('3.5%'), marginTop: hp('2%') },
   listContent: { paddingHorizontal: wp('4%'), paddingBottom: hp('10%') },
   optInCard: {
-    backgroundColor: '#1A1A1A', borderRadius: 12, padding: wp('4%'),
+    backgroundColor: '#141225', borderRadius: 12, padding: wp('4%'),
     marginBottom: hp('2%'), borderWidth: 1, borderColor: '#2A2A2A',
   },
   optInRow: { flexDirection: 'row', alignItems: 'center' },
@@ -166,7 +166,7 @@ const styles = StyleSheet.create({
   optInDesc: { color: '#888', fontSize: wp('3%') },
   sectionTitle: { color: '#FFF', fontSize: wp('4%'), fontWeight: '700', marginBottom: hp('1%') },
   card: {
-    backgroundColor: '#1A1A1A', borderRadius: 12, padding: wp('4%'),
+    backgroundColor: '#141225', borderRadius: 12, padding: wp('4%'),
     marginBottom: hp('1%'), borderWidth: 1, borderColor: '#2A2A2A',
   },
   cardHeader: { flexDirection: 'row', alignItems: 'center', gap: 12 },

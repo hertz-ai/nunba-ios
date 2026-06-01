@@ -3,11 +3,20 @@ import {
   View, Text, TouchableOpacity, StyleSheet, SafeAreaView, StatusBar, ScrollView,
 } from 'react-native';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
-import * as Animatable from 'react-native-animatable';
 import { useNavigation } from '@react-navigation/native';
 import { CommonActions } from '@react-navigation/native';
 import ICON_MAP from '../../../utils/iconMap';
 import { colors, borderRadius, spacing, fontSize, fontWeight } from '../../../theme/colors';
+
+// UX-AUDIT 2026-05-19 (BROKEN-B3): every feature cell was wrapped in
+// <Animatable.View animation="fadeInUp">. On-device, the animation
+// never completed (opacity stuck at 0), so the entire grid was
+// invisible behind the "All Features" header. Removed the Animatable
+// wrapper for primary content; visibility is no longer gated on a
+// third-party animation library. (StoryCard B1 had the same family of
+// regression.) Polish-style entrance animation can be reintroduced
+// via Reanimated entering="FadeInUp" once primary visibility is
+// solid.
 
 const ALL_FEATURES = [
   { icon: 'search', iconType: 'ion', label: 'Search', color: '#CCCCCC', screen: 'Search' },
@@ -16,7 +25,7 @@ const ALL_FEATURES = [
   { icon: 'trophy', iconType: 'ion', label: 'Achievements', color: '#F59E0B', screen: 'Achievements' },
   { icon: 'flag', iconType: 'community', label: 'Challenges', color: '#EF4444', screen: 'Challenges' },
   { icon: 'earth', iconType: 'community', label: 'Regions', color: '#3B82F6', screen: 'Regions' },
-  { icon: 'explore', iconType: 'material', label: 'Encounters', color: '#00e89d', screen: 'Encounters' },
+  { icon: 'explore', iconType: 'material', label: 'Encounters', color: '#6C63FF', screen: 'Encounters' },
   { icon: 'flask', iconType: 'community', label: 'Thought Exp.', color: '#7C4DFF', screen: 'ExperimentDiscovery' },
   { icon: 'rocket-launch', iconType: 'community', label: 'Campaigns', color: '#8B5CF6', screen: 'Campaigns' },
   { icon: 'account-group', iconType: 'community', label: 'Communities', color: '#06B6D4', screen: 'Communities' },
@@ -47,25 +56,24 @@ const AllFeaturesScreen = () => {
         <View style={{ width: 40 }} />
       </View>
       <ScrollView contentContainerStyle={styles.grid}>
-        {ALL_FEATURES.map((item, index) => {
+        {ALL_FEATURES.map((item) => {
           const Icon = ICON_MAP[item.iconType] || MaterialIcons;
           return (
-            <Animatable.View key={item.screen} animation="fadeInUp" delay={index * 40}>
-              <TouchableOpacity
-                style={styles.featureCard}
-                activeOpacity={0.7}
-                onPress={() => {
-                  navigation.dispatch(
-                    CommonActions.navigate({ name: item.screen })
-                  );
-                }}
-              >
-                <View style={[styles.featureIcon, { backgroundColor: item.color + '22' }]}>
-                  <Icon name={item.icon} size={24} color={item.color} />
-                </View>
-                <Text style={styles.featureLabel}>{item.label}</Text>
-              </TouchableOpacity>
-            </Animatable.View>
+            <TouchableOpacity
+              key={item.screen}
+              style={styles.featureCard}
+              activeOpacity={0.7}
+              onPress={() => {
+                navigation.dispatch(
+                  CommonActions.navigate({ name: item.screen })
+                );
+              }}
+            >
+              <View style={[styles.featureIcon, { backgroundColor: item.color + '22' }]}>
+                <Icon name={item.icon} size={24} color={item.color} />
+              </View>
+              <Text style={styles.featureLabel}>{item.label}</Text>
+            </TouchableOpacity>
           );
         })}
       </ScrollView>

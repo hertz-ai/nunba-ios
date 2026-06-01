@@ -160,7 +160,7 @@ function buildGameHTML(sceneId, config) {
       parent: 'game-container',
       width: window.innerWidth,
       height: window.innerHeight,
-      backgroundColor: '#0F0E17',
+      backgroundColor: '#000000',
       physics: { default: 'arcade', arcade: { gravity: { y: 0 }, debug: false } },
       scene: [GameScene],
       scale: { mode: Phaser.Scale.RESIZE, autoCenter: Phaser.Scale.CENTER_BOTH }
@@ -506,7 +506,7 @@ class GameScene extends Phaser.Scene {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#0F0E17',
+    backgroundColor: '#000000',
   },
   webview: {
     flex: 1,
@@ -517,7 +517,7 @@ const styles = StyleSheet.create({
     top: 0, left: 0, right: 0, bottom: 0,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#0F0E17',
+    backgroundColor: '#000000',
   },
   loadingText: {
     color: colors.textSecondary,

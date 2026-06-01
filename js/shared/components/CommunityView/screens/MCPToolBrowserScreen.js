@@ -42,7 +42,7 @@ import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 import { mcpApi } from '../../../services/socialApi';
 
 const ACCENT = '#6C63FF';
-const ACCENT_GREEN = '#00e89d';
+const ACCENT_GREEN = '#6C63FF';
 const MUTED = '#888';
 
 const unwrap = (res) => {
@@ -300,7 +300,7 @@ const MCPToolBrowserScreen = () => {
 };
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#1a1a2e' },
+  container: { flex: 1, backgroundColor: '#000000' },
   content: { padding: wp('4%') },
   heading: {
     color: '#FFF',

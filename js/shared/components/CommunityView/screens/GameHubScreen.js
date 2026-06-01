@@ -14,7 +14,6 @@ import {
 } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import Ionicons from 'react-native-vector-icons/Ionicons';
-import * as Animatable from 'react-native-animatable';
 import { useNavigation } from '@react-navigation/native';
 
 import { gamesApi } from '../../../services/socialApi';
@@ -39,17 +38,37 @@ const QUICK_MATCH_CATEGORIES = [
   { key: 'word', emoji: '\uD83D\uDCDD', label: 'Word', color: '#FFAB00' },
 ];
 
+// Tabs map to the actual `config.category` values used by the 105 game
+// configs in data/configs/*.js (english / math / lifeSkills / science /
+// creativity).  The previous taxonomy (trivia / board / arcade / word /
+// puzzle / party) didn't match any config so every tab except All
+// rendered an empty list.  Verified on-device 2026-06-01.
+//
+// Tab keys MUST equal the `config.category` string exactly \u2014 the filter
+// at applyFilters uses `g.category === tab`.  Using "life" or "creative"
+// as the key never matched "lifeSkills" / "creativity" so those tabs
+// printed "No games found" on a fresh install.  Bug surfaced live
+// 2026-06-01: voice games in life-skills + creativity never showed up
+// in their category chips.
 const CATEGORY_TABS = [
   { key: 'all', label: 'All' },
-  { key: 'trivia', label: 'Trivia' },
-  { key: 'board', label: 'Board' },
-  { key: 'arcade', label: 'Arcade' },
-  { key: 'word', label: 'Word' },
-  { key: 'puzzle', label: 'Puzzle' },
-  { key: 'party', label: 'Party' },
+  { key: 'english', label: 'English' },
+  { key: 'math', label: 'Math' },
+  { key: 'lifeSkills', label: 'Life Skills' },
+  { key: 'science', label: 'Science' },
+  { key: 'creativity', label: 'Creative' },
 ];
 
 const CATEGORY_COLORS = {
+  english: '#6C63FF',
+  math: '#FF6B6B',
+  lifeSkills: '#2ECC71',
+  science: '#00B8D9',
+  creativity: '#FFAB00',
+  // legacy fallbacks kept so older surfaces that still pass these keys
+  // render something sane instead of blank.
+  life: '#2ECC71',
+  creative: '#FFAB00',
   trivia: '#6C63FF',
   board: '#FF6B6B',
   arcade: '#2ECC71',
@@ -59,6 +78,15 @@ const CATEGORY_COLORS = {
 };
 
 const CATEGORY_EMOJIS = {
+  english: '\uD83D\uDCDA',  // books
+  math: '\uD83D\uDD22',     // numbers
+  lifeSkills: '\uD83C\uDFE0',     // house
+  science: '\uD83D\uDD2C',  // microscope
+  creativity: '\uD83C\uDFA8', // palette
+  // legacy fallbacks kept for old call-sites
+  life: '\uD83C\uDFE0',
+  creative: '\uD83C\uDFA8',
+  // legacy fallbacks
   trivia: '\uD83E\uDDE0',
   board: '\u265F\uFE0F',
   arcade: '\uD83D\uDD79\uFE0F',
@@ -121,7 +149,11 @@ const GameHubScreen = () => {
 
     const filtered = applyFilters(merged);
     setGames(filtered);
-    if (!search.trim() && tab === 'all') setFeaturedGames(filtered.slice(0, 5));
+    // Featured row reflects whatever the user is currently filtered to —
+    // previously the row was only updated on the All tab and stayed
+    // stale (showing English games even on Life Skills / Science /
+    // Creative).  Now always update with the first 5 filtered games.
+    if (!search.trim()) setFeaturedGames(filtered.slice(0, 5));
   }, [tab, search, applyFilters]);
 
   const fetchLobbies = useCallback(async () => {
@@ -177,7 +209,21 @@ const GameHubScreen = () => {
 
   const handleGamePress = useCallback(
     (game) => {
-      navigation.navigate('GameScreen', { gameId: game.id });
+      // Kids learning configs declare a `template` (e.g. 'word-build')
+      // and go through KidsGameScreen + DynamicTemplateEngine.  Multiplayer /
+      // trivia / phaser games declare an `engine` and go through GameScreen.
+      // Without this split, kids configs hit GameScreen's default branch
+      // and render "<engine> coming soon", which is the live bug the user
+      // hit when tapping a kids game tile.
+      if (game.template) {
+        // KidsGameScreen reads `route.params.gameConfig` (NOT `config`) —
+        // see KidsGameScreen.js:42.  Name mismatch crashes the screen
+        // with "Cannot read property 'template' of undefined", verified
+        // 2026-05-28 on-device.
+        navigation.navigate('KidsGame', { gameId: game.id, gameConfig: game });
+      } else {
+        navigation.navigate('GameScreen', { gameId: game.id });
+      }
     },
     [navigation],
   );
@@ -196,8 +242,14 @@ const GameHubScreen = () => {
 
   // ---- Renderers ----
 
+  // UX-AUDIT 2026-05-19 (BROKEN-B2): every primary-content section
+  // below was wrapped in <Animatable.View>. On-device the animation
+  // never completed, so Quick Match, search bar, featured carousel,
+  // and the game grid were all invisible — only the plain category
+  // tab row and "All Games" text were left rendering. Removed
+  // Animatable.View as a visibility gate; plain View now used.
   const renderQuickMatchRow = () => (
-    <Animatable.View animation="fadeInDown" delay={100}>
+    <View>
       <Text style={styles.sectionTitle}>Quick Match</Text>
       <ScrollView
         horizontal
@@ -218,11 +270,11 @@ const GameHubScreen = () => {
           </TouchableOpacity>
         ))}
       </ScrollView>
-    </Animatable.View>
+    </View>
   );
 
   const renderSearchBar = () => (
-    <Animatable.View animation="fadeInUp" delay={150} style={styles.searchContainer}>
+    <View style={styles.searchContainer}>
       <Icon name="magnify" size={20} color={colors.textMuted} style={styles.searchIcon} />
       <TextInput
         style={styles.searchInput}
@@ -238,7 +290,7 @@ const GameHubScreen = () => {
           <Icon name="close-circle" size={18} color={colors.textMuted} />
         </TouchableOpacity>
       )}
-    </Animatable.View>
+    </View>
   );
 
   const renderCategoryTabs = () => (
@@ -304,7 +356,7 @@ const GameHubScreen = () => {
   const renderFeaturedSection = () => {
     if (featuredGames.length === 0) return null;
     return (
-      <Animatable.View animation="fadeInUp" delay={200}>
+      <View>
         <Text style={styles.sectionTitle}>Featured</Text>
         <FlatList
           data={featuredGames}
@@ -314,19 +366,15 @@ const GameHubScreen = () => {
           renderItem={renderFeaturedCard}
           contentContainerStyle={styles.featuredList}
         />
-      </Animatable.View>
+      </View>
     );
   };
 
-  const renderGameCard = ({ item, index }) => {
+  const renderGameCard = ({ item }) => {
     const catColor = CATEGORY_COLORS[item.category] || colors.accent;
     const isSolo = item.min_players === 1 && item.max_players === 1;
     return (
-      <Animatable.View
-        animation="fadeInUp"
-        delay={index * 60}
-        style={styles.gameCardWrapper}
-      >
+      <View style={styles.gameCardWrapper}>
         <TouchableOpacity
           style={[styles.gameCard, { borderColor: catColor + '33' }]}
           onPress={() => handleGamePress(item)}
@@ -353,7 +401,7 @@ const GameHubScreen = () => {
             )}
           </View>
         </TouchableOpacity>
-      </Animatable.View>
+      </View>
     );
   };
 
@@ -414,7 +462,7 @@ const GameHubScreen = () => {
   const renderLobbiesSection = () => {
     if (lobbies.length === 0) return null;
     return (
-      <Animatable.View animation="fadeInUp" delay={300}>
+      <View>
         <View style={styles.sectionHeader}>
           <Text style={styles.sectionTitle}>Open Lobbies</Text>
           <View style={styles.liveBadge}>
@@ -423,7 +471,7 @@ const GameHubScreen = () => {
           </View>
         </View>
         {lobbies.map(renderLobbyItem)}
-      </Animatable.View>
+      </View>
     );
   };
 

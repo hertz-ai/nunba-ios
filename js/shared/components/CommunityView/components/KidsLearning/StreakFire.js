@@ -5,8 +5,8 @@ import {kidsColors, kidsFontSize, kidsFontWeight} from '../../../../theme/kidsCo
 import {SPRINGS} from './shared/gameThemes';
 
 const StreakFire = ({streak, visible}) => {
-  const scaleAnim = useRef(new Animated.Value(0)).current;
-  const bounceAnim = useRef(new Animated.Value(0)).current;
+  const scaleAnim = useRef(new Animated.Value(1)).current;
+  const bounceAnim = useRef(new Animated.Value(1)).current;
 
   useEffect(() => {
     if (visible && streak >= 3) {

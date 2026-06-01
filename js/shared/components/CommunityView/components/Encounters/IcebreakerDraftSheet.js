@@ -64,7 +64,7 @@ import {
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 import { bleEncounterApi } from '../../../../services/socialApi';
 
-const ACCENT = '#00e89d';
+const ACCENT = '#6C63FF';
 const ERR = '#ff6b6b';
 const WARN = '#f5a623';
 
@@ -468,7 +468,7 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-end',
   },
   sheet: {
-    backgroundColor: '#1a1a2e',
+    backgroundColor: '#000000',
     borderTopLeftRadius: 16,
     borderTopRightRadius: 16,
     paddingHorizontal: wp('5%'),
@@ -568,7 +568,7 @@ const styles = StyleSheet.create({
   },
   primaryButton: { backgroundColor: ACCENT },
   primaryButtonDisabled: { backgroundColor: '#3a3a4e' },
-  primaryButtonText: { color: '#1a1a2e', fontWeight: '700', fontSize: wp('3.4%') },
+  primaryButtonText: { color: '#000000', fontWeight: '700', fontSize: wp('3.4%') },
   secondaryButton: {
     backgroundColor: 'transparent',
     borderWidth: 1,

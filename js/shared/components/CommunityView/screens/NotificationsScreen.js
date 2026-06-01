@@ -23,7 +23,7 @@ import { flatListVirtualizationProps } from '../../shared/listPerf';
 const NOTIFICATION_ROW_HEIGHT = 65;
 
 const ICON_MAP = {
-  upvote: { name: 'arrow-up-bold', color: '#00e89d' },
+  upvote: { name: 'arrow-up-bold', color: '#6C63FF' },
   comment: { name: 'comment-text', color: '#0078ff' },
   follow: { name: 'account-plus', color: '#9D4EDD' },
   mention: { name: 'at', color: '#FF6B35' },
@@ -109,7 +109,7 @@ const NotificationsScreen = () => {
 
   return (
     <SafeAreaView style={styles.container}>
-      <StatusBar barStyle="light-content" backgroundColor="#121212" />
+      <StatusBar barStyle="light-content" backgroundColor="#000000" />
 
       <View style={styles.header}>
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
@@ -117,13 +117,13 @@ const NotificationsScreen = () => {
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Notifications</Text>
         <TouchableOpacity onPress={handleMarkAllRead}>
-          <Ionicons name="checkmark-done" size={24} color="#00e89d" />
+          <Ionicons name="checkmark-done" size={24} color="#6C63FF" />
         </TouchableOpacity>
       </View>
 
       {loading ? (
         <View style={styles.centerContainer}>
-          <ActivityIndicator size="large" color="#00e89d" />
+          <ActivityIndicator size="large" color="#6C63FF" />
         </View>
       ) : (
         <FlatList
@@ -136,7 +136,7 @@ const NotificationsScreen = () => {
           contentContainerStyle={styles.listContent}
           showsVerticalScrollIndicator={false}
           refreshControl={
-            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#00e89d" />
+            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#6C63FF" />
           }
         />
       )}
@@ -145,7 +145,7 @@ const NotificationsScreen = () => {
 };
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#121212' },
+  container: { flex: 1, backgroundColor: '#000000' },
   header: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
     paddingHorizontal: wp('4%'), paddingVertical: hp('1.5%'),
@@ -156,15 +156,15 @@ const styles = StyleSheet.create({
   emptyText: { color: '#888', fontSize: wp('3.5%'), marginTop: hp('2%') },
   listContent: { paddingHorizontal: wp('4%'), paddingBottom: hp('10%') },
   notifCard: {
-    flexDirection: 'row', alignItems: 'center', backgroundColor: '#1A1A1A',
+    flexDirection: 'row', alignItems: 'center', backgroundColor: '#141225',
     borderRadius: 12, padding: wp('3.5%'), marginBottom: hp('1%'),
     borderWidth: 1, borderColor: '#2A2A2A', gap: 12,
   },
-  notifUnread: { borderColor: '#00e89d44', backgroundColor: '#1A1F1A' },
+  notifUnread: { borderColor: '#6C63FF44', backgroundColor: '#1A1F1A' },
   iconBg: { width: 40, height: 40, borderRadius: 20, justifyContent: 'center', alignItems: 'center' },
   notifText: { color: '#FFF', fontSize: wp('3.5%'), marginBottom: 2 },
   notifTime: { color: '#888', fontSize: wp('2.8%') },
-  unreadDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: '#00e89d' },
+  unreadDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: '#6C63FF' },
 });
 
 export default NotificationsScreen;

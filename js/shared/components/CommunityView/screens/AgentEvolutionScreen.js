@@ -88,7 +88,7 @@ const AgentEvolutionScreen = () => {
   if (loading || !agent) {
     return (
       <SafeAreaView style={styles.container}>
-        <StatusBar barStyle="light-content" backgroundColor="#121212" />
+        <StatusBar barStyle="light-content" backgroundColor="#000000" />
         <View style={styles.header}>
           <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
             <Ionicons name="arrow-back" size={24} color="#FFF" />
@@ -112,7 +112,7 @@ const AgentEvolutionScreen = () => {
 
   return (
     <SafeAreaView style={styles.container}>
-      <StatusBar barStyle="light-content" backgroundColor="#121212" />
+      <StatusBar barStyle="light-content" backgroundColor="#000000" />
 
       {/* Header */}
       <View style={styles.header}>
@@ -128,7 +128,7 @@ const AgentEvolutionScreen = () => {
       <ScrollView
         showsVerticalScrollIndicator={false}
         refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#00e89d" />
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#6C63FF" />
         }
       >
         {/* Agent Header */}
@@ -170,7 +170,7 @@ const AgentEvolutionScreen = () => {
           <Text style={styles.sectionTitle}>Agent Stats</Text>
           <View style={styles.statsGrid}>
             <View style={styles.statCard}>
-              <MaterialCommunityIcons name="checkbox-marked-circle" size={28} color="#00e89d" />
+              <MaterialCommunityIcons name="checkbox-marked-circle" size={28} color="#6C63FF" />
               <Text style={styles.statValue}>{agent.stats.totalTasks}</Text>
               <Text style={styles.statLabel}>Total Tasks</Text>
             </View>
@@ -280,7 +280,7 @@ const AgentEvolutionScreen = () => {
             onPress={handleEvolve}
             activeOpacity={0.8}
           >
-            <MaterialCommunityIcons name="arrow-up-bold-circle" size={24} color="#121212" />
+            <MaterialCommunityIcons name="arrow-up-bold-circle" size={24} color="#000000" />
             <Text style={styles.evolveButtonText}>Evolve to Gen {agent.generation + 1}</Text>
           </TouchableOpacity>
         </Animatable.View>
@@ -292,7 +292,7 @@ const AgentEvolutionScreen = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#121212',
+    backgroundColor: '#000000',
   },
   header: {
     flexDirection: 'row',
@@ -328,7 +328,7 @@ const styles = StyleSheet.create({
     width: 100,
     height: 100,
     borderRadius: 50,
-    backgroundColor: '#1A1A1A',
+    backgroundColor: '#141225',
     borderWidth: 3,
     justifyContent: 'center',
     alignItems: 'center',
@@ -349,7 +349,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     borderWidth: 2,
-    borderColor: '#121212',
+    borderColor: '#000000',
   },
   genBadgeText: {
     color: '#FFF',
@@ -392,7 +392,7 @@ const styles = StyleSheet.create({
   },
   statCard: {
     width: '48%',
-    backgroundColor: '#1A1A1A',
+    backgroundColor: '#141225',
     borderRadius: 16,
     padding: wp('4%'),
     alignItems: 'center',
@@ -439,7 +439,7 @@ const styles = StyleSheet.create({
   },
   specCard: {
     width: wp('44%'),
-    backgroundColor: '#1A1A1A',
+    backgroundColor: '#141225',
     borderRadius: 16,
     padding: wp('4%'),
     alignItems: 'center',
@@ -492,7 +492,7 @@ const styles = StyleSheet.create({
   collabItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#1A1A1A',
+    backgroundColor: '#141225',
     borderRadius: 12,
     padding: wp('3%'),
     marginBottom: hp('1%'),
@@ -527,7 +527,7 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     padding: wp('4%'),
-    backgroundColor: '#121212',
+    backgroundColor: '#000000',
     borderTopWidth: 1,
     borderTopColor: '#2A2A2A',
   },
@@ -535,12 +535,12 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#00e89d',
+    backgroundColor: '#6C63FF',
     paddingVertical: hp('1.8%'),
     borderRadius: 12,
   },
   evolveButtonText: {
-    color: '#121212',
+    color: '#000000',
     fontSize: wp('4%'),
     fontWeight: '700',
     marginLeft: 8,

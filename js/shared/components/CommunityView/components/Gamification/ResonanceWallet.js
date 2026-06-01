@@ -193,7 +193,7 @@ const ResonanceWallet = ({
 
 const styles = StyleSheet.create({
   container: {
-    backgroundColor: '#121212',
+    backgroundColor: '#000000',
     borderRadius: 16,
     padding: wp('4%'),
     marginHorizontal: wp('3%'),

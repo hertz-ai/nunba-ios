@@ -20,7 +20,7 @@ const CHANNEL_COLORS = {
   discord: '#5865F2',
   slack: '#4A154B',
   email: '#EA4335',
-  sms: '#00e89d',
+  sms: '#6C63FF',
   webhook: '#FF6B35',
   default: '#6C63FF',
 };
@@ -313,7 +313,7 @@ const ChannelSetupScreen = () => {
 
   return (
     <SafeAreaView style={styles.container}>
-      <StatusBar barStyle="light-content" backgroundColor="#0F0E17" />
+      <StatusBar barStyle="light-content" backgroundColor="#000000" />
 
       <View style={styles.header}>
         <TouchableOpacity onPress={handleBack} style={styles.backButton}>
@@ -338,7 +338,7 @@ const ChannelSetupScreen = () => {
 };
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#0F0E17' },
+  container: { flex: 1, backgroundColor: '#000000' },
   header: {
     flexDirection: 'row', alignItems: 'center',
     paddingHorizontal: wp('4%'), paddingVertical: hp('1.5%'),

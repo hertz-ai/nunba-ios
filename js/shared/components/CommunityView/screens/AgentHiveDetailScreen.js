@@ -27,9 +27,9 @@ import useExperimentStore from '../../../experimentStore';
 import { colors } from '../../../theme/colors';
 
 const STATUS_COLORS = {
-  active: '#00e89d',
+  active: '#6C63FF',
   executing: '#3B82F6',
-  healthy: '#00e89d',
+  healthy: '#6C63FF',
   stalled: '#F59E0B',
   frozen: '#EF4444',
   idle: '#6B7280',
@@ -38,7 +38,7 @@ const STATUS_COLORS = {
   needs_review: '#F59E0B',
   pending: '#6B7280',
   running: '#3B82F6',
-  done: '#00e89d',
+  done: '#6C63FF',
   failed: '#EF4444',
   unknown: '#374151',
 };
@@ -307,7 +307,7 @@ export default function AgentHiveDetailScreen() {
           <RefreshControl
             refreshing={refreshing}
             onRefresh={onRefresh}
-            tintColor="#00e89d"
+            tintColor="#6C63FF"
           />
         }
         contentContainerStyle={styles.listContent}
@@ -319,7 +319,7 @@ export default function AgentHiveDetailScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#0F0E17',
+    backgroundColor: '#000000',
   },
   header: {
     flexDirection: 'row',

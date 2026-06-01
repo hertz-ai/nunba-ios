@@ -125,9 +125,9 @@ const TimedRushTemplate = ({config, onAnswer, onComplete}) => {
   useEffect(() => () => { mountedRef.current = false; }, []);
 
   // Animations
-  const questionAnim = useRef(new Animated.Value(0)).current;
+  const questionAnim = useRef(new Animated.Value(1)).current;
   const scoreAnim = useRef(new Animated.Value(1)).current;
-  const countdownAnim = useRef(new Animated.Value(0)).current;
+  const countdownAnim = useRef(new Animated.Value(1)).current;
 
   // Generate next question
   const getNextQuestion = useCallback(() => {
@@ -158,7 +158,7 @@ const TimedRushTemplate = ({config, onAnswer, onComplete}) => {
   }, []);
 
   const animateQuestionIn = useCallback(() => {
-    questionAnim.setValue(0);
+    questionAnim.setValue(1);
     Animated.spring(questionAnim, {
       toValue: 1,
       ...SPRINGS.rush,
