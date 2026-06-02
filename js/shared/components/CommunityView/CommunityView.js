@@ -1,6 +1,6 @@
 import React, { useRef, useEffect } from 'react';
 import {NavigationContainer} from '@react-navigation/native';
-import {StatusBar, DeviceEventEmitter} from 'react-native';
+import {StatusBar, DeviceEventEmitter, BackHandler} from 'react-native';
 import HomeRoutes from './router/home.routes';
 import LiquidOverlay from '../shared/LiquidOverlay';
 import NunbaKeyboard from '../shared/NunbaKeyboard';
@@ -74,8 +74,67 @@ const CommunityView = () => {
     // Check re-engagement status
     marketingNotificationService.checkReengagement();
 
+    // Hardware-back fallback: react-navigation v7's useBackButton DOES
+    // auto-register a BackHandler that calls canGoBack/goBack, but a
+    // live test on Galaxy S23 Ultra 2026-06-01 showed back from any
+    // pushed screen (Notifications / GameHub / Profile / …) still exits
+    // the app to launcher — strongly implying canGoBack() returned false
+    // even when the stack visibly held [MainScreen, Pushed].  Inspect
+    // the state tree directly via getRootState() and decide from the
+    // route count, which is the ground truth.  Stays additive — the
+    // upstream BackHandler still gets its chance to fire first; this
+    // one only consumes the event if there's somewhere to pop to.
+    console.log('[CommunityView] registering BackHandler safety-net');
+    const backSub = BackHandler.addEventListener('hardwareBackPress', () => {
+      const nav = navigationRef.current;
+      if (!nav) {
+        console.log('[CommunityView] backPress: nav ref null, allowing exit');
+        return false;
+      }
+      // Log the state shape so we can see why prior canGoBack/walker
+      // failed.  Verified on Galaxy S23 Ultra 2026-06-01 — back from
+      // any pushed screen exited to launcher, meaning JS returned
+      // false despite the visible Stack push.
+      try {
+        const state = (typeof nav.getRootState === 'function')
+          ? nav.getRootState()
+          : null;
+        const top = state && state.routes && state.routes[state.index];
+        const topName = top && top.name;
+        const routeCount = state && state.routes && state.routes.length;
+        console.log('[CommunityView] backPress: routes=' + routeCount + ' index=' + (state && state.index) + ' top=' + topName);
+        if (typeof nav.canGoBack === 'function' && nav.canGoBack()) {
+          console.log('[CommunityView] backPress: canGoBack=true, calling goBack');
+          nav.goBack();
+          return true;
+        }
+        if (state && Array.isArray(state.routes) && (state.index > 0 || state.routes.length > 1)) {
+          console.log('[CommunityView] backPress: state has history, calling goBack');
+          nav.goBack();
+          return true;
+        }
+        // dispatch the GO_BACK action directly — bypasses any wrapper
+        // that might be filtering canGoBack/goBack incorrectly.
+        if (typeof nav.dispatch === 'function') {
+          console.log('[CommunityView] backPress: dispatching GO_BACK');
+          try {
+            const { CommonActions } = require('@react-navigation/native');
+            nav.dispatch(CommonActions.goBack());
+            return true;
+          } catch (_eDispatch) {
+            console.log('[CommunityView] backPress: dispatch failed');
+          }
+        }
+      } catch (e) {
+        console.warn('[CommunityView] BackHandler error', e && e.message);
+      }
+      console.log('[CommunityView] backPress: returning false (allow exit)');
+      return false;
+    });
+
     return () => {
       navSub.remove();
+      backSub.remove();
       deepLinkService.destroy();
       marketingNotificationService.destroy();
       channelConversationService.destroy();

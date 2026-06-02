@@ -11,6 +11,8 @@ import {
   RefreshControl,
   SafeAreaView,
   StatusBar,
+  ToastAndroid,
+  Platform,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import Ionicons from 'react-native-vector-icons/Ionicons';
@@ -198,10 +200,21 @@ const GameHubScreen = () => {
           navigation.navigate('GameScreen', {
             gameId: res.data?.id || res.session_id,
           });
+          return;
         }
+        // Server returned no match — fall through to the no-match path.
       } catch (_) {
-        // Fallback: navigate to category tab
-        setTab(category);
+        // Network / server failure — same UX as no-match.
+      }
+      // Don't switch the category tab — the Quick Match labels
+      // (Trivia / Board / Arcade / Word) are game STYLES not config
+      // categories, so setTab('arcade') matched zero configs and
+      // showed an empty list.  Verified live 2026-06-01.
+      if (Platform.OS === 'android' && ToastAndroid) {
+        ToastAndroid.show(
+          `No live ${category} matches right now — pick a game below`,
+          ToastAndroid.SHORT,
+        );
       }
     },
     [navigation],

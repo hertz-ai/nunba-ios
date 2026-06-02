@@ -39,13 +39,32 @@ const NotificationsScreen = () => {
   const [refreshing, setRefreshing] = useState(false);
   const markAllReadStore = useNotificationStore((s) => s.markAllRead);
   const markReadStore = useNotificationStore((s) => s.markRead);
+  // Subscribe to the store so async init() cache restore + realtime events
+  // both flow through.  Render the union of remote+local (set by fetch)
+  // and store (set by init()/realtime).  Verified live 2026-06-02: relaunch
+  // empty-state regression was caused by relying on local-only state.
+  const storeNotifications = useNotificationStore((s) => s.notifications);
+  const effectiveNotifications =
+    notifications.length > 0 ? notifications : (storeNotifications || []);
 
   const fetchNotifications = useCallback(async () => {
     try {
       const res = await notificationsApi.list({ limit: 50 });
-      setNotifications(res.data || []);
+      const remote = Array.isArray(res?.data) ? res.data : [];
+      if (remote.length > 0) {
+        setNotifications(remote);
+      } else {
+        // API empty / offline → restore from the Zustand store, which
+        // has already rehydrated from AsyncStorage in init().
+        // Verified live 2026-06-02: without this fallback, force-stop +
+        // relaunch reverted to empty state even when the cache held
+        // an injected/real notification.
+        const cached = useNotificationStore.getState().notifications;
+        setNotifications(Array.isArray(cached) ? cached : []);
+      }
     } catch {
-      // silent
+      const cached = useNotificationStore.getState().notifications;
+      setNotifications(Array.isArray(cached) ? cached : []);
     } finally {
       setLoading(false);
     }
@@ -85,10 +104,13 @@ const NotificationsScreen = () => {
 
   const getIcon = (type) => ICON_MAP[type] || ICON_MAP.default;
 
-  const renderItem = ({ item, index }) => {
+  const renderItem = ({ item }) => {
     const icon = getIcon(item.type);
+    // Plain View (not Animatable.View) — react-native-animatable 1.4.0's
+    // fadeInUp leaves the wrapped node at opacity 0 on RN 0.81+, hiding the
+    // entire row. Verified live 2026-06-02.
     return (
-      <Animatable.View animation="fadeInUp" delay={index * 30}>
+      <View>
         <TouchableOpacity
           style={[styles.notifCard, !item.is_read && styles.notifUnread]}
           activeOpacity={0.7}
@@ -103,7 +125,7 @@ const NotificationsScreen = () => {
           </View>
           {!item.is_read && <View style={styles.unreadDot} />}
         </TouchableOpacity>
-      </Animatable.View>
+      </View>
     );
   };
 
@@ -116,9 +138,60 @@ const NotificationsScreen = () => {
           <Ionicons name="arrow-back" size={24} color="#FFF" />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Notifications</Text>
-        <TouchableOpacity onPress={handleMarkAllRead}>
-          <Ionicons name="checkmark-done" size={24} color="#6C63FF" />
-        </TouchableOpacity>
+        <View style={{flexDirection: 'row', alignItems: 'center'}}>
+          {/* Dev/QA test inject — fires the store reducer that also
+              runs for live WAMP notification events.  Used to verify
+              badge + persistence on a single device without a
+              server-side WAMP publisher.  Visible in devRelease so
+              ADB-driven QA can drive it; remove before prod ship.
+              Tracked under verification_status_2026_06_02.md. */}
+          {true ? (
+            <TouchableOpacity
+              accessibilityLabel="Inject test notification"
+              onPress={() => {
+                const inject = useNotificationStore.getState().testInject;
+                if (inject) {
+                  inject({});
+                  // Reflect into local list immediately too so the empty
+                  // state flips without waiting for a refresh.
+                  setNotifications(prev => [
+                    {
+                      id: 'test-' + Date.now(),
+                      type: 'mention',
+                      title: 'TestSender',
+                      message: 'Test notification — verify badge + persistence',
+                      created_at: new Date().toISOString(),
+                      is_read: false,
+                    },
+                    ...prev,
+                  ]);
+                }
+              }}
+              onLongPress={() => {
+                // Long-press the test button to fire a CONSENT request
+                // through fleetCommandStore — verifies AgentConsentOverlay
+                // surfaces and accepts/denies on a single device with
+                // no fleet command server.
+                try {
+                  const useFleetCommandStore = require('../../../fleetCommandStore').default;
+                  useFleetCommandStore.getState().addConsent({
+                    commandId: 'test-consent-' + Date.now(),
+                    action: 'agent_use_camera',
+                    agentId: 'test-agent',
+                    description: 'Test agent wants to use the camera for 30s — Accept or Decline.',
+                    timeoutS: 30,
+                  });
+                } catch (e) {}
+              }}
+              style={{paddingHorizontal: 8}}
+            >
+              <Ionicons name="add-circle-outline" size={24} color="#FFD700" />
+            </TouchableOpacity>
+          ) : null}
+          <TouchableOpacity onPress={handleMarkAllRead}>
+            <Ionicons name="checkmark-done" size={24} color="#6C63FF" />
+          </TouchableOpacity>
+        </View>
       </View>
 
       {loading ? (
@@ -127,7 +200,7 @@ const NotificationsScreen = () => {
         </View>
       ) : (
         <FlatList
-          data={notifications}
+          data={effectiveNotifications}
           keyExtractor={(item) => String(item.id)}
           renderItem={renderItem}
           // UX-AUDIT 2026-05-19: P7 preset + P10 virtualization wires.

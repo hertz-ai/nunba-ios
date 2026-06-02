@@ -780,6 +780,20 @@ export const linkingConfig = {
       ConversationHistory: 'conversation/:channelType',
       Campaigns: 'campaigns',
       Notifications: 'notifications',
+      // Direct-route landing pads — let `hevolve://inbox` /
+      // `hevolve://friends` / `hevolve://allfeatures` etc. open the
+      // RN screen directly.  Useful for QA driving (adb shell am
+      // start -W -a android.intent.action.VIEW -d "hevolve://inbox")
+      // when something blocks the tile tap on a real device.
+      Inbox: 'inbox',
+      Friends: 'friends',
+      Invites: 'invites',
+      AllFeatures: 'allfeatures',
+      ResonanceDashboard: 'resonance',
+      Achievements: 'achievements',
+      Regions: 'regions',
+      Encounters: 'encounters',
+      Search: 'search',
     },
   },
 };

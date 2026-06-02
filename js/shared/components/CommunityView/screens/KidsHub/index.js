@@ -46,10 +46,23 @@ const CATEGORIES = [
 const KidsHubScreen = () => {
   const navigation = useNavigation();
   const { onPressIn, onPressOut, animatedStyle: pressStyle } = usePressAnimation(0.96);
-  const {
-    ageGroup, setAgeGroup, totalStars, isOnline, setIsOnline, customGames,
-    initialized, initialize, gameHistory,
-  } = useKidsLearningStore();
+  // Destructure defensively — when KidsHubScreen is reached BEFORE
+  // initialize() has hydrated the store (e.g., direct navigation via
+  // AllFeatures grid before the hub itself has been visited), every
+  // field is undefined and a downstream `.length` read crashes the
+  // screen ("Cannot read property 'length' of undefined", caught by
+  // App.js ErrorBoundary).  Default to safe primitives so render is
+  // never blocked while the store warms up.
+  const store = useKidsLearningStore();
+  const ageGroup = store.ageGroup;
+  const setAgeGroup = store.setAgeGroup;
+  const totalStars = store.totalStars || 0;
+  const isOnline = store.isOnline;
+  const setIsOnline = store.setIsOnline;
+  const customGames = store.customGames || [];
+  const initialized = store.initialized;
+  const initialize = store.initialize;
+  const gameHistory = store.gameHistory || [];
   const {initialize: initIntelligence} = useKidsIntelligenceStore();
   const userAge = useLanguageStore(s => s.userAge);
 
@@ -104,12 +117,21 @@ const KidsHubScreen = () => {
     return () => unsubscribe();
   }, []);
 
-  // Pre-generate media for upcoming games
+  // Pre-generate media for upcoming games — `allGames` is declared via
+  // useMemo further down, so the deps array originally read
+  // `allGames.length` BEFORE the binding existed.  Hermes returned
+  // undefined for the TDZ read and `.length` on undefined crashed the
+  // screen ("Cannot read property 'length' of undefined", surfaced
+  // 2026-06-02 when KidsHub was reached from AllFeatures before the
+  // store had been hydrated).  Use isOnline alone in the deps and
+  // guard `allGames` defensively inside the effect body — by the time
+  // the effect runs, allGames is defined.
   useEffect(() => {
-    if (isOnline && allGames.length > 0) {
+    if (isOnline && Array.isArray(allGames) && allGames.length > 0) {
       MediaPreloader.preloadForUpcomingGames(allGames.slice(0, 5)).catch(() => {});
     }
-  }, [isOnline, allGames.length > 0]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOnline]);
 
   // Auto-detect age group from profile
   useEffect(() => {
@@ -211,7 +233,10 @@ const KidsHubScreen = () => {
     const difficulty = item.difficulty || 1;
 
     return (
-      <Animatable.View animation="fadeInUp" delay={Math.min(index * 50, 500)} duration={400}>
+      // react-native-animatable 1.4.0 wraps invisibly on RN 0.81 — see
+      // comment in renderHeader above.  Drop the fadeInUp animation
+      // so every game tile actually renders.
+      <View>
         <TouchableOpacity
           style={styles.gameCard}
           onPress={() => handleGamePress(item)}
@@ -268,7 +293,7 @@ const KidsHubScreen = () => {
             <View style={[styles.cardAccentBar, {backgroundColor: catInfo.color}]} />
           </Animated.View>
         </TouchableOpacity>
-      </Animatable.View>
+      </View>
     );
   }, [gameHistory]);
 
@@ -291,7 +316,14 @@ const KidsHubScreen = () => {
   const renderHeader = () => (
     <View>
       {/* Vibrant Welcome Banner */}
-      <Animatable.View animation="fadeIn" duration={600}>
+      {/* react-native-animatable 1.4.0 (2018) is incompatible with RN
+          0.81 — the wrapped View renders permanently transparent (opacity
+          stuck at the initial animation state).  Verified live on Galaxy
+          S23 Ultra 2026-06-02: the welcome banner + every gameCard was
+          invisible, leaving KidsHub with a blank body despite "185 games
+          available".  Drop the entrance animation in favour of an
+          always-visible View — children render correctly without it. */}
+      <View>
         <View style={styles.welcomeBanner}>
           <View style={styles.welcomeTop}>
             <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn} hitSlop={{top: 8, bottom: 8, left: 8, right: 8}}>
@@ -307,7 +339,7 @@ const KidsHubScreen = () => {
               </View>
             </View>
           </View>
-          <Animatable.View animation="bounceIn" delay={200}>
+          <View>
             <View style={styles.welcomeContent}>
               <View style={styles.welcomeIconRow}>
                 <Icon name="rocket-launch" size={40} color={kidsColors.star} />
@@ -319,7 +351,7 @@ const KidsHubScreen = () => {
                   : "Ready to learn something amazing today?"}
               </Text>
             </View>
-          </Animatable.View>
+          </View>
 
           {/* Quick Stats Row */}
           <View style={styles.quickStats}>
@@ -344,7 +376,7 @@ const KidsHubScreen = () => {
             </View>
           </View>
         </View>
-      </Animatable.View>
+      </View>
 
       <OfflineBanner visible={!isOnline} />
 

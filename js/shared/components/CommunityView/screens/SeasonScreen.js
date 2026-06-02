@@ -76,6 +76,34 @@ const SeasonScreen = () => {
     );
   }
 
+  // No active season — empty-state UI rather than crashing on `season.currentTier`.
+  // Fires when seasonsApi.current() returns 200 with no body, or 404, or any
+  // network failure (catch keeps `season` at null).  Verified live 2026-06-02
+  // on Galaxy S23 Ultra — without this guard the screen crashed with
+  // "Cannot read property 'currentTier' of null".
+  if (!season) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <StatusBar barStyle="light-content" backgroundColor="#000000" />
+        <View style={styles.header}>
+          <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
+            <Ionicons name="arrow-back" size={24} color="#FFF" />
+          </TouchableOpacity>
+          <Text style={styles.headerTitle}>Season</Text>
+          <View style={styles.headerSpacer} />
+        </View>
+        <View style={[styles.loadingContainer, { padding: 24, alignItems: 'center', justifyContent: 'center' }]}>
+          <Text style={{ color: '#FFF', fontSize: 16, fontWeight: '600', marginBottom: 8 }}>
+            No active season
+          </Text>
+          <Text style={{ color: '#9CA3AF', fontSize: 13, textAlign: 'center' }}>
+            Check back later — seasons unlock with community milestones.
+          </Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
   const currentTierIndex = TIERS.indexOf(season.currentTier);
   const currentTierConfig = TIER_CONFIG[season.currentTier];
   const nextTier = currentTierIndex < TIERS.length - 1 ? TIERS[currentTierIndex + 1] : null;

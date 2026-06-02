@@ -119,13 +119,13 @@ const ChallengesScreen = () => {
           </View>
           <View style={styles.progressDivider} />
           <View style={styles.progressStatItem}>
-            <Text style={styles.progressStatValue}>{Math.round((completedThisWeek / totalThisWeek) * 100)}%</Text>
+            <Text style={styles.progressStatValue}>{totalThisWeek > 0 ? Math.round((completedThisWeek / totalThisWeek) * 100) : 0}%</Text>
             <Text style={styles.progressStatLabel}>Rate</Text>
           </View>
         </View>
         <View style={styles.progressBar}>
           <View
-            style={[styles.progressFill, { width: `${(completedThisWeek / totalThisWeek) * 100}%` }]}
+            style={[styles.progressFill, { width: `${totalThisWeek > 0 ? (completedThisWeek / totalThisWeek) * 100 : 0}%` }]}
           />
         </View>
       </View>

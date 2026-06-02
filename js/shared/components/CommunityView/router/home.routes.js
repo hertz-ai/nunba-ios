@@ -104,7 +104,7 @@ const HomeRoutes = () => {
       <Stack.Screen
         name="Story"
         component={StoryScreen}
-       
+        options={{headerShown: false}}
       />
       <Stack.Screen
         name="LikesList"
@@ -170,7 +170,11 @@ const HomeRoutes = () => {
       {/* Social feature screens */}
       <Stack.Screen name="PostDetail" component={PostDetailScreen} options={{headerShown: false}} />
       <Stack.Screen name="Search" component={SearchScreen} options={{headerShown: false, animation: 'slide_from_bottom'}} />
-      <Stack.Screen name="Notifications" component={NotificationsScreen} options={{headerShown: false}} />
+      {/* Use animation:'none' so the bell/Alerts tap doesn't show a
+          brief flash of the People feed during the push transition.
+          Verified live 2026-06-01 — default animation revealed feed
+          chrome under the incoming NotificationsScreen for ~150ms. */}
+      <Stack.Screen name="Notifications" component={NotificationsScreen} options={{headerShown: false, animation: 'none'}} />
       <Stack.Screen name="Communities" component={CommunitiesScreen} options={{headerShown: false}} />
       <Stack.Screen name="CommunityDetail" component={CommunityDetailScreen} options={{headerShown: false}} />
       <Stack.Screen name="Friends" component={FriendsScreen} options={{headerShown: false}} />

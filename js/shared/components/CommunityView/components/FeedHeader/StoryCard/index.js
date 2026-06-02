@@ -1,6 +1,6 @@
 import {useNavigation} from '@react-navigation/native';
 import React from 'react';
-import {Image,View, Text, TouchableOpacity} from 'react-native';
+import {Image,View, Text, Pressable} from 'react-native';
 import ProfilePicture from '../../ProfilePicture';
 import styles from './styles';
 import VideoPlayer from 'react-native-video-controls';
@@ -27,32 +27,49 @@ const StoryCard = props => {
   const navigation = useNavigation();
 
   const onPress = () => {
-    navigation.navigate('Story', {id: story.id, stories: story});
+    // StoryScreen iterates over route.params.stories as an array
+    // (userStories[activeStoryIndex]), but we used to pass the single
+    // story object directly — userStories[0] of an object is undefined
+    // so the screen rendered an ActivityIndicator forever.  Wrap the
+    // single story in an array so the viewer can advance through it.
+    navigation.navigate('Story', {id: story.id, stories: [story]});
   };
 
-
+  // Pressable instead of TouchableOpacity — TouchableOpacity inside a
+  // horizontal FlatList eats single-tap events under some versions of
+  // react-native-gesture-handler because the FlatList's pan recognizer
+  // claims the touch before TouchableOpacity's onResponderRelease can
+  // fire.  Pressable uses the newer responder system and survives the
+  // gesture conflict.  Verified 2026-06-01 on Galaxy S23 Ultra — Yahia
+  // story tile registered the tap but never navigated until this change.
    if (contentType === 'image') {
       return (
-      <TouchableOpacity
+      <Pressable
             onPress={onPress}
             style={styles.container}
-            activeOpacity={0.9}>
+            android_ripple={{color: 'rgba(255,255,255,0.12)'}}>
             <View style={styles.card}>
               <Text style={styles.titleText}>{caption}{' '}</Text>
-              <Image source={{uri: resourceUri}} style={styles.image} />
+              <Image source={{uri: resourceUri}} style={styles.image} pointerEvents="none" />
             </View>
             <ProfilePicture uri={imageUri} />
             <Text style={styles.description}>{username}</Text>
-          </TouchableOpacity>
+          </Pressable>
 
       );
     } else if (contentType === 'video') {
       return (
-      <TouchableOpacity
+      <Pressable
                   onPress={onPress}
                   style={styles.container}
-                  activeOpacity={0.9}>
-                  <View style={styles.card}>
+                  android_ripple={{color: 'rgba(255,255,255,0.12)'}}>
+                  {/* pointerEvents="none" on the inner View lets touches
+                      bubble up to the Pressable instead of the View
+                      capturing them.  Verified live on Galaxy S23 Ultra
+                      2026-06-01 — with box-only the tap was absorbed
+                      by the View and Pressable.onPress never fired,
+                      so the Story tile felt dead. */}
+                  <View style={styles.card} pointerEvents="none">
                     <Text style={styles.titleText}>{caption}{' '}</Text>
                     <VideoPlayer
                     source={{uri: resourceUri}}
@@ -62,18 +79,17 @@ const StoryCard = props => {
                     resizeMode="cover"
                     repeat={true}
                     disableFullscreen={true}
-                                        disablePlayPause={true}
-                                        disableSeekbar={true}
-                                        disableVolume={true}
-                                        disableTimer={true}
-                                        disableBack={true}
-                                        toggleResizeModeOnFullScreen={false}
-
+                    disablePlayPause={true}
+                    disableSeekbar={true}
+                    disableVolume={true}
+                    disableTimer={true}
+                    disableBack={true}
+                    toggleResizeModeOnFullScreen={false}
                     tapAnywhereToPause={false} />
                   </View>
                   <ProfilePicture uri={imageUri} />
                   <Text style={styles.description}>{username}</Text>
-                </TouchableOpacity>
+                </Pressable>
 
       );
     }

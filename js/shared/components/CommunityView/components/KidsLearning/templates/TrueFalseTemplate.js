@@ -55,8 +55,16 @@ const TrueFalseTemplate = ({config, onAnswer, onComplete}) => {
   const questionStartTime = useRef(Date.now());
   const mountedRef = useRef(true);
   const completedRef = useRef(false);
+  // Defensive advance: TrueFalseTemplate owns its own advance timer so a
+  // stuck/missed FeedbackOverlay dismissal cannot freeze gameplay on Q1.
+  // (Live-driven 2026-06-02: overlay-only path got stuck on first answer.)
+  const advanceTimerRef = useRef(null);
+  const advancedForIndexRef = useRef(-1);
 
-  useEffect(() => () => { mountedRef.current = false; }, []);
+  useEffect(() => () => {
+    mountedRef.current = false;
+    if (advanceTimerRef.current) clearTimeout(advanceTimerRef.current);
+  }, []);
 
   const currentStatement = statements[currentIndex] || {};
 
@@ -182,8 +190,27 @@ const TrueFalseTemplate = ({config, onAnswer, onComplete}) => {
         delay: 200,
         useNativeDriver: true,
       }).start();
+
+      // Defensive advance — owns its own timer so a missed overlay onDismiss
+      // never freezes Q1. Idempotent against handleFeedbackDismiss (whichever
+      // fires first wins via advancedForIndexRef).
+      const indexAtAnswer = currentIndex;
+      if (advanceTimerRef.current) clearTimeout(advanceTimerRef.current);
+      advanceTimerRef.current = setTimeout(() => {
+        if (!mountedRef.current) return;
+        if (advancedForIndexRef.current >= indexAtAnswer) return;
+        advancedForIndexRef.current = indexAtAnswer;
+        setFeedbackVisible(false);
+        if (indexAtAnswer < statements.length - 1) {
+          setCurrentIndex(indexAtAnswer + 1);
+        } else {
+          if (completedRef.current) return;
+          completedRef.current = true;
+          onComplete();
+        }
+      }, 2200);
     },
-    [answered, currentStatement, onAnswer],
+    [answered, currentStatement, currentIndex, statements.length, onAnswer, onComplete],
   );
 
   const handleTimerUp = useCallback(() => {
@@ -198,6 +225,12 @@ const TrueFalseTemplate = ({config, onAnswer, onComplete}) => {
 
     setTimeout(() => {
       if (!mountedRef.current) return;
+      if (advancedForIndexRef.current >= currentIndex) return;
+      advancedForIndexRef.current = currentIndex;
+      if (advanceTimerRef.current) {
+        clearTimeout(advanceTimerRef.current);
+        advanceTimerRef.current = null;
+      }
       if (currentIndex < statements.length - 1) {
         setCurrentIndex(prev => prev + 1);
       } else {

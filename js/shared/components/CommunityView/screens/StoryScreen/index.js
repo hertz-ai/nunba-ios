@@ -6,77 +6,107 @@ import {
   ImageBackground,
   TouchableWithoutFeedback,
   Dimensions,
+  View,
+  StatusBar,
 } from 'react-native';
-import {useRoute} from '@react-navigation/native';
+import {useRoute, useNavigation} from '@react-navigation/native';
+import VideoPlayer from 'react-native-video-controls';
 import styles from './styles';
 
+// Stories come from the feed rail wrapped as [story] so we always
+// iterate an array.  Each story uses `resourceUri` for the media URL
+// (image OR video) and `user.imageUri` for the avatar.  The earlier
+// `activeStory.imageUri` reference was never populated and rendered
+// the screen blank.  navigation was also referenced without being
+// resolved from useNavigation(), which threw on next/prev-user taps
+// and crashed the app back to launcher.  Both fixed here, plus a
+// guard so an empty stories array degrades to "go back" instead of
+// hanging on ActivityIndicator forever.
 const StoryScreen = () => {
   const route = useRoute();
-  const [userStories, setUserStories] = useState(null);
-  const [activeStoryIndex, setActiveStoryIndex] = useState(null);
-  const [activeStory, setActiveStory] = useState(null);
-  const id = route.params.id;
+  const navigation = useNavigation();
+  const [activeStoryIndex, setActiveStoryIndex] = useState(0);
+
+  const userStories = (route.params && route.params.stories) || [];
+  const activeStory = userStories[activeStoryIndex];
 
   useEffect(() => {
-    const userStory = route.params.stories;
-    setUserStories(userStory);
-    setActiveStoryIndex(0);
-  }, [userStories, route]);
-
-  useEffect(() => {
-    if (userStories) {
-      if (activeStoryIndex < 0) {
-        setActiveStoryIndex(0);
-      }
-      if (activeStoryIndex > userStories.length - 1) {
-        setActiveStoryIndex(userStories.length - 1);
-      }
-
-      setActiveStory(userStories[activeStoryIndex]);
+    if (!userStories.length) {
+      try { navigation.goBack(); } catch (_e) {}
     }
-  }, [activeStoryIndex, userStories]);
+  }, [userStories.length, navigation]);
 
   if (!activeStory) {
     return (
-      <SafeAreaView>
-        <ActivityIndicator size="large" color="#0000ff" />
+      <SafeAreaView style={styles.container}>
+        <StatusBar barStyle="light-content" backgroundColor="#000" />
+        <ActivityIndicator size="large" color="#FFFFFF" />
       </SafeAreaView>
     );
   }
+
+  const goNext = () => {
+    if (activeStoryIndex >= userStories.length - 1) {
+      try { navigation.goBack(); } catch (_e) {}
+      return;
+    }
+    setActiveStoryIndex(activeStoryIndex + 1);
+  };
+  const goPrev = () => {
+    if (activeStoryIndex <= 0) {
+      try { navigation.goBack(); } catch (_e) {}
+      return;
+    }
+    setActiveStoryIndex(activeStoryIndex - 1);
+  };
 
   const handlePress = evt => {
     const x = evt.nativeEvent.locationX;
     const screenWidth = Dimensions.get('window').width;
     if (x > screenWidth / 2) {
-      handleNextStory();
+      goNext();
     } else {
-      handlePrevStory();
+      goPrev();
     }
   };
 
-  const navigateToNextUser = () => { navigation.goBack(); };
-  const navigateToPrevUser = () => { navigation.goBack(); };
-
-  const handleNextStory = () => {
-    if (activeStoryIndex >= userStories.length - 1) {
-      navigateToNextUser();
-    }
-    setActiveStoryIndex(activeStoryIndex + 1);
-  };
-  const handlePrevStory = () => {
-    if (activeStoryIndex <= 0) {
-      navigateToPrevUser();
-    }
-    setActiveStoryIndex(activeStoryIndex - 1);
-  };
+  const mediaUri = activeStory.resourceUri || activeStory.imageUri;
+  const isVideo = (activeStory.contentType || '').includes('video');
+  const caption = activeStory.caption || '';
 
   return (
     <SafeAreaView style={styles.container}>
+      <StatusBar barStyle="light-content" backgroundColor="#000" />
       <TouchableWithoutFeedback onPress={handlePress}>
-        <ImageBackground
-          source={{uri: activeStory.imageUri}}
-          style={styles.image}
-        />
+        <View style={{flex: 1, backgroundColor: '#000'}}>
+          {isVideo ? (
+            <VideoPlayer
+              source={{uri: mediaUri}}
+              videoStyle={styles.image}
+              style={styles.image}
+              paused={false}
+              muted={false}
+              resizeMode="cover"
+              repeat={false}
+              disableFullscreen={true}
+              disablePlayPause={true}
+              disableSeekbar={true}
+              disableVolume={true}
+              disableTimer={true}
+              disableBack={true}
+              onEnd={goNext}
+              tapAnywhereToPause={false}
+            />
+          ) : (
+            <ImageBackground source={{uri: mediaUri}} style={styles.image}>
+              {caption ? (
+                <Text style={{color: '#fff', fontSize: 18, padding: 16}}>
+                  {caption}
+                </Text>
+              ) : null}
+            </ImageBackground>
+          )}
+        </View>
       </TouchableWithoutFeedback>
     </SafeAreaView>
   );
