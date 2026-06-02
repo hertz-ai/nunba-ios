@@ -2,8 +2,8 @@
   "$schema": "./SHARED_JS_MANIFEST.schema.json",
   "description": "Source-of-truth list of JS files vendored from Hevolve_React_Native into Nunba-Companion-iOS. Read by scripts/sync-from-android.sh. Each entry maps a source path (relative to the Android repo root) to a destination path (relative to js/shared/). Files are copied verbatim — destinations should NEVER be hand-edited.",
   "android_repo_path": "../Hevolve_React_Native",
-  "synced_at": "2026-06-02T06:00:00.000Z",
-  "synced_from_commit": "f404f73f — TrueFalse defensive advance + Notifications row visible (60b74de8), Animatable postinstall patches (7e1ce52c) — JS-side patches apply via the same Animatable definitions on iOS, Challenges NaN% guard (235cd963), Notifications persistence via Zustand store (04e512f1). Android-only native fixes (Google sign-in button XML, AgeVerificationFragment OTP-on-DOB flow — both in f404f73f) not applicable to iOS.",
+  "synced_at": "2026-06-02T06:30:00.000Z",
+  "synced_from_commit": "Hevolve_RN HEAD + new CustomBotChatScreen.js (the iOS parity fill for the Android-native AbstractChatActivity / AskMeChatActivity / RevisionChatActivity / AssessmentChatActivity / CustomBotsActivity Java surface). The screen is route-driven: navigate('CustomBotChat', { botId, botName, botImage }) opens a polished bubble chat that calls chatApi.customGpt with conversation_id='custom_bot_<botId>' — same HARTOS endpoint the Java chats hit. Previously: NunbaHero hero/casual chat at parity (RN-shared via this manifest); Java custom chats Android-only. Now: Java chats can be retired in favour of the RN screen, and iOS reaches all four chat personas through the same route.",
   "groups": [
     {
       "name": "stores",
@@ -273,6 +273,7 @@
         "CommunityView/screens/ComputeDashboardScreen.js",
         "CommunityView/screens/ConversationHistoryScreen.js",
         "CommunityView/screens/CreateMissedConnectionScreen.js",
+        "CommunityView/screens/CustomBotChatScreen.js",
         "CommunityView/screens/CustomGamesScreen.js",
         "CommunityView/screens/EncountersScreen.js",
         "CommunityView/screens/ExperimentDiscoveryScreen.js",

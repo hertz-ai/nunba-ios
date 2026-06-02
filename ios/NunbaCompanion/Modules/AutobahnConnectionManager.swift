@@ -222,6 +222,49 @@ final class AutobahnConnectionManager: NSObject {
     }
   }
 
+  /// Unsubscribe from a topic. Drops it from the replay set (so a later
+  /// reconnect does NOT re-subscribe it) and, when we hold a
+  /// router-assigned subscriptionId, sends WAMP UNSUBSCRIBE.
+  /// Idempotent: unsubscribing a topic we never held is a no-op.
+  func unsubscribe(topic: String) {
+    stateQueue.async { [weak self] in
+      guard let self else { return }
+      guard let sub = self.subscriptions.removeValue(forKey: topic) else { return }
+      if self.state == .joined, let subId = sub.subscriptionId {
+        self.sendUnsubscribeLocked(subscriptionId: subId)
+      }
+      // Not joined (or SUBSCRIBED not yet acked → no subId): removing it
+      // from `subscriptions` is enough — replayAllSubscriptionsLocked
+      // won't resend it, and a late EVENT is dropped because
+      // handleEventLocked can no longer resolve the topic.
+    }
+  }
+
+  /// #53: subscribe to a community's per-room topic so this companion
+  /// receives the post/comment lifecycle events for the community the
+  /// user currently has open — the same com.hertzai.hevolve.community.{id}
+  /// topic web + desktop subscribe to (crossbarWorker.js:1057-1074).
+  /// These payloads share the post.new/comment.new schema the social
+  /// topic carries, so they ride the existing SocialEventEmitter
+  /// ("socialEvent") rather than a parallel emitter.  Unlike the
+  /// permanent user-scoped topics in autoSubscribeFleetTopicsLocked,
+  /// this is DYNAMIC: the RN CommunityDetailScreen subscribes on open
+  /// and unsubscribes on leave via OnboardingModule.
+  func subscribeCommunity(communityId: String) {
+    guard !communityId.isEmpty else { return }
+    let topic = "com.hertzai.hevolve.community.\(communityId)"
+    subscribe(topic: topic) { payload in
+      SocialEventEmitter.shared.emit(payload: payload)
+    }
+  }
+
+  /// #53: stop receiving a community's events when the user leaves the
+  /// room.  Idempotent; safe for a community we never joined.
+  func unsubscribeCommunity(communityId: String) {
+    guard !communityId.isEmpty else { return }
+    unsubscribe(topic: "com.hertzai.hevolve.community.\(communityId)")
+  }
+
   // MARK: — WAMP message handlers (all assume stateQueue ownership)
 
   private func sendHelloLocked() {
@@ -239,6 +282,15 @@ final class AutobahnConnectionManager: NSObject {
     nextRequestId += 1
     pendingSubscribes[reqId] = topic
     sendLocked(message: [32, reqId, [:] as [String: Any], topic] as [Any])
+  }
+
+  /// WAMP UNSUBSCRIBE = [34, requestId, subscriptionId].  The router's
+  /// UNSUBSCRIBED (35) ack falls through the default case in
+  /// handleIncomingLocked — we don't need to correlate it.
+  private func sendUnsubscribeLocked(subscriptionId: UInt64) {
+    let reqId = nextRequestId
+    nextRequestId += 1
+    sendLocked(message: [34, reqId, subscriptionId] as [Any])
   }
 
   /// Handles every message off the wire. Bounces to stateQueue first.

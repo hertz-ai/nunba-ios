@@ -36,6 +36,18 @@ export interface OnboardingModule {
    * delivery is best-effort.
    */
   publishToWamp(topic: string, payload: string): void;
+
+  /**
+   * #53 — subscribe the long-lived WAMP session to a community's room
+   * topic (com.hertzai.hevolve.community.{id}) so post/comment events
+   * for the open community arrive live via the 'socialEvent' emitter,
+   * matching web/desktop (crossbarWorker.js). Driven by the active
+   * community route; iOS-only today (the companion has no Android target).
+   */
+  subscribeCommunity(communityId: string): Promise<{ subscribed: boolean; reason?: string }>;
+
+  /** #53 — stop receiving a community's room events. Idempotent. */
+  unsubscribeCommunity(communityId: string): Promise<{ unsubscribed: boolean }>;
 }
 
 // ─── DeviceCapabilityModule ──────────────────────────────────────

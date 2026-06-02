@@ -139,4 +139,41 @@ final class OnboardingModule: NSObject {
     )
     resolve(["published": attempted])
   }
+
+  // MARK: — Community room subscription bridge (#53)
+
+  /// subscribeCommunity(communityId) — JS calls this from
+  /// CommunityDetailScreen when the user opens a community room so the
+  /// long-lived AutobahnConnectionManager session subscribes to
+  /// com.hertzai.hevolve.community.{id} and forwards that room's
+  /// post/comment events through SocialEventEmitter ("socialEvent"),
+  /// the same channel the per-user social topic already uses. Web +
+  /// desktop subscribe to the same topic via crossbarWorker.js.
+  @objc(subscribeCommunity:resolver:rejecter:)
+  func subscribeCommunity(
+    _ communityId: String,
+    resolver resolve: @escaping RCTPromiseResolveBlock,
+    rejecter reject: @escaping RCTPromiseRejectBlock
+  ) {
+    guard !communityId.isEmpty else {
+      NSLog("[OnboardingModule] subscribeCommunity: empty communityId, ignored")
+      resolve(["subscribed": false, "reason": "empty communityId"])
+      return
+    }
+    AutobahnConnectionManager.shared.subscribeCommunity(communityId: communityId)
+    resolve(["subscribed": true])
+  }
+
+  /// unsubscribeCommunity(communityId) — JS calls this when the user
+  /// leaves the room so the session stops receiving that community's
+  /// events. Idempotent; safe for a community we never joined.
+  @objc(unsubscribeCommunity:resolver:rejecter:)
+  func unsubscribeCommunity(
+    _ communityId: String,
+    resolver resolve: @escaping RCTPromiseResolveBlock,
+    rejecter reject: @escaping RCTPromiseRejectBlock
+  ) {
+    AutobahnConnectionManager.shared.unsubscribeCommunity(communityId: communityId)
+    resolve(["unsubscribed": true])
+  }
 }

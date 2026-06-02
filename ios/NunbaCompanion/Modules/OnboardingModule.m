@@ -24,5 +24,11 @@ RCT_EXTERN_METHOD(publishToWamp:(NSString *)topic
                   payload:(NSString *)payload
                   resolver:(RCTPromiseResolveBlock)resolve
                   rejecter:(RCTPromiseRejectBlock)reject)
+RCT_EXTERN_METHOD(subscribeCommunity:(NSString *)communityId
+                  resolver:(RCTPromiseResolveBlock)resolve
+                  rejecter:(RCTPromiseRejectBlock)reject)
+RCT_EXTERN_METHOD(unsubscribeCommunity:(NSString *)communityId
+                  resolver:(RCTPromiseResolveBlock)resolve
+                  rejecter:(RCTPromiseRejectBlock)reject)
 
 @end
