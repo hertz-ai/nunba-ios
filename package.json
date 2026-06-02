@@ -13,6 +13,7 @@
     "lint": "eslint .",
     "pods": "cd ios && pod install",
     "sync": "node scripts/sync-from-android.js",
+    "postinstall": "node scripts/apply-animatable-patches.js",
     "sync:check": "node scripts/sync-from-android.js --check",
     "sync:dry": "node scripts/sync-from-android.js --dry-run",
     "validate:manifest": "node scripts/validate-manifest.js",
