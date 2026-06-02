@@ -105,6 +105,12 @@ export const chatApi = {
 
   customGpt: (data) => post('/chat/custom_gpt', data),
 
+  // List the user's custom bots (the "Your HevolveAI Agents" rail on
+  // the Android Agents-tab — backed by HARTOS /getprompt_userid/ and
+  // wired into the Java GetPromptListApi.getCustomChats).
+  // Returns: array of { name, prompt, image_url, prompt_id, ... }
+  getCustomBots: (userId) => get('/getprompt_userid/', { user_id: userId }),
+
   health: () => get('/backend/health'),
 };
 

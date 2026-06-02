@@ -2,7 +2,7 @@ import React, { useState, useCallback, useEffect } from 'react';
 import {
   View, Text, StyleSheet, FlatList, TouchableOpacity,
   SafeAreaView, StatusBar, RefreshControl, ActivityIndicator,
-  ScrollView, NativeModules,
+  ScrollView,
 } from 'react-native';
 import {
   widthPercentageToDP as wp,
@@ -73,25 +73,6 @@ const CommunityDetailScreen = () => {
   }, [communityId, sort]);
 
   useEffect(() => { fetchData(); }, [fetchData]);
-
-  // #53 — subscribe this device's long-lived WAMP session to the open
-  // community's room topic (com.hertzai.hevolve.community.{id}) so new
-  // posts/comments arrive live, matching web/desktop (crossbarWorker.js).
-  // The native side forwards them through the 'socialEvent' emitter that
-  // CommunityView already consumes. Unsubscribe on leave / route-change
-  // so we don't accumulate rooms. Guarded: iOS-only bridge; older native
-  // builds may not expose the methods yet.
-  useEffect(() => {
-    if (!communityId) return undefined;
-    const om = NativeModules.OnboardingModule;
-    if (!om || typeof om.subscribeCommunity !== 'function') return undefined;
-    om.subscribeCommunity(String(communityId));
-    return () => {
-      if (typeof om.unsubscribeCommunity === 'function') {
-        om.unsubscribeCommunity(String(communityId));
-      }
-    };
-  }, [communityId]);
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);

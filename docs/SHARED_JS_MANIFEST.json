@@ -257,6 +257,7 @@
         "CommunityView/screens/AgentHiveDetailScreen.js",
         "CommunityView/screens/AgentHiveScreen.js",
         "CommunityView/screens/AgentInterviewScreen.js",
+        "CommunityView/screens/AgentsHubScreen.js",
         "CommunityView/screens/AllFeaturesScreen.js",
         "CommunityView/screens/AutopilotScreen.js",
         "CommunityView/screens/BackupSettingsScreen.js",
