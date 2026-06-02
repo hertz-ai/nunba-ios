@@ -160,6 +160,53 @@ final class AutobahnConnectionManagerTests: XCTestCase {
     XCTAssertEqual(calls, 0)
   }
 
+  // MARK: — #53 community room subscription
+
+  func test_subscribeCommunity_registersCommunityTopic() {
+    mgr._markJoined()
+    mgr.subscribeCommunity(communityId: "abc123")
+    XCTAssertTrue(
+      mgr._subscribedTopics().contains("com.hertzai.hevolve.community.abc123"))
+  }
+
+  func test_subscribeCommunity_emptyId_addsNothing() {
+    mgr._markJoined()
+    let before = mgr._subscribedTopics().count
+    mgr.subscribeCommunity(communityId: "")
+    XCTAssertEqual(mgr._subscribedTopics().count, before)
+  }
+
+  func test_unsubscribeCommunity_removesCommunityTopic() {
+    mgr._markJoined()
+    let topic = "com.hertzai.hevolve.community.room9"
+    mgr.subscribeCommunity(communityId: "room9")
+    XCTAssertTrue(mgr._subscribedTopics().contains(topic))
+
+    mgr.unsubscribeCommunity(communityId: "room9")
+    XCTAssertFalse(
+      mgr._subscribedTopics().contains(topic),
+      "leaving the room must drop the topic so reconnect doesn't replay it")
+  }
+
+  func test_unsubscribeCommunity_unknownId_isNoOp() {
+    mgr._markJoined()
+    XCTAssertNoThrow(mgr.unsubscribeCommunity(communityId: "never-joined"))
+  }
+
+  func test_subscribeCommunity_deliversCommunityEventWithoutCrashing() {
+    // subscribeCommunity routes the community topic through the same
+    // SUBSCRIBED→EVENT path the generic subscribe uses (forwarding to
+    // SocialEventEmitter, a no-op without a live RN bridge). Verify the
+    // full round-trip doesn't crash and the topic stays registered.
+    mgr._markJoined()
+    mgr.subscribeCommunity(communityId: "c5")
+    mgr._injectIncoming("[33, 1, 5151]")
+    XCTAssertNoThrow(
+      mgr._injectIncoming(#"[36, 5151, 0, {}, ["{\"event\":\"post.new\"}"]]"#))
+    XCTAssertTrue(
+      mgr._subscribedTopics().contains("com.hertzai.hevolve.community.c5"))
+  }
+
   // MARK: — Backoff
 
   func test_backoffSeconds_capsAt60() {

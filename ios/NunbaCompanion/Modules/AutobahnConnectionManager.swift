@@ -563,6 +563,14 @@ final class AutobahnConnectionManager: NSObject {
       self.session = nil
     }
   }
+
+  /// Test-only — snapshot of the currently-tracked subscription topics
+  /// (the replay set).  Lets tests assert subscribe/unsubscribe topic
+  /// management deterministically without depending on async handler
+  /// dispatch.
+  func _subscribedTopics() -> [String] {
+    stateQueue.sync { Array(subscriptions.keys) }
+  }
   #endif
 }
 
