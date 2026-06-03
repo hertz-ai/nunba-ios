@@ -26,6 +26,8 @@ import { achievementsApi } from '../../../services/socialApi';
 import { AchievementCard, SkeletonLoader } from '../components/Gamification';
 import ContextBridge from '../components/ContextBridge';
 import usePressAnimation from '../../../hooks/usePressAnimation';
+import EmptyState from '../../shared/EmptyState';
+import { emptyStatePreset } from '../../shared/emptyStatePresets';
 
 const FILTER_TABS = ['All', 'Earned', 'Locked'];
 const CATEGORIES = ['Social', 'Content', 'Tasks', 'Engagement', 'Special', 'Seasonal'];
@@ -339,7 +341,10 @@ const AchievementsScreen = () => {
         columnWrapperStyle={styles.gridRow}
         ListHeaderComponent={renderHeader}
         ListEmptyComponent={
-          <Text style={styles.emptyText}>No achievements found</Text>
+          <EmptyState
+            {...emptyStatePreset('no-achievements')}
+            onCta={() => navigation.navigate('Challenges')}
+          />
         }
         contentContainerStyle={styles.listContent}
         showsVerticalScrollIndicator={false}

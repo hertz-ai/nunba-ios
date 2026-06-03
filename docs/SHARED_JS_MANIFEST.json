@@ -2,8 +2,8 @@
   "$schema": "./SHARED_JS_MANIFEST.schema.json",
   "description": "Source-of-truth list of JS files vendored from Hevolve_React_Native into Nunba-Companion-iOS. Read by scripts/sync-from-android.sh. Each entry maps a source path (relative to the Android repo root) to a destination path (relative to js/shared/). Files are copied verbatim — destinations should NEVER be hand-edited.",
   "android_repo_path": "../Hevolve_React_Native",
-  "synced_at": "2026-06-02T06:30:00.000Z",
-  "synced_from_commit": "Hevolve_RN HEAD + new CustomBotChatScreen.js (the iOS parity fill for the Android-native AbstractChatActivity / AskMeChatActivity / RevisionChatActivity / AssessmentChatActivity / CustomBotsActivity Java surface). The screen is route-driven: navigate('CustomBotChat', { botId, botName, botImage }) opens a polished bubble chat that calls chatApi.customGpt with conversation_id='custom_bot_<botId>' — same HARTOS endpoint the Java chats hit. Previously: NunbaHero hero/casual chat at parity (RN-shared via this manifest); Java custom chats Android-only. Now: Java chats can be retired in favour of the RN screen, and iOS reaches all four chat personas through the same route.",
+  "synced_at": "2026-06-03T18:35:00.000Z",
+  "synced_from_commit": "Hevolve_RN HEAD — #390 BottomNavBridge ack handshake (CommunityView.js now calls NativeModules.BottomNavBridge.ackNavigateTo() after navigation completes, terminating the Android native retry loop deterministically; safe no-op on iOS via optional chain since the module is Android-only). Bundled with this sync: Round-3 polish (composer placeholder, STORIES uppercase, PressableScale tiles, You pill, profile avatar initials), B5 empty-state sweep (Achievements / Resonance / Regions presets), video disk cache + media perf pass (v5 + MediaCacheManager with RNFetchBlob.fs.stat verification), holistic perf pass (image+API cache, boot defer, Post memo, Stories prefetch), Chat History flicker fix, FeatureNavStrip tile-tap-during-load race fix, FCM data push → notificationStore bridge, Channels surface entry in AllFeatures.",
   "groups": [
     {
       "name": "stores",
@@ -329,6 +329,7 @@
         "CommunityView/screens/TasksScreen.js",
         "CommunityView/screens/ThemeSettingsScreen.js",
         "shared/ActionSheet.js",
+        "shared/ApiErrorBanner.js",
         "shared/assertA11y.js",
         "shared/AvatarBadged.js",
         "shared/CountUp.js",
@@ -346,6 +347,7 @@
         "shared/NunbaKeyboard.js",
         "shared/OpenStatusDot.js",
         "shared/ParallaxHero.js",
+        "shared/PressableScale.js",
         "shared/ProgressRing.js",
         "shared/ProvenanceChip.js",
         "shared/RadarPulse.js",

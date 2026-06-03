@@ -54,6 +54,7 @@ import {
   widthPercentageToDP as wp,
   heightPercentageToDP as hp,
 } from 'react-native-responsive-screen';
+import { rfp } from '../../../../utils/responsiveFont';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 import { bleEncounterApi } from '../../../../services/socialApi';
 
@@ -296,7 +297,8 @@ const styles = StyleSheet.create({
   },
   label: {
     color: '#FFF',
-    fontSize: wp('3.8%'),
+    // rfp() instead of wp() — wp('3.8%') was 97px on tablet landscape.
+    fontSize: rfp(3.8),
     fontWeight: '600',
     marginLeft: wp('2%'),
     flex: 1,
@@ -311,18 +313,18 @@ const styles = StyleSheet.create({
   },
   ageLabel: {
     color: '#BBB',
-    fontSize: wp('3.4%'),
+    fontSize: rfp(3.4),
     marginLeft: wp('2%'),
   },
   ttlText: {
     color: ACCENT,
-    fontSize: wp('3.2%'),
+    fontSize: rfp(3.2),
     fontWeight: '600',
     marginTop: hp('0.6%'),
   },
   privacyText: {
     color: '#888',
-    fontSize: wp('3%'),
+    fontSize: rfp(3),
     marginTop: hp('0.8%'),
     lineHeight: 18,
   },

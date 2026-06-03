@@ -36,7 +36,6 @@ const CommentsList = ({ route }) => {
   const [visibleDropdownId, setVisibleDropdownId] = useState(null);
   const [allComments, setAllComments] = useState(null)
   const [selectedCommentId, setSelectedCommentId] = useState(null);
-  console.log(CommentLikes, "this is th1e userId");
   const translateY = useRef(new Animated.Value(500)).current;
   const [isBottomSheetOpen, setIsBottomSheetOpen] = useState(false);
   const [CommentID, setCommentID] = useState()
@@ -52,8 +51,6 @@ const CommentsList = ({ route }) => {
     fetch(`https://mailer.hertzai.com/comment_like?comment_id=${comment_id}`)
       .then((response) => response.json())
       .then((data) => {
-        console.log("Likes by post_id:", data);
-
         const uniqueUsers = new Map();
 
 
@@ -79,7 +76,6 @@ const CommentsList = ({ route }) => {
 
   };
   const commentLike = (comment_id) => {
-    console.log('hello', comment_id)
     fetch("https://mailer.hertzai.com/create_activity", {
       method: "POST",
       headers: {
@@ -108,16 +104,11 @@ const CommentsList = ({ route }) => {
         });
       })
       .then((response) => {
-        if (response.ok) {
-
-          console.log("Like successfully recorded");
-        } else {
-
+        if (!response.ok) {
           console.error("Error recording like");
         }
       })
       .catch((error) => {
-
         console.error("Network error:", error);
       });
   }
@@ -233,20 +224,14 @@ const CommentsList = ({ route }) => {
         return response.json();
       })
       .then((data) => {
-        console.log('this is the data', data);
         if (data) {
           setAllComments(data)
           const topComments = data.filter(comment => comment.parent_comment_id === 0);
           setComments(topComments);
-          console.log("this is the the topComments", topComments)
-
           const replies = data.filter(comment => {
             return data.some(c => c.comment_id === comment.parent_comment_id);
           });
-
           setReplies(replies);
-
-          console.log('Replies:', replies);
           setLoading(false);
         } else {
           console.error("Invalid data format or no comments found");
@@ -285,8 +270,6 @@ const CommentsList = ({ route }) => {
           console.error("Network error:", error);
         })
     } else {
-      console.log("this is the parent commentid", parentCommentId)
-
       fetch("https://mailer.hertzai.com/Comment", {
         method: "POST",
         headers: {
@@ -325,25 +308,22 @@ const CommentsList = ({ route }) => {
   };
 
   const deleteReply = async (commentId) => {
-    console.log("Deleting comment with ID:", commentId);
     try {
       const response = await fetch(`https://mailer.hertzai.com/delete_comment?comment_id=${commentId}`, {
         method: 'DELETE',
       });
 
       if (response.ok) {
-        console.log('Success', 'Comment deleted successfully');
         setIsBottomSheetOpen(false)
         fetchComments();
       } else {
-        console.log('Error', 'Failed to delete comment');
+        console.error('Failed to delete comment');
       }
     } catch (error) {
       console.error(error);
     }
   };
   const toggleDropdown = (data) => {
-    console.log(data, 'hello');
     setIsBottomSheetOpen(!isBottomSheetOpen)
     setCommentID(data.comment_id)
     setPostUserID(data.user_id)
@@ -360,8 +340,6 @@ const CommentsList = ({ route }) => {
       setIsBottomSheetOpen(false); // Close the bottom sheet
     }
   };
-
-  console.log('this is the showreplies', showRepliesFor)
 
   return (
 

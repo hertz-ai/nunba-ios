@@ -25,7 +25,6 @@ const ReportModal = ({ navigation, route  }) => {
 
   const handleReport = () => {
     if (selectedReason) {
-      console.log('Reporting post:', post_id, 'Reason:', selectedReason);
       deletePost(post_id, selectedReason);
       navigation.goBack(); // Navigate back after reporting
     } else {

@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   View, Text, FlatList, LayoutAnimation,
   UIManager, Platform, StyleSheet, TouchableOpacity,
@@ -13,6 +13,30 @@ import FeatureNavStrip from './FeatureNavStrip';
 import { hapticSuccess, hapticLight } from '../../../../services/haptics';
 import { ConfettiOverlay } from '../Gamification';
 import { colors, spacing, fontSize, fontWeight, borderRadius } from '../../../../theme/colors';
+import { NativeModules } from 'react-native';
+import PressableScale from '../../../shared/PressableScale';
+import { ensureCurrentUser, subscribeCurrentUser } from '../../../../services/currentUser';
+
+// Polish round 3 2026-06-03: instead of a generic account-circle
+// outline icon, the QuickAccessBar profile slot now renders a
+// colored circle with the user's first initial when known.
+// Mimics Instagram / Slack / Discord fallback avatar pattern when
+// no profile pic URL is available locally.  Falls back to the icon
+// while currentUser is still resolving.
+const AVATAR_PALETTE = [
+  '#6C63FF', '#FF6B6B', '#F59E0B', '#10B981',
+  '#3B82F6', '#EC4899', '#7C4DFF', '#FCAF45',
+];
+const initialOf = (u) => {
+  const raw = u?.name || u?.username || u?.email || '';
+  const head = String(raw).split('@')[0].trim();
+  return head ? head.charAt(0).toUpperCase() : '';
+};
+const paletteIndex = (s) => {
+  let n = 0;
+  for (let i = 0; i < s.length; i++) n = (n * 31 + s.charCodeAt(i)) >>> 0;
+  return n % AVATAR_PALETTE.length;
+};
 
 // Enable LayoutAnimation on Android
 if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
@@ -27,17 +51,27 @@ const QuickAccessBar = () => {
   const unreadCount = useNotificationStore((s) => s.unreadCount);
   const hasUnread = unreadCount > 0;
   const tap = (screen) => { hapticLight(); navigation.navigate(screen); };
+
+  const [me, setMe] = useState(() => ensureCurrentUser());
+  useEffect(() => {
+    const unsub = subscribeCurrentUser((u) => setMe({ ...u }));
+    return unsub;
+  }, []);
+  const initial = initialOf(me);
+  const avatarColor = initial ? AVATAR_PALETTE[paletteIndex(initial + (me?.email || ''))] : null;
   return (
     <View style={styles.quickAccess}>
-      <TouchableOpacity style={styles.quickBtn} onPress={() => tap('Search')} accessibilityLabel="Search">
+      <PressableScale style={styles.quickBtn} onPress={() => tap('Search')} accessibilityLabel="Search" haptic={false} rippleColor="rgba(255,255,255,0.15)">
         <Icon name="magnify" size={22} color={colors.textSecondary} />
-      </TouchableOpacity>
-      <TouchableOpacity
+      </PressableScale>
+      <PressableScale
         style={styles.quickBtn}
         onPress={() => tap('Notifications')}
         accessibilityLabel={hasUnread
           ? `Notifications, ${unreadCount} unread`
           : 'Notifications'}
+        haptic={false}
+        rippleColor="rgba(255,255,255,0.15)"
       >
         <View>
           <Icon
@@ -53,12 +87,42 @@ const QuickAccessBar = () => {
             </View>
           )}
         </View>
-      </TouchableOpacity>
-      <TouchableOpacity style={styles.quickBtn} onPress={() => tap('Profile')} accessibilityLabel="Profile">
-        <Icon name="account-circle-outline" size={22} color={colors.textSecondary} />
-      </TouchableOpacity>
+      </PressableScale>
+      <PressableScale
+        style={[styles.quickBtn, initial && avatarColor ? { backgroundColor: avatarColor } : null]}
+        accessibilityLabel={initial ? `Profile, ${me?.name || me?.username || ''}` : 'Profile'}
+        haptic={false}
+        rippleColor="rgba(255,255,255,0.18)"
+        onPress={() => {
+          try {
+            if (NativeModules?.OnboardingModule?.getUser_id) {
+              NativeModules.OnboardingModule.getUser_id((uid) => {
+                navigation.navigate('Profile', { userId: Number(uid) || 0, isOwnProfile: true });
+              });
+              return;
+            }
+          } catch (_) {}
+          navigation.navigate('Profile');
+        }}
+      >
+        {initial ? (
+          <Text style={styles.avatarInitial}>{initial}</Text>
+        ) : (
+          <Icon name="account-circle-outline" size={22} color={colors.textSecondary} />
+        )}
+      </PressableScale>
     </View>
   );
+};
+
+// Gen-Z subline that pairs with the time-aware `greeting` string.
+// Each window is intentionally short + casual.
+const moodForHour = (h) => {
+  if (h < 5)  return '✨ late-night vibes';
+  if (h < 12) return '☕ start strong today';
+  if (h < 17) return '🚀 keep the streak going';
+  if (h < 21) return '🌇 wrap up something good';
+  return '🌙 wind down with one rep';
 };
 
 const ContextualFeedHeader = () => {
@@ -92,19 +156,34 @@ const ContextualFeedHeader = () => {
         onComplete={() => {}}
       />
 
-      {/* Greeting + quick-access icons (Search, Notifications, Profile) */}
+      {/* Greeting + quick-access icons (Search, Notifications, Profile).
+          User feedback 2026-06-03: "looks like a bad developer
+          developed this view" + "make it look like Google B2C +
+          Gen Z appealing".  Big hero greeting + time-aware emoji
+          + casual subline replaces the small gray label.  Material
+          You scale: 32px hero / 14px subline, generous spacing. */}
       <View style={styles.greetingRow}>
-        <Text style={styles.greeting}>{greeting}</Text>
+        <View style={styles.greetingTextWrap}>
+          <Text style={styles.greeting} numberOfLines={1}>
+            {greeting}
+          </Text>
+          <Text style={styles.subGreeting} numberOfLines={1}>
+            {moodForHour(new Date().getHours())}
+          </Text>
+        </View>
         <QuickAccessBar />
       </View>
 
       {/* Feature nav — always visible, YouTube-style chip bar */}
       <FeatureNavStrip />
 
-      {/* Contextual insight cards — only when signals exist */}
-      {refreshing && signals.length === 0 ? (
-        <InsightCardSkeleton />
-      ) : signals.length > 0 ? (
+      {/* Contextual insight cards — only when signals exist.
+          Skeleton previously rendered 3 empty rectangles while loading,
+          but most users have no signals to show so the rectangles were
+          the only thing in this section.  User-reported 2026-06-02:
+          "while loading the community page i see three rectangles".
+          The section is now invisible until real signals land. */}
+      {signals.length > 0 ? (
         <FlatList
           horizontal
           data={signals}
@@ -131,13 +210,26 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 16,
-    marginBottom: spacing.sm,
+    paddingTop: 4,
+    paddingBottom: 12,
+  },
+  greetingTextWrap: {
+    flex: 1,
+    paddingRight: 12,
   },
   greeting: {
+    color: '#FFFFFF',
+    fontSize: 28,
+    fontWeight: '800',
+    letterSpacing: -0.4,
+    lineHeight: 32,
+  },
+  subGreeting: {
     color: colors.textSecondary,
-    fontSize: fontSize.sm,
-    fontWeight: fontWeight.semibold,
-    flex: 1,
+    fontSize: 13,
+    fontWeight: '500',
+    marginTop: 2,
+    letterSpacing: 0.1,
   },
   quickAccess: {
     flexDirection: 'row',
@@ -173,6 +265,14 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     lineHeight: 12,
     textAlign: 'center',
+  },
+  // Profile avatar fallback: initial in white on a per-user color
+  // tint.  No image lookup needed; works from currentUser cache.
+  avatarInitial: {
+    color: '#FFFFFF',
+    fontSize: 14,
+    fontWeight: '800',
+    letterSpacing: 0.3,
   },
   listContent: {
     paddingHorizontal: 12,

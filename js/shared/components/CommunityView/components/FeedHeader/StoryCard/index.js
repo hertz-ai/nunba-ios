@@ -3,7 +3,15 @@ import React from 'react';
 import {Image,View, Text, Pressable} from 'react-native';
 import ProfilePicture from '../../ProfilePicture';
 import styles from './styles';
-import VideoPlayer from 'react-native-video-controls';
+// 2026-06-03: dropped react-native-video-controls (v5-era wrapper)
+// in favor of plain Video from react-native-video v6.  The wrapper is
+// unmaintained and its v5 API (disableFullscreen / disablePlayPause /
+// disableSeekbar / disableVolume / disableTimer / disableBack /
+// toggleResizeModeOnFullScreen / tapAnywhereToPause) doesn't survive
+// v6's Media3 ExoPlayer internals.  The Stories rail tile only needs
+// muted-looping playback with no UI chrome — plain Video is the right
+// fit.
+import Video from 'react-native-video';
 
 // UX-AUDIT 2026-05-19: the Pass X.P1 StoryRing wrap (committed
 // 2026-05-18) was geometrically wrong for this layout — the avatar
@@ -71,21 +79,15 @@ const StoryCard = props => {
                       so the Story tile felt dead. */}
                   <View style={styles.card} pointerEvents="none">
                     <Text style={styles.titleText}>{caption}{' '}</Text>
-                    <VideoPlayer
+                    <Video
                     source={{uri: resourceUri}}
-                    videoStyle={styles.video}
+                    style={styles.video}
                     paused={false}
                     muted={true}
                     resizeMode="cover"
                     repeat={true}
-                    disableFullscreen={true}
-                    disablePlayPause={true}
-                    disableSeekbar={true}
-                    disableVolume={true}
-                    disableTimer={true}
-                    disableBack={true}
-                    toggleResizeModeOnFullScreen={false}
-                    tapAnywhereToPause={false} />
+                    controls={false}
+                    ignoreSilentSwitch="ignore" />
                   </View>
                   <ProfilePicture uri={imageUri} />
                   <Text style={styles.description}>{username}</Text>

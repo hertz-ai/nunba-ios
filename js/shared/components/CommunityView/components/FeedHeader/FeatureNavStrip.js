@@ -1,6 +1,6 @@
-import React, { useCallback, useMemo } from 'react';
+import React, { useCallback, useEffect, useMemo } from 'react';
 import {
-  View, Text, TouchableOpacity, StyleSheet,
+  View, Text, StyleSheet,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import ICON_MAP from '../../../../utils/iconMap';
@@ -10,6 +10,8 @@ import {
   colors, spacing, borderRadius, fontWeight,
 } from '../../../../theme/colors';
 import useContextualInsights from '../../../../hooks/useContextualInsights';
+import PressableScale from '../../../shared/PressableScale';
+import { communitiesApi, notificationsApi } from '../../../../services/socialApi';
 
 /**
  * FeatureNavStrip — primary feature discovery grid for the community
@@ -49,6 +51,10 @@ const ALL_FEATURES = [
   { icon: 'trophy', iconType: 'ion', label: 'Achieve', color: '#F59E0B', screen: 'Achievements' },
   { icon: 'earth', iconType: 'community', label: 'Regions', color: '#3B82F6', screen: 'Regions' },
   { icon: 'inbox-multiple', iconType: 'community', label: 'Inbox', color: '#FD1D1D', screen: 'Inbox' },
+  // User-requested 2026-06-03: surface ChannelSetup from People feed
+  // so connected adapters (Telegram/Discord/Slack/WhatsApp/...) are
+  // discoverable without going through AllFeatures or deeplinks.
+  { icon: 'link-variant', iconType: 'community', label: 'Channels', color: '#25D366', screen: 'ChannelSetup' },
   { icon: 'account-group', iconType: 'community', label: 'Communities', color: '#06B6D4', screen: 'Communities' },
   { icon: 'dna', iconType: 'community', label: 'Evolution', color: '#10B981', screen: 'AgentEvolution' },
   { icon: 'clipboard-check', iconType: 'community', label: 'Tasks', color: '#00D9FF', screen: 'Tasks' },
@@ -101,16 +107,32 @@ function buildPersonalizedList(signals) {
   return pinned.concat(ranked.slice(0, PRIMARY_TILES - PINNED_COUNT).map((r) => r.feature));
 }
 
+// User-reported 2026-06-03 09:40: tapping More / other tiles while
+// the community page is still loading was unreliable.  Root cause:
+// the parent passed `() => handleNavigate(item.screen)` inline, a
+// brand-new function every render.  React.memo() therefore could
+// not skip re-renders, and a re-render triggered by signals /
+// feed loading mid-tap killed TouchableOpacity's in-flight press.
+// Fix: parent now passes a stable handler + screen prop; the tile
+// useCallback-wraps its own press so React.memo can actually memo.
 const FeatureTile = React.memo(({ item, onPress, isMore }) => {
   const Icon = ICON_MAP[item.iconType] || MaterialCommunityIcons;
   const tint = isMore ? colors.textMuted : item.color;
+  const handlePress = React.useCallback(() => {
+    if (typeof onPress === 'function') onPress(item.screen);
+  }, [onPress, item.screen]);
+  // Polish round 3 2026-06-03: PressableScale gives every tile a
+  // subtle spring on press so the grid feels alive on touch.  haptic
+  // is false because the parent's handleNavigate already fires
+  // hapticLight on tap — no double-pulse.
   return (
-    <TouchableOpacity
-      onPress={onPress}
-      activeOpacity={0.7}
+    <PressableScale
+      onPress={handlePress}
       style={styles.tile}
-      accessibilityRole="button"
+      scaleTo={0.94}
+      haptic={false}
       accessibilityLabel={item.label}
+      rippleColor={tint + '33'}
     >
       <View
         style={[
@@ -126,7 +148,7 @@ const FeatureTile = React.memo(({ item, onPress, isMore }) => {
       <Text style={styles.label} numberOfLines={1}>
         {item.label}
       </Text>
-    </TouchableOpacity>
+    </PressableScale>
   );
 });
 
@@ -134,6 +156,16 @@ const FeatureNavStrip = () => {
   const navigation = useNavigation();
   const { signals } = useContextualInsights();
   const features = useMemo(() => buildPersonalizedList(signals), [signals]);
+
+  // Polish round 3 perf 2026-06-03: warm the API cache for the
+  // likely-next tile destinations so tapping a tile feels instant.
+  // Communities + Notifications are the most-tapped tiles per UX-audit;
+  // both are 30s-TTL cached in services/apiCache so a duplicate fetch
+  // on screen mount is a cache hit.  Fire-and-forget; errors swallowed.
+  useEffect(() => {
+    try { communitiesApi?.list?.({ limit: 5 })?.catch?.(() => {}); } catch (_) {}
+    try { notificationsApi?.unreadCount?.()?.catch?.(() => {}); } catch (_) {}
+  }, []);
 
   const handleNavigate = useCallback(
     (screen) => {
@@ -155,7 +187,7 @@ const FeatureNavStrip = () => {
           <FeatureTile
             key={item.screen}
             item={item}
-            onPress={() => handleNavigate(item.screen)}
+            onPress={handleNavigate}
           />
         ))}
         <FeatureTile

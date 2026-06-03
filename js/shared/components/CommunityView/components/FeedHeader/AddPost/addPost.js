@@ -1,131 +1,147 @@
-import React, { useState, useEffect } from 'react';
-import { View, Text, Image, TouchableOpacity, TextInput, NativeModules, StyleSheet, PermissionsAndroid, DeviceEventEmitter } from 'react-native';
+import React, { useState, useEffect, useCallback } from 'react';
+import {
+    View,
+    Text,
+    Image,
+    TouchableOpacity,
+    NativeModules,
+    StyleSheet,
+    DeviceEventEmitter,
+    KeyboardAvoidingView,
+    Platform,
+} from 'react-native';
 import MentionInput from '../../../../shared/MentionInput';
 import Icon from 'react-native-vector-icons/FontAwesome';
+import Ionicons from 'react-native-vector-icons/Ionicons';
 import { useNavigation } from '@react-navigation/native';
-const { ActivityStarterModule, OnboardingModule } = NativeModules;
 import useThemeStore from '../../../../../colorThemeZustand';
+import { hapticLight } from '../../../../../services/haptics';
+import { colors } from '../../../../../theme/colors';
+
+const { ActivityStarterModule, OnboardingModule } = NativeModules;
 
 export default function addPost() {
     const navigation = useNavigation();
-    const { theme } = useThemeStore()
+    const { theme } = useThemeStore();
     const [inputValue, setInputValue] = useState('');
     const [selectedImage, setSelectedImage] = useState(null);
-    const handleChangeText = (text) => {
-        setInputValue(text);
-    }
 
+    const handleChangeText = useCallback((text) => {
+        setInputValue(text);
+    }, []);
 
     useEffect(() => {
+        const sub = DeviceEventEmitter.addListener('AddPost_UserUploadImage', (event) => {
+            setSelectedImage(event?.AddPost_UserUploadImage || null);
+        });
+        return () => sub.remove();
+    }, []);
 
-        const eventListener = DeviceEventEmitter.addListener(
-            'AddPost_UserUploadImage',
-            event => {
-                const { AddPost_UserUploadImage } = event;
-                setSelectedImage(AddPost_UserUploadImage);
-            },
-        );
+    const hasContent = inputValue.trim().length > 0 || !!selectedImage;
 
+    const isDark = theme === 'dark';
+    const headerStyle = { ...styles.header, borderBottomColor: isDark ? '#0E1114' : '#FFFFFF' };
+    const mainContainer = { ...styles.mainContainer, backgroundColor: isDark ? '#0E1114' : '#FFFFFF' };
+    const headerText = { ...styles.headerText, color: isDark ? '#FFFFFF' : '#0E1114' };
+    const photoButton = { ...styles.photoButton, backgroundColor: colors.accent };
+    const postPillEnabled = { ...styles.postPill, backgroundColor: colors.accent };
+    const postPillDisabled = { ...styles.postPill, backgroundColor: isDark ? '#2A2D32' : '#E5E7EB' };
+    const postPillTextEnabled = { ...styles.postPillText, color: '#FFFFFF' };
+    const postPillTextDisabled = { ...styles.postPillText, color: isDark ? '#6B7280' : '#9CA3AF' };
 
-        return () => {
-            eventListener.remove();
-        };
-    }, [selectedImage, inputValue]);
-    console.log(selectedImage, 'this is the uri')
-    console.log(inputValue)
-
-    const header = {
-        ...styles.header,
-        borderBottomColor: theme === 'dark' ? '#0E1114' : '#FFFFFF',
-    };
-    const mainContainer = {
-        ...styles.mainContainer,
-        backgroundColor: theme === 'dark' ? '#0E1114' : '#FFFFFF',
-    };
-    const buttonText = {
-        ...styles.buttonText,
-
-        color: theme === 'dark' ? '#FFFFFF' : '#0E1114',
-    }
-    const button = {
-        ...styles.button,
-        backgroundColor: theme === 'dark' ? 'grey' : '0078ff',
-    };
-    const headerText = {
-        ...styles.headerText,
-        color: theme === 'dark' ? '#FFFFFF' : '#0E1114',
-    };
-    const Iconstyles = {
-
-
-        color: theme === 'dark' ? '#FFFFFF' : '#0078ff',
-    };
-    const postSubmit = () => {
-        console.log('function called');
+    const postSubmit = useCallback(() => {
+        if (!hasContent) return;
+        try { hapticLight(); } catch (_) {}
         OnboardingModule.sendRequestToAddPost(selectedImage, inputValue);
-        if (true) {
-            navigation.navigate('MainScreen');
-        }
-    }
+        navigation.navigate('MainScreen');
+    }, [hasContent, selectedImage, inputValue, navigation]);
 
+    const clearImage = useCallback(() => {
+        try { hapticLight(); } catch (_) {}
+        setSelectedImage(null);
+    }, []);
 
+    const openPhotoPicker = useCallback(() => {
+        try { hapticLight(); } catch (_) {}
+        ActivityStarterModule.navigateToAddPost();
+    }, []);
 
     return (
-        <View style={mainContainer}>
-
-            <View style={header}>
-
+        <KeyboardAvoidingView
+            style={mainContainer}
+            behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        >
+            <View style={headerStyle}>
                 <View style={styles.leftHeader}>
-                    <TouchableOpacity onPress={() => navigation.goBack()}>
-                        <Icon name="arrow-left" size={20} style={Iconstyles} />
+                    <TouchableOpacity
+                        onPress={() => navigation.goBack()}
+                        hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+                        accessibilityLabel="Cancel post"
+                    >
+                        <Icon name="arrow-left" size={20} color={isDark ? '#FFFFFF' : '#0078ff'} />
                     </TouchableOpacity>
                     <Text style={headerText}>Add Post</Text>
                 </View>
 
-                <TouchableOpacity onPress={postSubmit}
-                    style={styles.rightHeader}>
-                    <Text style={headerText}>Post</Text>
+                <TouchableOpacity
+                    onPress={postSubmit}
+                    disabled={!hasContent}
+                    style={hasContent ? postPillEnabled : postPillDisabled}
+                    accessibilityLabel="Post"
+                    accessibilityState={{ disabled: !hasContent }}
+                >
+                    <Text style={hasContent ? postPillTextEnabled : postPillTextDisabled}>Post</Text>
                 </TouchableOpacity>
             </View>
 
-
-            <View style={{ paddingHorizontal: 20, marginTop: 10, height: 250, flex: 1 }}>
-                <Image source={require('./user1.png')} style={{ height: 46, width: 46 }} />
+            <View style={styles.composerBody}>
+                <Image source={require('./user1.png')} style={styles.avatar} />
 
                 <MentionInput
-                    style={{ color: theme === 'dark' ? '#FFF' : "grey", fontSize: 18, paddingTop: 16 }}
-                    placeholder="Share your thoughts?"
-                    placeholderTextColor={theme === 'dark' ? '#FFF' : "grey"}
+                    style={{
+                        color: isDark ? '#FFF' : '#0E1114',
+                        fontSize: 18,
+                        paddingTop: 16,
+                        flex: 1,
+                    }}
+                    placeholder="What's on your mind?"
+                    placeholderTextColor={isDark ? 'rgba(255,255,255,0.55)' : '#6B7280'}
                     value={inputValue}
                     onChangeText={handleChangeText}
                     multiline
                 />
             </View>
-            {selectedImage && (
-                <Image
-                    source={{ uri: selectedImage }}
-                    style={{ width: '100%', height: 200, marginTop: 10 }}
-                    resizeMode="contain"
-                />
-            )}
+
+            {selectedImage ? (
+                <View style={styles.imagePreviewWrap}>
+                    <Image
+                        source={{ uri: selectedImage }}
+                        style={styles.imagePreview}
+                        resizeMode="contain"
+                    />
+                    <TouchableOpacity
+                        onPress={clearImage}
+                        style={styles.imageRemove}
+                        hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                        accessibilityLabel="Remove photo"
+                    >
+                        <Ionicons name="close" size={18} color="#FFFFFF" />
+                    </TouchableOpacity>
+                </View>
+            ) : null}
 
             <View style={styles.row2}>
-                {/* <TouchableOpacity style={styles.button}>
-                    <Text style={styles.buttonText}>Share Achievements</Text>
-                </TouchableOpacity> */}
-                <TouchableOpacity style={button} onPress={() => {
-                    console.log("button clicked");
-                    ActivityStarterModule.navigateToAddPost();
-                }
-                }>
-                    <Text style={buttonText}>Add a photo</Text>
+                <TouchableOpacity style={photoButton} onPress={openPhotoPicker}>
+                    <Ionicons name="image-outline" size={18} color="#FFFFFF" style={{ marginRight: 6 }} />
+                    <Text style={styles.photoButtonText}>Add a photo</Text>
                 </TouchableOpacity>
             </View>
-        </View>
+        </KeyboardAvoidingView>
     );
 }
 
 const styles = StyleSheet.create({
+    mainContainer: { flex: 1 },
     header: {
         flexDirection: 'row',
         justifyContent: 'space-between',
@@ -134,19 +150,31 @@ const styles = StyleSheet.create({
         marginTop: 10,
         marginBottom: 20,
     },
-    mainContainer: {
-        flex: 1
-    },
-    leftHeader: {
-        flexDirection: 'row',
+    leftHeader: { flexDirection: 'row', alignItems: 'center' },
+    headerText: { fontSize: 18, marginLeft: 10, fontWeight: '600' },
+    postPill: {
+        paddingHorizontal: 18,
+        paddingVertical: 8,
+        borderRadius: 999,
+        minWidth: 64,
         alignItems: 'center',
+        justifyContent: 'center',
     },
-    headerText: {
-        fontSize: 18,
-        marginLeft: 10,
-    },
-    rightHeader: {
-
+    postPillText: { fontSize: 14, fontWeight: '700' },
+    composerBody: { paddingHorizontal: 20, marginTop: 10, minHeight: 200, flex: 1 },
+    avatar: { height: 46, width: 46, borderRadius: 23 },
+    imagePreviewWrap: { width: '100%', marginTop: 10, position: 'relative' },
+    imagePreview: { width: '100%', height: 200 },
+    imageRemove: {
+        position: 'absolute',
+        top: 8,
+        right: 12,
+        width: 28,
+        height: 28,
+        borderRadius: 14,
+        backgroundColor: 'rgba(0,0,0,0.65)',
+        alignItems: 'center',
+        justifyContent: 'center',
     },
     row2: {
         flexDirection: 'row',
@@ -155,14 +183,12 @@ const styles = StyleSheet.create({
         marginBottom: 10,
         marginHorizontal: 10,
     },
-    button: {
-        backgroundColor: '#007AFF',
-        paddingHorizontal: 20,
+    photoButton: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        paddingHorizontal: 16,
         paddingVertical: 10,
-        borderRadius: 5,
+        borderRadius: 999,
     },
-    buttonText: {
-        color: 'white',
-        fontWeight: 'bold',
-    },
+    photoButtonText: { color: '#FFFFFF', fontWeight: '700', fontSize: 14 },
 });

@@ -89,9 +89,16 @@ final class PeerLinkModule: NSObject {
   /// Session key (AES-256) derived after handshake.
   private var sessionKey: SymmetricKey?
 
-  /// "Discovered" peers. Currently just the cloud fallback. mDNS
-  /// discovery via NSNetService can drop into this list when wired.
+  /// "Discovered" peers — cloud fallback plus anything PeerLinkDiscovery
+  /// finds via UDP 6780 (HEVOLVE_DISCO_V1 beacons from HARTOS + the
+  /// Nunba-bundled instance on the same Wi-Fi).  Was a stub until
+  /// 2026-06-04; see PeerLinkDiscovery.swift + HARTOS/docs/architecture/
+  /// peer_discovery_spec.md.
   private var discoveredPeers: [Peer] = []
+
+  /// LAN discovery instance.  Lazily created so the UDP socket isn't
+  /// bound until JS calls start().  Lifetime tied to PeerLinkModule.shared.
+  private var discovery: PeerLinkDiscovery?
 
   struct Peer {
     let address: String
@@ -135,6 +142,34 @@ final class PeerLinkModule: NSObject {
     }
 
     state = .connecting
+
+    // 2026-06-04: real LAN discovery (was Phase-2 TODO).  Listens on
+    // UDP 6780 for HEVOLVE_DISCO_V1 beacons from any HART node on the
+    // same Wi-Fi (HARTOS central, Nunba-bundled, peer phones, etc).
+    // Discovered peers are folded into discoveredPeers so getApiBase()
+    // can return a local URL instead of always falling back to cloud.
+    if #available(iOS 13.0, *), discovery == nil {
+      let nodeIdSeed = PeerLinkCrypto.toHex(identity!.publicKey.rawRepresentation)
+      let nodeId = String(nodeIdSeed.prefix(16))
+      let d = PeerLinkDiscovery(ownNodeId: nodeId)
+      d.onPeerDiscovered = { [weak self] peer in
+        guard let self = self else { return }
+        let wsUrl = peer.wsUrl
+        let already = self.discoveredPeers.contains { $0.address == peer.address }
+        if !already {
+          self.discoveredPeers.insert(Peer(
+            address: peer.address,
+            wsPort: peer.wsPort,
+            wsUrl: wsUrl,
+            method: "UDP_BEACON",
+            trustLevel: "SAME_USER"
+          ), at: 0)
+        }
+      }
+      d.start()
+      discovery = d
+    }
+
     resolve(["state": state.rawValue,
              "identityPubKey": PeerLinkCrypto.toHex(identity!.publicKey.rawRepresentation)])
   }
@@ -156,6 +191,10 @@ final class PeerLinkModule: NSObject {
     state = .idle
     sessionKey = nil
     pendingReplies.removeAll()
+    if #available(iOS 13.0, *) {
+      discovery?.stop()
+      discovery = nil
+    }
   }
 
   // MARK: — Connection

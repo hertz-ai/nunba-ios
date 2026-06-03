@@ -42,10 +42,16 @@ const CARD = '#1A1F2E';
 // historically launched AskMeChatActivity / RevisionChatActivity /
 // AssessmentChatActivity respectively.  Same conversation_id values
 // the server already understands.
+// Mirrors the 5 built-in personas the Java CustomBotsActivity renders.
+// Display names match the strings.xml entries hertzai_bot /
+// teach_yourself / revise_friend / quiz_friend / mock_interview /
+// android_tv.
 const BUILTIN_AGENTS = [
-  { id: 'ask_me',     name: 'Teach Yourself',           kind: 'teach',   tag: 'AskMe' },
-  { id: 'revision',   name: 'Revise With Your AI Friend', kind: 'revise', tag: 'Revision' },
-  { id: 'assessment', name: 'Quiz With Your Friend',    kind: 'quiz',    tag: 'Assess' },
+  { id: 'ask_me',         name: 'Teach Yourself',             kind: 'teach',   tag: 'AskMe' },
+  { id: 'revision',       name: 'Revise With Your AI Friend', kind: 'revise',  tag: 'Revision' },
+  { id: 'assessment',     name: 'Quiz With Your AI Friend',   kind: 'quiz',    tag: 'Assess' },
+  { id: 'mock_interview', name: 'Mock Interview',             kind: 'interview', tag: 'Interview' },
+  { id: 'android_tv',     name: 'Android TV',                 kind: 'tv',      tag: 'TV' },
 ];
 
 // Goals row stub — mirrors the Android "Browse Goals" RecyclerView.
@@ -77,7 +83,10 @@ const BuiltinCard = ({ agent, onPress }) => (
         name={
           agent.kind === 'teach' ? 'school-outline' :
           agent.kind === 'revise' ? 'refresh-circle-outline' :
-          'help-circle-outline'
+          agent.kind === 'quiz' ? 'help-circle-outline' :
+          agent.kind === 'interview' ? 'briefcase-outline' :
+          agent.kind === 'tv' ? 'tv-outline' :
+          'sparkles-outline'
         }
         size={36}
         color={BLUE}

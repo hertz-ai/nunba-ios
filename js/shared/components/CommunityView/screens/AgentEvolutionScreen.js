@@ -76,7 +76,7 @@ const AgentEvolutionScreen = () => {
   }, [agentId]);
 
   const handleEvolve = () => {
-    console.log('Evolve agent');
+    // TODO: wire to agentService.evolve(agentId) when backend lands
   };
 
   const handleSelectSpec = (specId) => {

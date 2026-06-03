@@ -240,17 +240,18 @@ If a feature is **urgent on iOS but not yet in Hevolve**, the choice is:
 
 Default to (2) unless time-pressured.
 
-## Status snapshot (last update: 2026-05-02)
+## Status snapshot (last update: 2026-06-04)
 
 | Layer | Items | Done | Pending |
 |-------|-------|------|---------|
-| Native modules (iOS Swift) | 8 priority modules | 8 | 0 (drops: Wear, TV, FCM-iOS-equivalent) |
-| Vendored shared JS | 280 files | 280 | 0 |
+| Native modules (iOS Swift) | 9 priority modules | 9 (added: PeerLinkDiscovery 2026-06-04) | 0 (drops: Wear, TV, FCM-iOS-equivalent) |
+| Vendored shared JS | 280+ files | 280+ (re-synced 2026-06-04 with ApiErrorBanner + AddPost + BackHandler + PeerLink ack path) | 0 |
 | Routes wired | 53 | 49 ✅ + 4 placeholder (Phase 5) | iPad/iPhone build green |
-| Tests passing | 296 (148 × 2 platforms) | 296 | 0 |
+| Tests passing | 296+13 PeerLinkDiscoveryTests | 309 | 0 |
 | Auth flow port | Signup → token persist | Wired in App.tsx | Per-step screens vendored, integration test pending |
 | Tier-2 native (camera/maps) | 4 native modules | 0 | Phase 5 |
 | Nunba-only screens (Android gaps) | 8 | 0 | Defer until Hevolve adds |
+| Same-user LAN discovery | 1 (UDP 6780 per `HARTOS/docs/architecture/peer_discovery_spec.md`) | Android Kotlin ✅, iOS Swift ✅, HARTOS Python ✅ | Wear OS PeerLink listener (future) |
 
 ## How to update this doc
 
@@ -273,3 +274,4 @@ When porting a screen or closing a gap:
 Audit history:
 - 2026-05-01: initial parity scaffold
 - 2026-05-02: comprehensive three-way matrix + 227-file vendor pass + 53-route wiring
+- 2026-06-04: Same-user LAN discovery landed across all three platforms. iOS PeerLinkModule.swift had been a stub ("Real Bonjour/UDP discovery is a Phase 2 task") that always returned the cloud peer; replaced with PeerLinkDiscovery.swift implementing UDP-6780 listener + 60s probe sender per `HARTOS/docs/architecture/peer_discovery_spec.md`. Android Kotlin PeerLinkDiscovery.kt had the wrong wire format (`magic: "HART_DISCOVERY"` JSON field) — fixed to raw `HEVOLVE_DISCO_V1` byte prefix + `type: hevolve-discovery` JSON body, matching HARTOS. Common spec doc now lives in HARTOS/docs/architecture/peer_discovery_spec.md and any future change MUST update all three impls in the same PR.

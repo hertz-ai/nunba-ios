@@ -25,7 +25,6 @@ const ReportModalComment = ({ navigation, route  }) => {
 
   const handleReport = () => {
     if (selectedReason) {
-      console.log('Reporting post:', comment_id, 'Reason:', selectedReason);
       deleteReply(comment_id, selectedReason);
       navigation.goBack(); // Navigate back after reporting
     } else {

@@ -21,6 +21,9 @@ import { colors, borderRadius, spacing, fontSize, fontWeight } from '../../../th
 const ALL_FEATURES = [
   { icon: 'search', iconType: 'ion', label: 'Search', color: '#CCCCCC', screen: 'Search' },
   { icon: 'notifications', iconType: 'ion', label: 'Alerts', color: '#FF6B35', screen: 'Notifications' },
+  // User-requested 2026-06-03: surface ChannelSetup in AllFeatures
+  // so all 13+ connected adapters are discoverable.
+  { icon: 'link-variant', iconType: 'community', label: 'Channels', color: '#25D366', screen: 'ChannelSetup' },
   { icon: 'wallet', iconType: 'community', label: 'Resonance', color: '#FFD700', screen: 'ResonanceDashboard' },
   { icon: 'trophy', iconType: 'ion', label: 'Achievements', color: '#F59E0B', screen: 'Achievements' },
   { icon: 'flag', iconType: 'community', label: 'Challenges', color: '#EF4444', screen: 'Challenges' },
@@ -40,6 +43,13 @@ const ALL_FEATURES = [
   { icon: 'view-dashboard', iconType: 'community', label: 'Dashboard', color: '#3B82F6', screen: 'AgentDashboard' },
   { icon: 'cloud-cog-outline', iconType: 'community', label: 'Providers', color: '#4CAF50', screen: 'ProviderManagement' },
   { icon: 'video-vintage', iconType: 'community', label: 'Mindstory', color: '#6C63FF', screen: 'Mindstory' },
+  // NOTE: Agents Hub tile intentionally NOT registered here.  Android
+  // already has a much richer native Java Agents tab (CustomBotsActivity
+  // via activity_learn_dark.xml + GridViewFragment.java) with real
+  // illustrated cards, real teacher avatars, and the actual fetched
+  // custom-bot list.  The RN AgentsHubScreen is preserved as a routed
+  // screen for iOS (where there is no Java native), reached on Nunba
+  // through the Nunba-side UI entry — not here.
 ];
 
 const AllFeaturesScreen = () => {
@@ -109,6 +119,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     flexWrap: 'wrap',
     padding: spacing.md,
+    paddingBottom: 120,
     gap: spacing.md,
     justifyContent: 'center',
   },

@@ -12,6 +12,7 @@ import { useNavigation } from '@react-navigation/native';
 // so the migration is safe; we just want the JWT/flag/fan-out
 // pipeline to apply.
 import { friendsApi } from '../../../../../../services/socialApi';
+import { ensureCurrentUser, subscribeCurrentUser } from '../../../../../../services/currentUser';
 
 const Header = ({ imageUri, username, location, rating, time, post_id, postUserId, deletePost, openBottomSheet }) => {
   const { OnboardingModule } = NativeModules;
@@ -20,21 +21,13 @@ const Header = ({ imageUri, username, location, rating, time, post_id, postUserI
   const navigation = useNavigation();
   const refRBSheet = useRef();
   const [dropdownVisible, setDropdownVisible] = useState(false);
-  const [userId, setUserId] = useState(null);
+  const [me, setMe] = useState({ id: null, username: null, email: null, name: null, phone: null });
 
   useEffect(() => {
-    const fetchUserData = async () => {
-      try {
-        OnboardingModule.getUser_id((userId) => {
-         // console.log('UserID',userId)
-          setUserId(userId);
-        });
-      } catch (error) {
-        console.error('Error fetching user data:', error);
-      }
-    };
-
-    fetchUserData();
+    const initial = ensureCurrentUser();
+    setMe({ ...initial });
+    const unsub = subscribeCurrentUser((u) => setMe({ ...u }));
+    return unsub;
   }, []);
 
   // const deletePostHandler = () => {
@@ -108,16 +101,63 @@ const Header = ({ imageUri, username, location, rating, time, post_id, postUserI
           />
         </View>
         <View style={styles.userInfo}>
-          {username && <Text style={usernamestyle}>{username}</Text>}
+          {username && (
+            <Text style={usernamestyle} numberOfLines={1}>
+              {String(username).includes('@')
+                ? String(username).split('@')[0]
+                : username}
+            </Text>
+          )}
           {location && <Text style={subtitle}>{location}</Text>}
           {(rating || time) && <Text style={subtitletime}>{(rating ? rating + ' | ' : '') + (time ? time : '')}</Text>}
         </View>
       </View>
       <View style={styles.right}>
-        <TouchableOpacity onPress={AddFriend} style={followButton}>
-          <Text style={befriendButtonText}>{isFollowed ? 'Following' : 'Follow'}</Text>
-          <Icon name={isFollowed ? 'check' : 'plus'} size={18} color='#FFF' />
-        </TouchableOpacity>
+        {(() => {
+          const norm = (v) => String(v ?? '').replace(/['"\s]/g, '').toLowerCase();
+          const myId = norm(me.id);
+          const author = norm(postUserId);
+          const displayed = norm(username);
+          const isOwnById = myId && author && myId === author;
+          const isOwnByIdentity =
+            displayed &&
+            (displayed === norm(me.username) ||
+              displayed === norm(me.email) ||
+              displayed === norm(me.name) ||
+              displayed === norm(me.phone));
+          // Polish round 3 2026-06-03: own posts get a quiet "You"
+          // pill in place of the (hidden) Follow chip so the row
+          // never has a hole on the right and the user sees a
+          // confirmation that this post is theirs.  Subtle outline
+          // styling — never competes with the kebab menu.
+          if (isOwnById || isOwnByIdentity) {
+            return (
+              <View
+                style={{
+                  paddingVertical: 4,
+                  paddingHorizontal: 10,
+                  borderRadius: 12,
+                  borderWidth: 1,
+                  borderColor: 'rgba(255,255,255,0.18)',
+                  marginRight: 7,
+                }}
+              >
+                <Text style={{
+                  color: theme === 'dark' ? 'rgba(255,255,255,0.75)' : 'rgba(0,0,0,0.6)',
+                  fontSize: 12,
+                  fontWeight: '700',
+                  letterSpacing: 0.3,
+                }}>You</Text>
+              </View>
+            );
+          }
+          return (
+            <TouchableOpacity onPress={AddFriend} style={followButton}>
+              <Text style={befriendButtonText}>{isFollowed ? 'Following' : 'Follow'}</Text>
+              <Icon name={isFollowed ? 'check' : 'plus'} size={18} color='#FFF' />
+            </TouchableOpacity>
+          );
+        })()}
         <TouchableOpacity onPress={() => openBottomSheet({ id: post_id, userID: postUserId })} style={styles.moreButton}>
           <OCIcon name="kebab-horizontal" size={20} color={theme === 'dark' ? '#FFF' : 'black'} />
         </TouchableOpacity>
@@ -126,4 +166,8 @@ const Header = ({ imageUri, username, location, rating, time, post_id, postUserI
   );
 };
 
-export default Header;
+// Polish round 3 perf 2026-06-03: React.memo prevents Header from
+// re-rendering when sibling Body/Footer state changes propagate
+// through the Post parent.  Avatar Image + Follow chip layout
+// remains stable across the feed scroll lifecycle.
+export default React.memo(Header);

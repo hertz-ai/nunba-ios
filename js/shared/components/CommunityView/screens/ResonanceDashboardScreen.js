@@ -27,6 +27,8 @@ import {
 } from '../components/Gamification';
 import ContextBridge from '../components/ContextBridge';
 import CountUp from '../../shared/CountUp';
+import EmptyState from '../../shared/EmptyState';
+import { emptyStatePreset } from '../../shared/emptyStatePresets';
 
 const TABS = ['Overview', 'History', 'Leaderboard'];
 
@@ -264,7 +266,10 @@ const ResonanceDashboardScreen = () => {
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.listContent}
         ListEmptyComponent={
-          <Text style={styles.emptyText}>No transactions yet</Text>
+          <EmptyState
+            {...emptyStatePreset('no-resonance-history')}
+            onCta={() => navigation.navigate('AddPost')}
+          />
         }
       />
     </View>
@@ -282,6 +287,9 @@ const ResonanceDashboardScreen = () => {
         contentContainerStyle={styles.listContent}
         ListHeaderComponent={
           <Text style={styles.leaderboardTitle}>Top 50 This Week</Text>
+        }
+        ListEmptyComponent={
+          <EmptyState {...emptyStatePreset('no-leaderboard')} />
         }
       />
     </View>

@@ -143,6 +143,27 @@ const PRESETS = Object.freeze({
     body: 'Try a different filter or search term.',
     ctaLabel: 'Clear filters',
   },
+  // Polish round 3 2026-06-03: gamification screens were still using
+  // raw "No X found" Text — bleak vs the rest of the conversational
+  // catalogue.  Three new presets that match the existing tone.
+  'no-achievements': {
+    icon: 'trophy-outline',
+    title: 'No trophies yet',
+    body: 'Complete a challenge or hit a streak — they\'ll land here.',
+    ctaLabel: 'See challenges',
+  },
+  'no-resonance-history': {
+    icon: 'history',
+    title: 'Nothing to recap',
+    body: 'Posts, reactions, and helpful comments add to your score.',
+    ctaLabel: 'Create a post',
+  },
+  'no-leaderboard': {
+    icon: 'podium',
+    title: 'Leaderboard\'s warming up',
+    body: 'Once your community gets going, top movers show up here.',
+    ctaLabel: null,
+  },
 });
 
 /**

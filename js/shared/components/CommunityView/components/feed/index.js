@@ -18,21 +18,35 @@ import _ from 'lodash';
 // itself. Tapping the FAB navigates to the same ConversationHistory
 // route the InboxScreen header uses, so there is exactly ONE path
 // to the morphable Nunba agent (no parallel route).
-const NunbaFab = ({ onPress }) => (
-  <TouchableOpacity
-    accessibilityRole="button"
-    accessibilityLabel="Open chat with Nunba"
-    accessibilityHint="Opens your default chat — the agent morphs to match what you need"
-    onPress={onPress}
-    activeOpacity={0.85}
-    style={fabStyles.fab}
-    testID="NunbaFab"
-  >
-    <View style={fabStyles.fabInner}>
-      <Text style={fabStyles.fabMark}>N</Text>
-    </View>
-  </TouchableOpacity>
-);
+// 200ms tap debounce — prevents double-fire when the tap lands on the
+// edge of the FAB during a list-scroll deceleration. Without it, fast
+// taps were navigating twice and stacking duplicate ConversationHistory
+// screens on the navigation stack.
+const NunbaFab = ({ onPress }) => {
+  const lastTapRef = useRef(0);
+  const handle = useCallback(() => {
+    const now = Date.now();
+    if (now - lastTapRef.current < 250) return;
+    lastTapRef.current = now;
+    onPress && onPress();
+  }, [onPress]);
+  return (
+    <TouchableOpacity
+      accessibilityRole="button"
+      accessibilityLabel="Open chat with Nunba"
+      accessibilityHint="Opens your default chat — the agent morphs to match what you need"
+      onPress={handle}
+      activeOpacity={0.85}
+      hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+      style={fabStyles.fab}
+      testID="NunbaFab"
+    >
+      <View style={fabStyles.fabInner}>
+        <Text style={fabStyles.fabMark}>N</Text>
+      </View>
+    </TouchableOpacity>
+  );
+};
 
 const Feed = () => {
   const initialState = [];
@@ -67,7 +81,6 @@ const Feed = () => {
       } catch (error) {
         OnboardingModule.getTheme((fetchedTheme) => {
           setTheme(fetchedTheme);
-          console.log('Theme received and set via receiver:', fetchedTheme);
         });
         console.error('Error parsing AddPostKey intent:', error);
       }
@@ -103,9 +116,6 @@ const Feed = () => {
     OnboardingModule.getTheme((fetchedTheme) => {
       if (theme !== fetchedTheme) {
         setTheme(fetchedTheme);
-        console.log('Theme received and set:', fetchedTheme);
-      } else {
-        console.log('Fetched theme is the same as current theme, no update needed.');
       }
     });
   }, [theme, setTheme, OnboardingModule]);
@@ -224,6 +234,10 @@ const Feed = () => {
         renderItem={({ item }) => <Post openBottomSheet={() => toggleBottomSheet(item)} post={item} deletePost={deletePost}  />}
         keyExtractor={item => item.id.toString()}
         ListHeaderComponent={<FeedHeader />}
+        // 170 = NunbaFab (60) + bottom: 90 + 20 breathing room.
+        // Without this, the last post hides behind the FAB / Java
+        // bottom-nav on tablet landscape and portrait alike.
+        contentContainerStyle={{ paddingBottom: 170 }}
         showsVerticalScrollIndicator={false}
         onEndReached={loadMorePosts}
         onEndReachedThreshold={0.7}
@@ -286,8 +300,14 @@ const styles = StyleSheet.create({
 const fabStyles = StyleSheet.create({
   fab: {
     position: 'absolute',
-    right: 18,
-    bottom: 24,
+    right: 20,
+    // bottom was 24 — clipped half-behind the Java bottom-nav strip
+    // because the React Feed sits ABOVE that strip. 90 clears the
+    // 56dp Material bottom-nav + the gesture-handle safe area on
+    // tablets, while keeping the FAB comfortably in the visible feed
+    // area. User-reported 2026-06-03: "chat history half assed
+    // half visible button".
+    bottom: 90,
     width: 60,
     height: 60,
     borderRadius: 30,
@@ -298,8 +318,10 @@ const fabStyles = StyleSheet.create({
     shadowOpacity: 0.45,
     shadowRadius: 10,
     shadowOffset: { width: 0, height: 4 },
-    elevation: 8,
-    zIndex: 20,
+    elevation: 12,
+    // zIndex bumped to 100 so the FAB renders above the feed FlatList
+    // and any post-card overlays without exception.
+    zIndex: 100,
   },
   fabInner: {
     width: 60, height: 60, borderRadius: 30,

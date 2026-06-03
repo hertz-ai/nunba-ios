@@ -76,6 +76,32 @@ const useNotificationStore = create((set, get) => ({
     realtimeService.on('connected', () => set({ connected: true }));
     realtimeService.on('disconnected', () => set({ connected: false }));
 
+    // FCM -> RN bridge: MyFirebaseMessagingService.sendNotification emits
+    // NotificationReceived for every FCM push (task #377). Previously
+    // only fleet_command FCM data made it to JS; regular reaction /
+    // friend-req / call_invite notifications appeared in the OS shade
+    // only. Listening here closes the in-app NotificationsScreen gap.
+    try {
+      const { DeviceEventEmitter } = require('react-native');
+      DeviceEventEmitter.addListener('NotificationReceived', (payload) => {
+        const entry = {
+          id: `fcm-${payload?.timestamp || Date.now()}`,
+          title: payload?.title || 'Notification',
+          body: payload?.body || '',
+          kind: payload?.type || 'fcm',
+          source: 'fcm',
+          created_at: new Date(payload?.timestamp || Date.now()).toISOString(),
+          read: false,
+        };
+        set((state) => {
+          const next = [entry, ...state.notifications].slice(0, 100);
+          const count = state.unreadCount + 1;
+          persistCache(next, count);
+          return { notifications: next, unreadCount: count };
+        });
+      });
+    } catch (_) {}
+
     // Start listening to native DeviceEventEmitter bridge
     realtimeService.connect();
 

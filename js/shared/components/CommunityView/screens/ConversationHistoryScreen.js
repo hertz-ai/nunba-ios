@@ -7,11 +7,11 @@ import {
   widthPercentageToDP as wp,
   heightPercentageToDP as hp,
 } from 'react-native-responsive-screen';
-import * as Animatable from 'react-native-animatable';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
 import { useNavigation } from '@react-navigation/native';
 import useChannelStore from '../../../channelStore';
+import { rfp } from '../../../utils/responsiveFont';
 import EmptyState from '../../shared/EmptyState';
 import { emptyStatePreset } from '../../shared/emptyStatePresets';
 
@@ -78,10 +78,16 @@ const ConversationHistoryScreen = () => {
     offsetRef.current = reset ? PAGE_SIZE : offset + PAGE_SIZE;
   }, [fetchConversations]);
 
+  // Mount-only effect.  fetchBindings + loadData are stable Zustand
+  // action refs, but listing them in deps caused the screen to render-
+  // loop on some devices (user-reported 2026-06-02: "chat history button
+  // constantly rerenders").  Loading is idempotent — once-per-mount is
+  // the right semantic; user-triggered refresh handles re-fetch.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     fetchBindings();
     loadData('all', true);
-  }, [fetchBindings, loadData]);
+  }, []);
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
@@ -111,34 +117,38 @@ const ConversationHistoryScreen = () => {
     }
   });
 
-  const renderMessage = ({ item, index }) => {
+  // useCallback so FlatList sees a stable renderItem reference between
+  // parent renders. Without it, every conversations array reference change
+  // (which Zustand emits on every fetch) triggered a full row re-mount.
+  // That was the second flicker source — first was the Animatable.View
+  // fadeInUp wrapper below (kept rendering at opacity 0 on RN 0.81 + Hermes,
+  // same family of bugs as task #360 batch).
+  const renderMessage = React.useCallback(({ item }) => {
     const roleColor = ROLE_COLORS[(item.role || '').toLowerCase()] || ROLE_COLORS.default;
     const channelColor = CHANNEL_COLORS[(item.channel || '').toLowerCase()] || CHANNEL_COLORS.default;
     const roleName = (item.role || 'unknown').charAt(0).toUpperCase() + (item.role || 'unknown').slice(1);
 
     return (
-      <Animatable.View animation="fadeInUp" delay={Math.min(index * 30, 300)}>
-        <View style={styles.messageCard}>
-          <View style={styles.messageHeader}>
-            <View style={[styles.roleBadge, { backgroundColor: roleColor + '22' }]}>
-              <Text style={[styles.roleBadgeText, { color: roleColor }]}>{roleName}</Text>
-            </View>
-            {item.channel ? (
-              <View style={[styles.channelBadge, { backgroundColor: channelColor + '18' }]}>
-                <Text style={[styles.channelBadgeText, { color: channelColor }]}>
-                  {item.channel}
-                </Text>
-              </View>
-            ) : null}
-            <Text style={styles.timestamp}>{formatTimestamp(item.created_at || item.timestamp)}</Text>
+      <View style={styles.messageCard}>
+        <View style={styles.messageHeader}>
+          <View style={[styles.roleBadge, { backgroundColor: roleColor + '22' }]}>
+            <Text style={[styles.roleBadgeText, { color: roleColor }]}>{roleName}</Text>
           </View>
-          <Text style={styles.messageContent} numberOfLines={6}>
-            {item.content || item.message || ''}
-          </Text>
+          {item.channel ? (
+            <View style={[styles.channelBadge, { backgroundColor: channelColor + '18' }]}>
+              <Text style={[styles.channelBadgeText, { color: channelColor }]}>
+                {item.channel}
+              </Text>
+            </View>
+          ) : null}
+          <Text style={styles.timestamp}>{formatTimestamp(item.created_at || item.timestamp)}</Text>
         </View>
-      </Animatable.View>
+        <Text style={styles.messageContent} numberOfLines={6}>
+          {item.content || item.message || ''}
+        </Text>
+      </View>
     );
-  };
+  }, []);
 
   const renderFooter = () => {
     if (!conversationsHasMore) return null;
@@ -196,30 +206,36 @@ const ConversationHistoryScreen = () => {
         })}
       </ScrollView>
 
-      {/* Conversation list */}
-      {conversationsLoading && conversations.length === 0 ? (
-        <View style={styles.centerContainer}>
-          <ActivityIndicator size="large" color="#6C63FF" />
-        </View>
-      ) : (
-        <FlatList
-          data={conversations}
-          keyExtractor={(item, idx) => String(item.id || idx)}
-          renderItem={renderMessage}
-          // UX-AUDIT 2026-05-19: P7 preset migration (DRY).
-          ListEmptyComponent={
+      {/* Conversation list — always render FlatList so the empty
+          loading state and the populated state share the SAME tree.
+          User-reported 2026-06-03 10:20: "STILL STILL CHAT HISTORY
+          FLICKERS".  Previous code conditionally swapped between a
+          centered Spinner and the FlatList, which fully unmounted +
+          remounted on every conversationsLoading toggle → visible
+          flicker.  Move the spinner into ListEmptyComponent so only
+          the empty body swaps; FlatList container stays mounted. */}
+      <FlatList
+        data={conversations}
+        keyExtractor={(item, idx) => String(item.id || idx)}
+        renderItem={renderMessage}
+        ListEmptyComponent={
+          conversationsLoading ? (
+            <View style={styles.centerContainer}>
+              <ActivityIndicator size="large" color="#6C63FF" />
+            </View>
+          ) : (
             <EmptyState {...emptyStatePreset('no-conversation-history')} />
-          }
-          ListFooterComponent={renderFooter}
-          contentContainerStyle={styles.listContent}
-          showsVerticalScrollIndicator={false}
-          onEndReached={handleLoadMore}
-          onEndReachedThreshold={0.3}
-          refreshControl={
-            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#6C63FF" />
-          }
-        />
-      )}
+          )
+        }
+        ListFooterComponent={renderFooter}
+        contentContainerStyle={styles.listContent}
+        showsVerticalScrollIndicator={false}
+        onEndReached={handleLoadMore}
+        onEndReachedThreshold={0.3}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#6C63FF" />
+        }
+      />
     </SafeAreaView>
   );
 };
@@ -232,24 +248,36 @@ const styles = StyleSheet.create({
   },
   backButton: { padding: 4 },
   headerTitle: {
-    flex: 1, color: '#FFF', fontSize: wp('5%'),
+    flex: 1, color: '#FFF', fontSize: rfp(4.5),
     fontWeight: '700', textAlign: 'center',
   },
   headerSpacer: { width: 32 },
   filterRow: {
     paddingHorizontal: wp('4%'), paddingBottom: hp('1.5%'), gap: 8,
+    // alignItems: 'flex-start' so chip children don't stretch
+    // vertically in landscape. Without this, horizontal ScrollView's
+    // default cross-axis 'stretch' made the single "All" chip render
+    // as a 400+ px tall column on tablet landscape.
+    alignItems: 'flex-start',
   },
   filterChip: {
-    paddingHorizontal: wp('3.5%'), paddingVertical: hp('0.7%'),
+    paddingHorizontal: wp('3.5%'),
+    // Switched from hp() to a fixed dp value — hp() was creating
+    // wildly inconsistent chip heights across orientations because
+    // hp computes off CURRENT window height, which differs between
+    // portrait/landscape. Fixed dp gives the same chip in both.
+    paddingVertical: 8,
     borderRadius: 20, borderWidth: 1, borderColor: '#2A2A3E',
     backgroundColor: '#1A1A2E',
+    // Defensive: chip never stretches vertically beyond its content.
+    alignSelf: 'flex-start',
   },
-  filterChipText: { color: '#888', fontSize: wp('3%'), fontWeight: '600' },
+  filterChipText: { color: '#888', fontSize: 13, fontWeight: '600' },
   centerContainer: {
     flex: 1, justifyContent: 'center', alignItems: 'center',
     paddingVertical: hp('15%'),
   },
-  emptyText: { color: '#888', fontSize: wp('3.5%'), marginTop: hp('2%') },
+  emptyText: { color: '#888', fontSize: rfp(3.2), marginTop: hp('2%') },
   listContent: { paddingHorizontal: wp('4%'), paddingBottom: hp('10%') },
   messageCard: {
     backgroundColor: '#1A1A2E', borderRadius: 12, padding: wp('4%'),
@@ -262,14 +290,14 @@ const styles = StyleSheet.create({
   roleBadge: {
     paddingHorizontal: 8, paddingVertical: 2, borderRadius: 8,
   },
-  roleBadgeText: { fontSize: wp('2.6%'), fontWeight: '700' },
+  roleBadgeText: { fontSize: rfp(2.6), fontWeight: '700' },
   channelBadge: {
     paddingHorizontal: 8, paddingVertical: 2, borderRadius: 8,
   },
-  channelBadgeText: { fontSize: wp('2.4%'), fontWeight: '600' },
-  timestamp: { color: '#555', fontSize: wp('2.4%'), marginLeft: 'auto' },
+  channelBadgeText: { fontSize: rfp(2.4), fontWeight: '600' },
+  timestamp: { color: '#555', fontSize: rfp(2.4), marginLeft: 'auto' },
   messageContent: {
-    color: '#DDD', fontSize: wp('3.3%'), lineHeight: wp('5%'),
+    color: '#DDD', fontSize: rfp(3.3), lineHeight: rfp(4.5),
   },
   footerLoader: { paddingVertical: hp('2%'), alignItems: 'center' },
   loadMoreBtn: {

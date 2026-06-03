@@ -1,6 +1,31 @@
-import { NativeModules } from 'react-native';
+import { NativeModules, DeviceEventEmitter } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import endpointResolver from './endpointResolver';
+import apiCache from './apiCache';
+
+// Surface server errors so screens don't silently render empty.
+// HARTOS returning 500 on /communities or /posts was previously invisible
+// to the user — the screen just looked blank.  Emit a DeviceEvent so
+// the global ApiErrorBanner can toast the user, AND on 5xx invalidate
+// the endpoint resolver cache so the very next request re-probes the
+// priority chain (local PeerLink peer → LAN peer → regional → cloud).
+// Without that, a sick central kept getting hit for the full 30 s
+// cache TTL even when a local Nunba node was reachable.
+const _emitApiError = (path, status, method) => {
+  try {
+    DeviceEventEmitter.emit('ApiError', { path, status, method });
+  } catch (_) {}
+  // 5xx and 0 (network) are server-side / transport faults — fall over
+  // to the next peer in the priority chain.  4xx (auth, validation) is
+  // the caller's responsibility — keep the current endpoint since
+  // retrying a different peer won't help.
+  if (status >= 500 || status === 0) {
+    try { endpointResolver.invalidateCache(); } catch (_) {}
+  }
+};
+const _safeJson = async (response) => {
+  try { return await response.json(); } catch (_) { return null; }
+};
 
 // #263 — Deploy-mode-aware base URL resolution.
 //
@@ -99,14 +124,33 @@ const getHeaders = async () => {
   };
 };
 
+// Polish round 3 perf 2026-06-03: bust the GET cache for the path
+// and its first 2 ancestors so a POST /posts/123/like invalidates
+// both /posts/123 (detail) and /posts (list).  Keeps the cache
+// coherent without manual bust calls scattered through callers.
+const _bustForPath = (path) => {
+  apiCache.bust(`GET:${path}:`);
+  const parts = String(path || '').split('/').filter(Boolean);
+  if (parts.length > 1) apiCache.bust(`GET:/${parts[0]}:`);
+  if (parts.length > 2) apiCache.bust(`GET:/${parts[0]}/${parts[1]}:`);
+};
+
 const get = async (path, params) => {
-  const [headers, base] = await Promise.all([
-    getHeaders(),
-    _resolveSocialBase(),
-  ]);
-  const url = buildUrl(path, params, base);
-  const response = await fetch(url, { method: 'GET', headers });
-  return response.json();
+  // Polish round 3 perf 2026-06-03: 30s TTL cache so tab-flipping
+  // (Feed → Notifications → back to Feed) doesn't re-fetch the same
+  // list.  Mutations bust the cache for the affected path tree, so
+  // freshness is preserved when the user actually changes state.
+  const cacheKey = `GET:${path}:${params ? JSON.stringify(params) : ''}`;
+  return apiCache.wrap(cacheKey, null, 30000, async () => {
+    const [headers, base] = await Promise.all([
+      getHeaders(),
+      _resolveSocialBase(),
+    ]);
+    const url = buildUrl(path, params, base);
+    const response = await fetch(url, { method: 'GET', headers });
+    if (!response.ok) _emitApiError(path, response.status, 'GET');
+    return _safeJson(response);
+  });
 };
 
 const post = async (path, body) => {
@@ -120,7 +164,10 @@ const post = async (path, body) => {
     headers,
     body: JSON.stringify(body),
   });
-  return response.json();
+  if (!response.ok) _emitApiError(path, response.status, 'POST');
+  const json = await _safeJson(response);
+  if (response.ok) _bustForPath(path);
+  return json;
 };
 
 const patch = async (path, body) => {
@@ -134,7 +181,10 @@ const patch = async (path, body) => {
     headers,
     body: JSON.stringify(body),
   });
-  return response.json();
+  if (!response.ok) _emitApiError(path, response.status, 'PATCH');
+  const json = await _safeJson(response);
+  if (response.ok) _bustForPath(path);
+  return json;
 };
 
 const del = async (path) => {
@@ -144,7 +194,10 @@ const del = async (path) => {
   ]);
   const url = buildUrl(path, undefined, base);
   const response = await fetch(url, { method: 'DELETE', headers });
-  return response.json();
+  if (!response.ok) _emitApiError(path, response.status, 'DELETE');
+  const json = await _safeJson(response);
+  if (response.ok) _bustForPath(path);
+  return json;
 };
 
 export const encountersApi = {

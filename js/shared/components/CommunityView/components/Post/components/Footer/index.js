@@ -7,7 +7,11 @@ import FIcon from 'react-native-vector-icons/Feather';
 import FAIcon from 'react-native-vector-icons/FontAwesome';
 import useThemeStore from '../../../../../../colorThemeZustand';
 import { useNavigation } from '@react-navigation/native';
-import { RectButton, GestureHandlerRootView } from 'react-native-gesture-handler';
+// RectButton from react-native-gesture-handler intermittently swallows
+// onPress on RN 0.81 + Hermes (live drive 2026-06-03 task #378). Swapping
+// to TouchableOpacity matches the NunbaFab pattern that fires reliably
+// in the same render tree (Feed FlatList row).
+// import { RectButton } from 'react-native-gesture-handler';
 import { postsApi, commentsApi } from '../../../../../../services/socialApi';
 import BookmarkButton from './BookmarkButton';
 import { optimistic } from '../../../../../../services/optimistic';
@@ -171,8 +175,15 @@ const Footer = ({
   };
 
   const onComment = () => {
-    // Navigate to PostDetail for full comment experience
-    navigation.navigate('PostDetail', { postId: userData?.id, post: userData });
+    // Guard against undefined postId — TouchableOpacity onPress now fires
+    // reliably (vs RectButton silent path), so a stale FlatList row with
+    // userData.id=undefined would crash navigation.navigate(...) and
+    // bounce Hevolve back to the launcher (live observation 2026-06-03
+    // 02:26, task #379). Silent return is the right semantic — the user
+    // will just not navigate; there's no meaningful destination for an
+    // id-less post.
+    if (!userData?.id) return;
+    navigation.navigate('PostDetail', { postId: userData.id, post: userData });
   };
 
   const onShare = () => {
@@ -215,42 +226,42 @@ const Footer = ({
       </View>
       <View style={verticalline} />
       <View style={styles.bottomContainer}>
+        {/* Per-button GestureHandlerRootView wrappers were nested inside
+            the app-root GestureHandlerRootView (App.js:97). Nested
+            roots break touch propagation — taps on RectButton children
+            silently ignored on RN 0.81 + react-native-gesture-handler
+            2.x. Wrappers removed; RectButton works directly inside the
+            app-root GestureHandlerRootView. */}
         {/* Upvote */}
-        <GestureHandlerRootView>
-          <Animated.View style={{ transform: [{ scale: scaleAnim }] }}>
-            <RectButton style={iconsleft} onPress={() => handleVote('up')} rippleColor="lightgrey">
-              <ADIcon
-                name={voteState === 'up' ? 'like1' : 'like2'}
-                size={18}
-                color={voteState === 'up' ? '#2ECC71' : (isDark ? '#FFF' : 'black')}
-              />
-              <Text style={iconText}> Lit</Text>
-            </RectButton>
-          </Animated.View>
-        </GestureHandlerRootView>
+        <Animated.View style={{ transform: [{ scale: scaleAnim }] }}>
+          <TouchableOpacity style={iconsleft} onPress={() => handleVote('up')} activeOpacity={0.7}>
+            <ADIcon
+              name={voteState === 'up' ? 'like1' : 'like2'}
+              size={18}
+              color={voteState === 'up' ? '#2ECC71' : (isDark ? '#FFF' : 'black')}
+            />
+            <Text style={iconText}> Lit</Text>
+          </TouchableOpacity>
+        </Animated.View>
 
         {/* Downvote */}
-        <GestureHandlerRootView>
-          <RectButton style={styles.iconContainer} onPress={() => handleVote('down')} rippleColor="lightgrey">
-            <View style={styles.icons}>
-              <ADIcon
-                name={voteState === 'down' ? 'dislike1' : 'dislike2'}
-                size={18}
-                color={voteState === 'down' ? '#e74c3c' : (isDark ? '#FFF' : 'black')}
-              />
-            </View>
-          </RectButton>
-        </GestureHandlerRootView>
+        <TouchableOpacity style={styles.iconContainer} onPress={() => handleVote('down')} activeOpacity={0.7}>
+          <View style={styles.icons}>
+            <ADIcon
+              name={voteState === 'down' ? 'dislike1' : 'dislike2'}
+              size={18}
+              color={voteState === 'down' ? '#e74c3c' : (isDark ? '#FFF' : 'black')}
+            />
+          </View>
+        </TouchableOpacity>
 
         {/* Comment */}
-        <GestureHandlerRootView>
-          <RectButton onPress={onComment} style={styles.iconContainer} rippleColor="lightgrey">
-            <View style={styles.icons}>
-              <OCIcon name="comment" size={18} style={foricon} />
-              <Text style={iconText}> Comment</Text>
-            </View>
-          </RectButton>
-        </GestureHandlerRootView>
+        <TouchableOpacity onPress={onComment} style={styles.iconContainer} activeOpacity={0.7}>
+          <View style={styles.icons}>
+            <OCIcon name="comment" size={18} style={foricon} />
+            <Text style={iconText}> Comment</Text>
+          </View>
+        </TouchableOpacity>
 
         {/* Bookmark — UX-AUDIT 2026-05-18 Pass X.P2 — saves the post
             for later review.  Caller-controlled state lets a future
@@ -266,26 +277,26 @@ const Footer = ({
         </View>
 
         {/* Chat */}
-        <GestureHandlerRootView>
-          <RectButton onPress={onChat} style={styles.iconContainer} rippleColor="lightgrey">
-            <View style={styles.icons}>
-              <FIcon name="send" size={18} style={foricon} />
-              <Text style={iconText}> Chat</Text>
-            </View>
-          </RectButton>
-        </GestureHandlerRootView>
+        <TouchableOpacity onPress={onChat} style={styles.iconContainer} activeOpacity={0.7}>
+          <View style={styles.icons}>
+            <FIcon name="send" size={18} style={foricon} />
+            <Text style={iconText}> Chat</Text>
+          </View>
+        </TouchableOpacity>
 
         {/* Share */}
-        <GestureHandlerRootView>
-          <RectButton onPress={onShare} style={styles.iconContainer} rippleColor="lightgrey">
-            <View style={styles.icons}>
-              <FAIcon name="share" size={18} style={foricon} />
-            </View>
-          </RectButton>
-        </GestureHandlerRootView>
+        <TouchableOpacity onPress={onShare} style={styles.iconContainer} activeOpacity={0.7}>
+          <View style={styles.icons}>
+            <FAIcon name="share" size={18} style={foricon} />
+          </View>
+        </TouchableOpacity>
       </View>
     </View>
   );
 };
 
-export default Footer;
+// Polish round 3 perf 2026-06-03: React.memo so a like / bookmark
+// tap on one post doesn't cascade re-renders through every visible
+// post's Footer.  Props are mostly primitives + a stable userData
+// reference per row, so default shallow-equal is correct here.
+export default React.memo(Footer);

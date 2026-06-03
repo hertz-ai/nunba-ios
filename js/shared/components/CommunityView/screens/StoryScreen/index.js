@@ -10,7 +10,9 @@ import {
   StatusBar,
 } from 'react-native';
 import {useRoute, useNavigation} from '@react-navigation/native';
-import VideoPlayer from 'react-native-video-controls';
+// 2026-06-03: dropped react-native-video-controls (v5-era wrapper).
+// See StoryCard for the longer note — same v6 compat reason here.
+import Video from 'react-native-video';
 import styles from './styles';
 
 // Stories come from the feed rail wrapped as [story] so we always
@@ -80,22 +82,16 @@ const StoryScreen = () => {
       <TouchableWithoutFeedback onPress={handlePress}>
         <View style={{flex: 1, backgroundColor: '#000'}}>
           {isVideo ? (
-            <VideoPlayer
+            <Video
               source={{uri: mediaUri}}
-              videoStyle={styles.image}
               style={styles.image}
               paused={false}
               muted={false}
               resizeMode="cover"
               repeat={false}
-              disableFullscreen={true}
-              disablePlayPause={true}
-              disableSeekbar={true}
-              disableVolume={true}
-              disableTimer={true}
-              disableBack={true}
+              controls={false}
+              ignoreSilentSwitch="ignore"
               onEnd={goNext}
-              tapAnywhereToPause={false}
             />
           ) : (
             <ImageBackground source={{uri: mediaUri}} style={styles.image}>
