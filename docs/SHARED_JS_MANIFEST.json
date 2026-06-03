@@ -29,6 +29,7 @@
         "nunbaKeyboardStore.js",
         "savedPostsStore.js",
         "secureInputStore.js",
+        "userStore.js",
         "zustandStore.js"
       ]
     },
