@@ -51,6 +51,7 @@
       "files": [
         "gamification.js",
         "iconMap.js",
+        "responsiveFont.js",
         "timeOfDay.js"
       ]
     },
@@ -79,11 +80,13 @@
       "source_prefix": "services/",
       "destination_prefix": "services/",
       "files": [
+        "apiCache.js",
         "apiHelpers.js",
         "audioApi.js",
         "channelConversationService.js",
         "chatApi.js",
         "computePolicy.js",
+        "currentUser.js",
         "deepLinkService.js",
         "deviceApi.js",
         "endpointResolver.js",
@@ -91,6 +94,7 @@
         "fleetCommandHandler.js",
         "gameRecommendationEngine.js",
         "haptics.js",
+        "imageCache.js",
         "kidsLearningApi.js",
         "kidsMediaApi.js",
         "marketingNotificationService.js",
