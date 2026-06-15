@@ -84,6 +84,7 @@
         "apiCache.js",
         "apiHelpers.js",
         "audioApi.js",
+        "awesomeGames.js",
         "channelConversationService.js",
         "chatApi.js",
         "computePolicy.js",
@@ -96,6 +97,7 @@
         "gameRecommendationEngine.js",
         "haptics.js",
         "imageCache.js",
+        "kidsAssetGen.js",
         "kidsLearningApi.js",
         "kidsMediaApi.js",
         "marketingNotificationService.js",
@@ -215,6 +217,9 @@
         "CommunityView/components/KidsLearning/shared/VisualHint.js",
         "CommunityView/components/KidsLearning/StarReward.js",
         "CommunityView/components/KidsLearning/StreakFire.js",
+        "CommunityView/components/KidsLearning/UniqueGameRenderer.js",
+        "CommunityView/components/KidsLearning/shared/MicStatusOverlay.js",
+        "CommunityView/components/KidsLearning/shared/PhoneticSimilarity.js",
         "CommunityView/components/KidsLearning/templates/BalloonPopTemplate.js",
         "CommunityView/components/KidsLearning/templates/CountingTemplate.js",
         "CommunityView/components/KidsLearning/templates/DragToZoneTemplate.js",
@@ -391,8 +396,12 @@
     },
     {
       "name": "image-assets",
-      "rationale": "Static PNG assets referenced via require() from vendored components. Metro's --dev=false bundler walks every transitive import, so missing PNGs break CI even when the screen isn't visited at runtime. Mirrors Hevolve_RN's directory layout: root images/ folder + colocated PNGs next to the components that own them.",
+      "rationale": "Static PNG assets referenced via require() from vendored components. Metro's --dev=false bundler walks every transitive import, so missing PNGs break CI even when the screen isn't visited at runtime. Mirrors Hevolve_RN's directory layout: root images/ folder + colocated PNGs next to the components that own them. Also carries non-PNG static data (e.g. assets/kids/catalog.json) that Metro inlines via require() at bundle time.",
       "files": [
+        {
+          "src": "assets/kids/catalog.json",
+          "dst": "assets/kids/catalog.json"
+        },
         {
           "src": "components/CommunityView/components/FeedHeader/AddPost/user1.png",
           "dst": "components/CommunityView/components/FeedHeader/AddPost/user1.png"
