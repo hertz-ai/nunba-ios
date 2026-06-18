@@ -10,7 +10,7 @@ import {
   Linking, Platform
 
 } from 'react-native';
-import {NavigationContainer} from '@react-navigation/native';
+import {NavigationContainer, NavigationIndependentTree} from '@react-navigation/native';
 import {createNativeStackNavigator} from '@react-navigation/native-stack';
 
 import PhoneEmailandName from './PhoneEmailandName';
@@ -124,6 +124,7 @@ const SignUpCombined = () => {
   }
 
   return (
+<NavigationIndependentTree>
 <NavigationContainer
        initialState={initialState}
        onStateChange={state => {
@@ -134,6 +135,7 @@ const SignUpCombined = () => {
 <Stack.Screen name='PhoneEmailandName' component={PhoneEmailandName} />
 </Stack.Navigator>
 </NavigationContainer>
+</NavigationIndependentTree>
    );
 };
 

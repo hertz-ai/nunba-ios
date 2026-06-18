@@ -30,5 +30,7 @@ RCT_EXTERN_METHOD(subscribeCommunity:(NSString *)communityId
 RCT_EXTERN_METHOD(unsubscribeCommunity:(NSString *)communityId
                   resolver:(RCTPromiseResolveBlock)resolve
                   rejecter:(RCTPromiseRejectBlock)reject)
+RCT_EXTERN_METHOD(getPageState:(RCTResponseSenderBlock)callback)
+RCT_EXTERN_METHOD(createPageState:(NSString *)state)
 
 @end

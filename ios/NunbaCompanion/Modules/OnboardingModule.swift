@@ -34,6 +34,7 @@ final class OnboardingModule: NSObject {
 
   static let userIdDefaultsKey = "com.hertzai.nunbacompanion.userId"
   static let accessTokenKeychainAccount = "com.hertzai.nunbacompanion.accessToken"
+  static let pageStateDefaultsKey = "com.hertzai.nunbacompanion.pageState"
 
   // ─── React Native bridge requirements ──────────────────────────
 
@@ -175,5 +176,33 @@ final class OnboardingModule: NSObject {
   ) {
     AutobahnConnectionManager.shared.unsubscribeCommunity(communityId: communityId)
     resolve(["unsubscribed": true])
+  }
+
+  // MARK: — Signup page-state persistence
+
+  /// SignUpCombined.js persists its in-progress signup navigation state
+  /// via createPageState(json) and restores it via getPageState(callback)
+  /// on mount. iOS sibling of the Android createPageState/getPageState
+  /// pair. The payload is non-sensitive navigation JSON → UserDefaults.
+  ///
+  /// Without these, OnboardingModule.getPageState was `undefined` on iOS,
+  /// the JS call threw, the screen's `isReady` gate never flipped, and
+  /// SignUpCombined rendered `null` (blank screen) — see review of the
+  /// iOS port.
+  @objc(createPageState:)
+  func createPageState(_ state: String) {
+    if state.isEmpty {
+      UserDefaults.standard.removeObject(forKey: Self.pageStateDefaultsKey)
+    } else {
+      UserDefaults.standard.set(state, forKey: Self.pageStateDefaultsKey)
+    }
+  }
+
+  /// Returns the persisted signup page state JSON, or "" when none has
+  /// been stored yet. JS treats the empty string as "no saved state".
+  @objc(getPageState:)
+  func getPageState(_ callback: @escaping RCTResponseSenderBlock) {
+    let state = UserDefaults.standard.string(forKey: Self.pageStateDefaultsKey) ?? ""
+    callback([state])
   }
 }
