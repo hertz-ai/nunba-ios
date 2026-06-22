@@ -35,6 +35,9 @@ final class OnboardingModule: NSObject {
   static let userIdDefaultsKey = "com.hertzai.nunbacompanion.userId"
   static let accessTokenKeychainAccount = "com.hertzai.nunbacompanion.accessToken"
   static let pageStateDefaultsKey = "com.hertzai.nunbacompanion.pageState"
+  static let studentNameDefaultsKey = "com.hertzai.nunbacompanion.studentName"
+  static let studentEmailDefaultsKey = "com.hertzai.nunbacompanion.studentEmail"
+  static let studentPhoneDefaultsKey = "com.hertzai.nunbacompanion.studentPhone"
 
   // ─── React Native bridge requirements ──────────────────────────
 
@@ -204,5 +207,44 @@ final class OnboardingModule: NSObject {
   func getPageState(_ callback: @escaping RCTResponseSenderBlock) {
     let state = UserDefaults.standard.string(forKey: Self.pageStateDefaultsKey) ?? ""
     callback([state])
+  }
+
+  // MARK: — Signup name/email/phone persistence
+
+  /// PhoneEmailandName.js persists the entered signup details via
+  /// createStudentNameAndEmail(name, email, phone) on Submit and restores
+  /// them via getStudentNameAndEmail(callback) on mount. iOS sibling of
+  /// the Android createStudentNameAndEmail/getStudentNameAndEmail pair.
+  /// The payload is non-sensitive onboarding input → UserDefaults.
+  ///
+  /// Without these, the JS guard skipped the save entirely on iOS, so
+  /// re-opening the signup form lost the user's entered details.
+  @objc(createStudentNameAndEmail:email:phone:)
+  func createStudentNameAndEmail(_ name: String, email: String, phone: String) {
+    let defaults = UserDefaults.standard
+    setOrClear(name, key: Self.studentNameDefaultsKey, in: defaults)
+    setOrClear(email, key: Self.studentEmailDefaultsKey, in: defaults)
+    setOrClear(phone, key: Self.studentPhoneDefaultsKey, in: defaults)
+  }
+
+  /// Returns the persisted [name, email, phone] to the JS callback. Each
+  /// slot is NSNull (→ JS `null`) when nothing has been stored, because
+  /// the JS restore handler keys off `value != null` per field.
+  @objc(getStudentNameAndEmail:)
+  func getStudentNameAndEmail(_ callback: @escaping RCTResponseSenderBlock) {
+    let defaults = UserDefaults.standard
+    callback([
+      defaults.string(forKey: Self.studentNameDefaultsKey) ?? NSNull(),
+      defaults.string(forKey: Self.studentEmailDefaultsKey) ?? NSNull(),
+      defaults.string(forKey: Self.studentPhoneDefaultsKey) ?? NSNull(),
+    ])
+  }
+
+  private func setOrClear(_ value: String, key: String, in defaults: UserDefaults) {
+    if value.isEmpty {
+      defaults.removeObject(forKey: key)
+    } else {
+      defaults.set(value, forKey: key)
+    }
   }
 }

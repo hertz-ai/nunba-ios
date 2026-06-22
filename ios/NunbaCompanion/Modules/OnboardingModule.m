@@ -32,5 +32,9 @@ RCT_EXTERN_METHOD(unsubscribeCommunity:(NSString *)communityId
                   rejecter:(RCTPromiseRejectBlock)reject)
 RCT_EXTERN_METHOD(getPageState:(RCTResponseSenderBlock)callback)
 RCT_EXTERN_METHOD(createPageState:(NSString *)state)
+RCT_EXTERN_METHOD(createStudentNameAndEmail:(NSString *)name
+                  email:(NSString *)email
+                  phone:(NSString *)phone)
+RCT_EXTERN_METHOD(getStudentNameAndEmail:(RCTResponseSenderBlock)callback)
 
 @end

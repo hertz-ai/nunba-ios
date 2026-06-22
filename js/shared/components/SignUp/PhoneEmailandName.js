@@ -24,9 +24,30 @@ import {
 import i18next from 'i18next';
 import useLanguageStore from '../../zustandStore';
 import axios from 'axios';
-import { CountryList, CountryPicker } from 'react-native-country-codes-picker';
+// The package exposes CountryPicker as its DEFAULT export only (index.js does
+// `export default CountryPicker`). The previous named import resolved to
+// `undefined`, so rendering <CountryPicker /> when the picker opened threw
+// "Element type is invalid … got: undefined" — the "Select Country Code" crash.
+import CountryPicker from 'react-native-country-codes-picker';
 
 import resources from './translations';
+
+// i18next is initialized here at module scope because this screen is the
+// entry point of the iOS signup flow and renders WITHOUT any sibling
+// screen (e.g. StudentLanguage) having run its own init() first. Without
+// this, i18next.t(...) returns empty strings and every label on this
+// screen — including the Submit button — renders blank. Mirror of the
+// init() in the sibling SignUp screens; guarded so we don't re-init if a
+// sibling already initialized it.
+const defaultLanguage = 'en-US';
+if (!i18next.isInitialized) {
+  i18next.init({
+    compatibilityJSON: 'v3',
+    interpolation: { escapeValue: false },
+    lng: defaultLanguage,
+    resources,
+  });
+}
 
 const { OnboardingModule, ActivityStarterModule } = NativeModules;
 
@@ -62,6 +83,12 @@ const PhoneEmailandName = ({ navigation }) => {
 
   useEffect(() => {
     const restoreStudentNameAndEmail = async () => {
+      if (
+        !OnboardingModule ||
+        typeof OnboardingModule.getStudentNameAndEmail !== 'function'
+      ) {
+        return;
+      }
       OnboardingModule.getStudentNameAndEmail(
         (StudentName, StudentEmail, studentPhone) => {
           console.log(StudentName, StudentEmail, studentPhone, 'hello');
@@ -75,7 +102,10 @@ const PhoneEmailandName = ({ navigation }) => {
           if (studentPhone != null) {
             console.log('this is the inner', studentPhone);
             setStudentPhone(studentPhone);
-            setuserDetails(true);
+            // This is a phone-only screen — restore the saved phone but keep
+            // the phone + country-code view. (Previously this flipped
+            // userDetails=true, which switched the screen to the Email step on
+            // every relaunch once a phone had been saved.)
           }
         },
       );
@@ -128,6 +158,64 @@ const PhoneEmailandName = ({ navigation }) => {
       setCountryCode(item.dial_code);
     }
     setShow(false);
+  };
+
+  // Navigate onward after a successful signup. On the iOS port the native
+  // ActivityStarterModule (which owns native-activity navigation on
+  // Android) isn't implemented yet, so guard the call and surface a clear
+  // message instead of throwing "undefined is not an object".
+  const proceedAfterSignup = () => {
+    const starter = NativeModules.ActivityStarterModule;
+    if (starter && typeof starter.navigateToOtpVerification === 'function') {
+      confirmButtonRef.current
+        ?.fadeIn(600)
+        .then(() => {
+          starter.navigateToOtpVerification();
+        });
+    } else {
+      alert(
+        'Your details have been saved. OTP verification is coming soon on iOS.',
+      );
+    }
+  };
+
+  // Shared submit handler for both portrait and landscape layouts. Persists
+  // the entered details via the native module (when available) and kicks
+  // off signup. Each native call is guarded with a typeof check — same
+  // pattern as services/currentUser.js — so a missing method on the iOS
+  // port degrades gracefully rather than crashing the screen.
+  const submitSignup = (phoneNumber) => {
+    console.log(
+      'this is the create student',
+      studentName,
+      studentEmail,
+      phoneNumber,
+    );
+    if (
+      OnboardingModule &&
+      typeof OnboardingModule.createStudentNameAndEmail === 'function'
+    ) {
+      OnboardingModule.createStudentNameAndEmail(
+        studentName,
+        studentEmail,
+        phoneNumber,
+      );
+    }
+    if (OnboardingModule && typeof OnboardingModule.signUp === 'function') {
+      OnboardingModule.signUp((user, error) => {
+        console.log('User:', user);
+        console.log('Error:', error);
+        if (null == error || '' == error) {
+          proceedAfterSignup();
+        } else {
+          alert(error);
+        }
+      });
+    } else {
+      // No native signUp on this platform (iOS port). The details are
+      // already persisted above; surface the next step gracefully.
+      proceedAfterSignup();
+    }
   };
 
   return (
@@ -228,41 +316,26 @@ const PhoneEmailandName = ({ navigation }) => {
                   if (!studentName) {
                     alert('Name cannot be blank');
                     return;
-                  } else if (!reg.test(studentEmail)) {
-                    alert('Enter valid Email');
-                    return;
-                  } else if (!studentPhone) {
-                    alert('Enter valid Contact');
-                    return;
+                  }
+                  // This screen is phone-only: validate the field that's
+                  // actually shown. Only the email view (userDetails) requires
+                  // an email; the phone view requires phone + country code.
+                  if (userDetails) {
+                    if (!reg.test(studentEmail)) {
+                      alert('Enter valid Email');
+                      return;
+                    }
+                    submitSignup(studentPhone);
                   } else {
-                    console.log(
-                      'this is the create student',
-                      studentName,
-                      studentEmail,
-                      studentPhone,
-                    );
-                    OnboardingModule.createStudentNameAndEmail(
-                      studentName,
-                      studentEmail,
-                      studentPhone,
-                    );
-
-                    OnboardingModule.signUp((user, error) => {
-                      console.log('User:', user);
-                      console.log('Error:', error);
-                      if (null == error || '' == error) {
-                        console.log('User Detail:', user);
-
-                        confirmButtonRef.current.fadeIn(600).then(() => {
-                          NativeModules.ActivityStarterModule.navigateToOtpVerification();
-                          console.log('User with in Detail:', user);
-                        });
-                      } else {
-                        alert(error);
-                      }
-                      console.log('Error this ', error);
-                      console.log('User this', user);
-                    });
+                    if (!studentPhone) {
+                      alert('Enter valid Contact');
+                      return;
+                    }
+                    if (!countryCode) {
+                      alert('Select Country Code');
+                      return;
+                    }
+                    submitSignup(countryCode + studentPhone);
                   }
                 }}
               >
@@ -347,46 +420,25 @@ const PhoneEmailandName = ({ navigation }) => {
                   if (!studentName) {
                     alert('Name cannot be blank');
                     return;
-                  } else if (!reg.test(studentEmail)) {
-                    alert('Enter valid Email');
-                    return;
-                  } else if (!studentPhone) {
-                    alert('Enter valid Contact');
-                    return;
-                  } else if (!countryCode) {
-                    alert('Select Country Code');
-                    return;
+                  }
+                  // Phone-only screen: only the email view (userDetails)
+                  // requires an email; the phone view requires phone + code.
+                  if (userDetails) {
+                    if (!reg.test(studentEmail)) {
+                      alert('Enter valid Email');
+                      return;
+                    }
+                    submitSignup(studentPhone);
                   } else {
-                    const fullPhoneNumber = countryCode + studentPhone;
-                    console.log(
-                      'this is the create student',
-                      studentName,
-                      studentEmail,
-                      fullPhoneNumber,
-                    );
-                    OnboardingModule.createStudentNameAndEmail(
-                      studentName,
-                      studentEmail,
-                      fullPhoneNumber,
-                    );
-
-                    OnboardingModule.signUp((user, error) => {
-                      console.log('User:', user);
-                      console.log('Error:', error);
-                      if (null == error || '' == error) {
-                        console.log('User Detail:', user);
-
-                        confirmButtonRef.current.fadeIn(600).then(() => {
-                          NativeModules.ActivityStarterModule.navigateToOtpVerification();
-                          console.log('User with in Detail:', user);
-                        });
-                      } else {
-                        alert(error);
-                        console.log(error, 'this is the error');
-                      }
-                      console.log('Error this ', error);
-                      console.log('User this', user);
-                    });
+                    if (!studentPhone) {
+                      alert('Enter valid Contact');
+                      return;
+                    }
+                    if (!countryCode) {
+                      alert('Select Country Code');
+                      return;
+                    }
+                    submitSignup(countryCode + studentPhone);
                   }
                 }}
                 style={landscapeStyles.btn}
@@ -424,7 +476,10 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFFFFF',
   },
   subtitle: {
-    marginTop: hp('3%'),
+    // Clear the iPhone status bar / notch — the screen isn't wrapped in a
+    // SafeAreaView, so the first element must inset itself or it renders
+    // behind the clock (~59pt safe-area top on notched devices).
+    marginTop: hp('8%'),
     fontFamily: 'Roboto-Regular',
     fontSize: wp('5.3%'),
   },

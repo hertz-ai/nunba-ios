@@ -87,6 +87,17 @@ targets:
         type: file
         buildPhase: resources
         optional: true
+      # RN image/asset payload produced alongside main.jsbundle by
+      # `npx react-native bundle ... --assets-dest ios` (writes ios/assets/).
+      # Added as a FOLDER REFERENCE (type: folder) so the nested tree
+      # (assets/js/shared/images/mic.png, etc.) is copied verbatim into the
+      # .app — the embedded bundle resolves require()'d images by that exact
+      # relative path. Without this, every require()'d image (the mic button,
+      # etc.) resolves to a missing asset and renders invisible.
+      - path: assets
+        type: folder
+        buildPhase: resources
+        optional: true
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.hertzai.nunbacompanion
