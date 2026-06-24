@@ -144,9 +144,18 @@ const PhoneEmailandName = ({ navigation }) => {
   };
 
   const startRecording = () => {
-    NativeModules.ActivityStarterModule.startSpeechListening();
-    setIsRecording(true);
-    setRecognizedTextForPhone('');
+    // Voice input is an Android-native feature (SpeechRecognizer + bound
+    // SpeechService) that isn't ported to iOS yet. Guard the native call —
+    // same typeof pattern as the signup handlers above — so tapping the mic
+    // surfaces a message instead of crashing on "undefined is not an object".
+    const starter = NativeModules.ActivityStarterModule;
+    if (starter && typeof starter.startSpeechListening === 'function') {
+      starter.startSpeechListening();
+      setIsRecording(true);
+      setRecognizedTextForPhone('');
+    } else {
+      alert('Voice input is coming soon on iOS.');
+    }
   };
 
   const stopRecording = () => {
