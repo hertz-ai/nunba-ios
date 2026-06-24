@@ -31,6 +31,9 @@ import axios from 'axios';
 import CountryPicker from 'react-native-country-codes-picker';
 
 import resources from './translations';
+// Shared cross-platform signup service (the Android signUp + OTP send is
+// native Java with no iOS counterpart — see services/signupApi.js).
+import { registerStudent } from '../../services/signupApi';
 
 // i18next is initialized here at module scope because this screen is the
 // entry point of the iOS signup flow and renders WITHOUT any sibling
@@ -102,10 +105,10 @@ const PhoneEmailandName = ({ navigation }) => {
           if (studentPhone != null) {
             console.log('this is the inner', studentPhone);
             setStudentPhone(studentPhone);
-            // This is a phone-only screen — restore the saved phone but keep
-            // the phone + country-code view. (Previously this flipped
-            // userDetails=true, which switched the screen to the Email step on
-            // every relaunch once a phone had been saved.)
+            // Matches Android: once a phone is saved, switch to the Email step
+            // (userDetails=true). The phone stays in state; the screen now
+            // collects the email before signup.
+            setuserDetails(true);
           }
         },
       );
@@ -169,31 +172,27 @@ const PhoneEmailandName = ({ navigation }) => {
     setShow(false);
   };
 
-  // Navigate onward after a successful signup. On the iOS port the native
-  // ActivityStarterModule (which owns native-activity navigation on
-  // Android) isn't implemented yet, so guard the call and surface a clear
-  // message instead of throwing "undefined is not an object".
-  const proceedAfterSignup = () => {
-    const starter = NativeModules.ActivityStarterModule;
-    if (starter && typeof starter.navigateToOtpVerification === 'function') {
-      confirmButtonRef.current
-        ?.fadeIn(600)
-        .then(() => {
-          starter.navigateToOtpVerification();
-        });
-    } else {
-      alert(
-        'Your details have been saved. OTP verification is coming soon on iOS.',
-      );
-    }
+  const [submitting, setSubmitting] = useState(false);
+
+  // Navigate to the OTP screen once register_student has triggered the code
+  // send. `verification_method` (from the register response) decides whether
+  // the code went to phone or email, which the OTP screen needs to build the
+  // verify request. Replaces Android's native navigateToOtpVerification.
+  const proceedAfterSignup = (phoneNumber, verificationMethod) => {
+    navigation.navigate('OtpVerification', {
+      identifier: phoneNumber,
+      verificationMethod,
+      name: studentName,
+      email: studentEmail,
+    });
   };
 
   // Shared submit handler for both portrait and landscape layouts. Persists
-  // the entered details via the native module (when available) and kicks
-  // off signup. Each native call is guarded with a typeof check — same
-  // pattern as services/currentUser.js — so a missing method on the iOS
-  // port degrades gracefully rather than crashing the screen.
-  const submitSignup = (phoneNumber) => {
+  // the entered details, then calls the shared JS signup service (Android's
+  // signUp is native Java with no iOS counterpart) to send the OTP, and
+  // navigates to the in-app OTP verification screen on success.
+  const submitSignup = async (phoneNumber) => {
+    if (submitting) return;
     console.log(
       'this is the create student',
       studentName,
@@ -210,20 +209,28 @@ const PhoneEmailandName = ({ navigation }) => {
         phoneNumber,
       );
     }
-    if (OnboardingModule && typeof OnboardingModule.signUp === 'function') {
-      OnboardingModule.signUp((user, error) => {
-        console.log('User:', user);
-        console.log('Error:', error);
-        if (null == error || '' == error) {
-          proceedAfterSignup();
-        } else {
-          alert(error);
-        }
+    setSubmitting(true);
+    try {
+      const res = await registerStudent({
+        name: studentName,
+        email: studentEmail,
+        phone: phoneNumber,
       });
-    } else {
-      // No native signUp on this platform (iOS port). The details are
-      // already persisted above; surface the next step gracefully.
-      proceedAfterSignup();
+      // RegistrationDTO.response is "failure"/"error" when the server rejects
+      // (e.g. already registered); anything else means the OTP was sent.
+      const status = (res.response || '').toLowerCase();
+      if (status.startsWith('failure') || status.startsWith('error')) {
+        alert(res.detail || 'Sign up failed. Please try again.');
+        return;
+      }
+      proceedAfterSignup(phoneNumber, res.verification_method);
+    } catch (e) {
+      alert(
+        'Could not reach the server. Check your connection and try again.\n' +
+          (e?.message || ''),
+      );
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -253,6 +260,7 @@ const PhoneEmailandName = ({ navigation }) => {
                 style={styles.text_input}
                 placeholder="Ex: Rishabh@gmail.com"
                 value={studentEmail}
+                autoCapitalize="none"
                 onChangeText={(newEmail) => setStudentEmail(newEmail)}
               />
             </>
@@ -322,30 +330,22 @@ const PhoneEmailandName = ({ navigation }) => {
               <TouchableOpacity
                 style={styles.btn1}
                 onPress={() => {
+                  // Same validation as Android: name, then a valid email,
+                  // then a phone — all required for signup.
                   if (!studentName) {
                     alert('Name cannot be blank');
                     return;
+                  } else if (!reg.test(studentEmail)) {
+                    alert('Enter valid Email');
+                    return;
+                  } else if (!studentPhone) {
+                    alert('Enter valid Contact');
+                    return;
                   }
-                  // This screen is phone-only: validate the field that's
-                  // actually shown. Only the email view (userDetails) requires
-                  // an email; the phone view requires phone + country code.
-                  if (userDetails) {
-                    if (!reg.test(studentEmail)) {
-                      alert('Enter valid Email');
-                      return;
-                    }
-                    submitSignup(studentPhone);
-                  } else {
-                    if (!studentPhone) {
-                      alert('Enter valid Contact');
-                      return;
-                    }
-                    if (!countryCode) {
-                      alert('Select Country Code');
-                      return;
-                    }
-                    submitSignup(countryCode + studentPhone);
-                  }
+                  // The phone is restored with its country code already
+                  // prepended; only prepend when entering fresh in the phone
+                  // view (userDetails === false).
+                  submitSignup(userDetails ? studentPhone : countryCode + studentPhone);
                 }}
               >
                 <Text style={styles.btn_text}>{i18next.t('Submit')}</Text>
@@ -388,6 +388,7 @@ const PhoneEmailandName = ({ navigation }) => {
                 studentEmail ? studentEmail : 'Ex: Rishabh@gmail.com'
               }
               value={studentEmail}
+              autoCapitalize="none"
               onChangeText={(newEmail) => setStudentEmail(newEmail)}
             />
           </View>
@@ -426,29 +427,18 @@ const PhoneEmailandName = ({ navigation }) => {
             >
               <TouchableOpacity
                 onPress={() => {
+                  // Same validation as Android: name, valid email, phone.
                   if (!studentName) {
                     alert('Name cannot be blank');
                     return;
+                  } else if (!reg.test(studentEmail)) {
+                    alert('Enter valid Email');
+                    return;
+                  } else if (!studentPhone) {
+                    alert('Enter valid Contact');
+                    return;
                   }
-                  // Phone-only screen: only the email view (userDetails)
-                  // requires an email; the phone view requires phone + code.
-                  if (userDetails) {
-                    if (!reg.test(studentEmail)) {
-                      alert('Enter valid Email');
-                      return;
-                    }
-                    submitSignup(studentPhone);
-                  } else {
-                    if (!studentPhone) {
-                      alert('Enter valid Contact');
-                      return;
-                    }
-                    if (!countryCode) {
-                      alert('Select Country Code');
-                      return;
-                    }
-                    submitSignup(countryCode + studentPhone);
-                  }
+                  submitSignup(userDetails ? studentPhone : countryCode + studentPhone);
                 }}
                 style={landscapeStyles.btn}
               >
