@@ -20,6 +20,26 @@ const BASE_URL = 'https://azurekong.hertzai.com/db/';
 // caption, caption[1] is the media URL (overrides resource_url).
 const DELIMITER = ':-:-:';
 
+function formatRelativeTime(dateStr) {
+  if (!dateStr) return '';
+  const then = new Date(dateStr);
+  if (isNaN(then.getTime())) return String(dateStr);
+  const diffMs = Date.now() - then.getTime();
+  const diffSec = Math.floor(diffMs / 1000);
+  if (diffSec < 60) return 'just now';
+  const diffMin = Math.floor(diffSec / 60);
+  if (diffMin < 60) return `${diffMin}m ago`;
+  const diffHr = Math.floor(diffMin / 60);
+  if (diffHr < 24) return `${diffHr}h ago`;
+  const diffDay = Math.floor(diffHr / 24);
+  if (diffDay < 7) return `${diffDay}d ago`;
+  const diffWk = Math.floor(diffDay / 7);
+  if (diffWk < 5) return `${diffWk}w ago`;
+  const diffMo = Math.floor(diffDay / 30);
+  if (diffMo < 12) return `${diffMo}mo ago`;
+  return `${Math.floor(diffMo / 12)}y ago`;
+}
+
 const client = axios.create({
   baseURL: BASE_URL,
   timeout: 60000,
@@ -65,12 +85,12 @@ function mapPost(row) {
     viewsCount: row.view_count ?? 0,
     uploadDate: row.upload_date,
     user: row.user
-      ? { ...row.user, imageUri: fixMediaUrl(row.user.imageUri) }
+      ? { ...row.user, imageUri: fixMediaUrl(row.user.imageUri), time: formatRelativeTime(row.user.time || row.upload_date) }
       : {
           username: '',
           imageUri: null,
           location: null,
-          time: row.upload_date,
+          time: formatRelativeTime(row.upload_date),
           rating: null,
         },
   };

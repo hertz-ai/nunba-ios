@@ -14,30 +14,9 @@ import {
   widthPercentageToDP as wp,
   heightPercentageToDP as hp,
 } from 'react-native-responsive-screen';
-// Use plain react-native-video instead of react-native-video-controls.
-// The controls wrapper renders a hardcoded "Video unavailable" text +
-// error icon when the source fails to load — user reported seeing that
-// overlay on broken video URLs (2026-06-02).  Plain Video has no built-in
-// error UI; we silently hide the post via videoErrored state.
+// react-native-video v6 supports both old and new architecture (RN 0.71+),
+// so the old RCTVideo view-manager availability check is no longer needed.
 import Video from 'react-native-video';
-// react-native-video 5.2.2 ships only an old-architecture view manager
-// ("RCTVideo"). On this RN 0.81 build that view manager isn't registered, so
-// the library's internal `getViewManagerConfig('RCTVideo').Constants` access
-// throws "Cannot read property 'Constants' of undefined" and crashes the whole
-// feed. Detect availability once so video posts can fall back to a placeholder
-// instead of mounting <Video> and crashing.
-const VIDEO_NATIVE_AVAILABLE = (() => {
-  try {
-    const um = NativeModules.UIManager;
-    return !!(
-      um &&
-      typeof um.getViewManagerConfig === 'function' &&
-      um.getViewManagerConfig('RCTVideo')
-    );
-  } catch (_) {
-    return false;
-  }
-})();
 
 const Body = ({ resourceUri, contentType, caption, userData }) => {
   const navigation = useNavigation();
@@ -209,16 +188,7 @@ const Body = ({ resourceUri, contentType, caption, userData }) => {
           </Text>
 
         ) : null}
-        {!VIDEO_NATIVE_AVAILABLE ? (
-          // Native video view unavailable on this build — show a tappable
-          // placeholder (opens the post) instead of crashing.
-          <TouchableOpacity onPress={navigateToCommentsList} activeOpacity={0.95}>
-            <View style={[containervideo, styles.videoPlaceholder]}>
-              <Icon name="play-circle-outline" size={56} color="white" />
-              <Text style={styles.videoPlaceholderText}>Tap to view video</Text>
-            </View>
-          </TouchableOpacity>
-        ) : videoErrored || !videoSource ? null : (
+        {videoErrored || !videoSource ? null : (
           <TouchableOpacity onPress={navigateToCommentsList} activeOpacity={0.95}>
             <View style={containervideo}>
               <Video
@@ -229,7 +199,6 @@ const Body = ({ resourceUri, contentType, caption, userData }) => {
                 resizeMode="cover"
                 repeat={false}
                 onError={() => setVideoErrored(true)}
-                ignoreSilentSwitch="ignore"
               />
               <TouchableOpacity style={styles.muteButton} onPress={toggleMute}>
                 <Icon name={muteIcon} size={24} color="white" />
