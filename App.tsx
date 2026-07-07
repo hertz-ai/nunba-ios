@@ -37,8 +37,13 @@ import {
 // some host configurations (the symptom we hit: RN tree mounts an
 // outer wrapper but Text/ActivityIndicator never show).
 import {SafeAreaView, SafeAreaProvider} from 'react-native-safe-area-context';
-import {NavigationContainer, LinkingOptions} from '@react-navigation/native';
+import {
+  NavigationContainer,
+  LinkingOptions,
+  createNavigationContainerRef,
+} from '@react-navigation/native';
 import {createNativeStackNavigator} from '@react-navigation/native-stack';
+import {sendLoginOtp, refreshAccessToken, linkHevolveAccount} from './js/shared/services/signupApi';
 
 // ─── Vendored screens (all from js/shared/components/CommunityView/screens) ──
 // Import lazily so a single import-time error in one screen doesn't crash the
@@ -138,12 +143,18 @@ const InstitutionSignupScreen     = lazy(() => import('./js/shared/components/Co
 
 // Auth flow screens (Phase 4 — initial route when no token)
 const SignUpCombined              = lazy(() => import('./js/shared/components/SignUp/SignUpCombined'));
+// Reused (mode: 'relogin') as a top-level route when a stored access_token
+// has expired — see the 'SessionExpired' handler below. Registered here
+// (rather than only inside SignUpCombined's independent nav tree) so it
+// can navigate.goBack() to whatever screen actually hit the 401.
+const OtpVerification              = lazy(() => import('./js/shared/components/SignUp/OtpVerification'));
 
 // ─── Type-safe route param map ───────────────────────────────────
 
 type RootStackParamList = {
   // Auth
   SignUpCombined: undefined;
+  SessionRelogin: {identifier?: string; mode?: 'relogin'} | undefined;
   // Main
   MainScreen: undefined;
   ShareLanding: {token?: string};
@@ -222,6 +233,7 @@ type RootStackParamList = {
 };
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
+const navigationRef = createNavigationContainerRef<RootStackParamList>();
 
 // ─── Deep linking ────────────────────────────────────────────────
 
@@ -417,6 +429,94 @@ function App(): React.JSX.Element {
     };
   }, [checkAuth]);
 
+  // Global session-expiry handler. socialApi.js emits 'SessionExpired' the
+  // first time any authenticated call gets the backend's 401 "Invalid or
+  // expired token" (the Keychain access_token aged out). Try the SILENT
+  // path first: POST /refresh_tokens with just the saved user_id re-derives
+  // a fresh token with zero user interaction (no refresh_token STRING is
+  // ever issued — client_credentials grants don't have one — but the
+  // server can re-mint from the user's stored client_id/secret given only
+  // their id). Only fall back to a fresh OTP + the verify screen if that
+  // 403s (account not verified) or errors.
+  useEffect(() => {
+    let handling = false;
+    const sub = DeviceEventEmitter.addListener('SessionExpired', async () => {
+      if (handling) return;
+      handling = true;
+      try {
+        const m = NativeModules.OnboardingModule;
+
+        const userId = await new Promise<string | null>(resolve => {
+          if (typeof m?.getUser_id !== 'function') return resolve(null);
+          m.getUser_id((id: string) => resolve(id || null));
+        });
+
+        // Fetched once, up front, so both the silent-refresh branch (HARTOS
+        // token may also need re-bridging) and the OTP fallback branch below
+        // can use it without a second native round-trip.
+        const [name, email, phone] =
+          typeof m?.getStudentNameAndEmail === 'function'
+            ? await new Promise<[string | null, string | null, string | null]>(
+                resolve => {
+                  m.getStudentNameAndEmail((nm: any, em: any, ph: any) =>
+                    resolve([nm, em, ph]),
+                  );
+                },
+              )
+            : [null, null, null];
+
+        if (userId) {
+          try {
+            const refreshed = await refreshAccessToken(userId);
+            if (refreshed?.access_token) {
+              if (typeof m?.setAccessToken === 'function') {
+                await m.setAccessToken(refreshed.access_token);
+              }
+              // Best-effort re-bridge — the HARTOS token has its own
+              // lifetime and may have expired independently of the
+              // Hevolve token we just refreshed. Idempotent on email.
+              if (email) {
+                try {
+                  const linked = await linkHevolveAccount({
+                    hevolveUserId: userId,
+                    phoneNumber: phone ?? '',
+                    name: name ?? '',
+                    email,
+                  });
+                  if (linked?.token && typeof m?.setHartosToken === 'function') {
+                    await m.setHartosToken(linked.token);
+                  }
+                } catch (_) {
+                  // Non-fatal — a later /api/social/* 401 just re-fires this handler.
+                }
+              }
+              DeviceEventEmitter.emit('authChanged');
+              return; // silent success — no OTP, no navigation
+            }
+          } catch (_) {
+            // Falls through to the OTP path below (e.g. 403 not verified).
+          }
+        }
+
+        const identifier = phone || email;
+        if (!identifier) return; // no saved contact to re-auth with
+        await sendLoginOtp(identifier);
+        if (navigationRef.isReady()) {
+          navigationRef.navigate('SessionRelogin', {
+            identifier,
+            mode: 'relogin',
+          });
+        }
+      } catch (_) {
+        // Best-effort — the same 401 will just fire 'SessionExpired' again
+        // on the user's next action.
+      } finally {
+        handling = false;
+      }
+    });
+    return () => sub.remove();
+  }, []);
+
   if (!authReady) {
     return (
       <SafeAreaView style={styles.root}>
@@ -429,7 +529,7 @@ function App(): React.JSX.Element {
   }
 
   return (
-    <NavigationContainer linking={linking}>
+    <NavigationContainer ref={navigationRef} linking={linking}>
       {/* Stable accessibility marker for the smoke test.  Decouples
           XCUITests from splash-hold timing: SmokeUITests.swift can
           wait for app.staticTexts["root-loaded"] / the
@@ -455,6 +555,11 @@ function App(): React.JSX.Element {
           name="SignUpCombined"
           component={withGuards(SignUpCombined, 'SignUpCombined')}
           options={{title: 'Welcome'}}
+        />
+        <Stack.Screen
+          name="SessionRelogin"
+          component={withGuards(OtpVerification, 'SessionRelogin')}
+          options={{presentation: 'modal', headerShown: true, title: 'Verify to continue', gestureEnabled: false}}
         />
 
         {/* Main */}

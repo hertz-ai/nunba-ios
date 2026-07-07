@@ -34,6 +34,12 @@ final class OnboardingModule: NSObject {
 
   static let userIdDefaultsKey = "com.hertzai.nunbacompanion.userId"
   static let accessTokenKeychainAccount = "com.hertzai.nunbacompanion.accessToken"
+  // Separate credential for HARTOS's /api/social/* layer — bridged from the
+  // Hevolve identity via POST /api/social/auth/link-hevolve. Kept in its own
+  // Keychain slot rather than overwriting accessToken because the two tokens
+  // authenticate against unrelated backends (Hevolve_Database vs HARTOS) and
+  // have independent lifetimes.
+  static let hartosTokenKeychainAccount = "com.hertzai.nunbacompanion.hartosToken"
   static let pageStateDefaultsKey = "com.hertzai.nunbacompanion.pageState"
   static let studentNameDefaultsKey = "com.hertzai.nunbacompanion.studentName"
   static let studentEmailDefaultsKey = "com.hertzai.nunbacompanion.studentEmail"
@@ -115,6 +121,41 @@ final class OnboardingModule: NSObject {
   ) {
     Self.setPersistedUserId(userId.isEmpty ? nil : userId)
     resolve(["stored": true])
+  }
+
+  // MARK: — HARTOS token (Keychain-backed, separate from accessToken)
+
+  @objc(getHartosToken:)
+  func getHartosToken(_ callback: @escaping RCTResponseSenderBlock) {
+    let token = Self.readHartosToken() ?? ""
+    callback([token])
+  }
+
+  static func readHartosToken() -> String? {
+    KeychainStore.readString(account: hartosTokenKeychainAccount)
+  }
+
+  @discardableResult
+  static func writeHartosToken(_ token: String?) -> Bool {
+    KeychainStore.writeString(token, account: hartosTokenKeychainAccount,
+                              accessible: .deviceOnly)
+  }
+
+  /// Persist the HARTOS bridge token from JS, minted by
+  /// POST /api/social/auth/link-hevolve right after OTP verify succeeds
+  /// (and again from the silent-refresh path on SessionExpired).
+  @objc(setHartosToken:resolver:rejecter:)
+  func setHartosToken(
+    _ token: String,
+    resolver resolve: @escaping RCTPromiseResolveBlock,
+    rejecter reject: @escaping RCTPromiseRejectBlock
+  ) {
+    let ok = Self.writeHartosToken(token.isEmpty ? nil : token)
+    if ok {
+      resolve(["stored": true])
+    } else {
+      reject("KEYCHAIN_WRITE_FAILED", "Could not persist HARTOS token", nil)
+    }
   }
 
   // MARK: — WAMP publish bridge

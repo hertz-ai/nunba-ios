@@ -2,6 +2,7 @@
 import React, { useState } from 'react';
 import {
   NativeModules,
+  DeviceEventEmitter,
   Alert,
   View,
   Text,
@@ -16,7 +17,7 @@ import {
 } from 'react-native-responsive-screen';
 import i18next from 'i18next';
 
-import { verifyOtp, isVerifySuccess } from '../../services/signupApi';
+import { verifyOtp, isVerifySuccess, linkHevolveAccount } from '../../services/signupApi';
 
 const { OnboardingModule } = NativeModules;
 
@@ -35,6 +36,11 @@ const OtpVerification = ({ navigation, route, rootNavigation }) => {
 
   const [otp, setOtp] = useState('');
   const [busy, setBusy] = useState(false);
+
+  // Session-expiry re-login (App.tsx's 'SessionExpired' handler) reuses this
+  // same screen as a plain top-level route — no rootNavigation prop, no
+  // signup account to create. Verifying just refreshes the token in place.
+  const isRelogin = params.mode === 'relogin';
 
   const onVerify = async () => {
     if (!otp || otp.length < 4) {
@@ -61,12 +67,46 @@ const OtpVerification = ({ navigation, route, rootNavigation }) => {
             res.phone_number ?? params.identifier ?? '',
           );
         }
-        // Signup complete — leave the (independent) signup nav tree and enter
-        // the app at MainScreen, like Android's navigateToTeachOrRevisionActivity.
-        // rootNavigation is the OUTER App.tsx stack, passed in by SignUpCombined
-        // (this screen's own `navigation` is the inner NavigationIndependentTree
-        // and can't see MainScreen). reset() so Back can't return to signup.
+        // Bridge into a HARTOS-native token for /api/social/* calls. Best
+        // effort — if this fails, socialApi.js's existing 401 handling
+        // (SessionExpired) is the fallback, same as before this bridge
+        // existed, so a failure here shouldn't block sign-in.
+        const email = res.email_address ?? params.email ?? '';
+        if (res.user_id != null && email) {
+          try {
+            const linked = await linkHevolveAccount({
+              hevolveUserId: res.user_id,
+              phoneNumber: res.phone_number ?? params.identifier ?? '',
+              name: res.name ?? params.name ?? '',
+              email,
+            });
+            if (linked?.token && typeof OnboardingModule?.setHartosToken === 'function') {
+              await OnboardingModule.setHartosToken(linked.token).catch(() => {});
+            }
+          } catch (_) {
+            // Non-fatal — see comment above.
+          }
+        }
+        // Lets socialApi.js's 'SessionExpired' debounce clear so a later
+        // token expiry can trigger re-login again.
+        try { DeviceEventEmitter.emit('authChanged'); } catch (_) {}
         const goToApp = () => {
+          if (isRelogin) {
+            // Registered as a top-level App.tsx route (see 'SessionExpired'
+            // handler) — this screen's own `navigation` IS the shared stack,
+            // so just return to whatever screen 401'd instead of resetting.
+            if (navigation?.canGoBack?.()) {
+              navigation.goBack();
+            } else if (typeof navigation?.reset === 'function') {
+              navigation.reset({ index: 0, routes: [{ name: 'MainScreen' }] });
+            }
+            return;
+          }
+          // Signup complete — leave the (independent) signup nav tree and enter
+          // the app at MainScreen, like Android's navigateToTeachOrRevisionActivity.
+          // rootNavigation is the OUTER App.tsx stack, passed in by SignUpCombined
+          // (this screen's own `navigation` is the inner NavigationIndependentTree
+          // and can't see MainScreen). reset() so Back can't return to signup.
           if (rootNavigation && typeof rootNavigation.reset === 'function') {
             rootNavigation.reset({ index: 0, routes: [{ name: 'MainScreen' }] });
           } else {
@@ -75,9 +115,15 @@ const OtpVerification = ({ navigation, route, rootNavigation }) => {
             );
           }
         };
-        Alert.alert('Verified', 'You are signed up.', [
-          { text: 'OK', onPress: goToApp },
-        ]);
+        // TEMP DIAGNOSTIC (2026-07-06) — remove once the token-expiry loop
+        // is root-caused. Shows what the server actually returned so we
+        // can tell apart "no token issued" from "token issued but rejected".
+        const tokTail = res.access_token ? String(res.access_token).slice(-8) : '<none>';
+        Alert.alert(
+          'Verified',
+          `${isRelogin ? 'You are signed back in.' : 'You are signed up.'}\n\n[debug] access_token=${tokTail} expires_in=${res.expires_in}`,
+          [{ text: 'OK', onPress: goToApp }],
+        );
       } else {
         // Server reports failure via `detail` ("Wrong OTP" / "OTP Expired").
         alert(res.detail || 'Verification failed. Please try again.');

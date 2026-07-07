@@ -20,6 +20,10 @@ RCT_EXTERN_METHOD(setAccessToken:(NSString *)token
 RCT_EXTERN_METHOD(setUser_id:(NSString *)userId
                   resolver:(RCTPromiseResolveBlock)resolve
                   rejecter:(RCTPromiseRejectBlock)reject)
+RCT_EXTERN_METHOD(getHartosToken:(RCTResponseSenderBlock)callback)
+RCT_EXTERN_METHOD(setHartosToken:(NSString *)token
+                  resolver:(RCTPromiseResolveBlock)resolve
+                  rejecter:(RCTPromiseRejectBlock)reject)
 RCT_EXTERN_METHOD(publishToWamp:(NSString *)topic
                   payload:(NSString *)payload
                   resolver:(RCTPromiseResolveBlock)resolve

@@ -71,3 +71,53 @@ export async function verifyOtp({ identifier, otp }) {
 export function isVerifySuccess(otpResponse) {
   return !!otpResponse && otpResponse.user_id != null;
 }
+
+// Silently mint a fresh access_token for an already-verified user, no OTP
+// needed. There is no `refresh_token` STRING to redeem (client_credentials
+// grants never issue one — see get_access_token in Hevolve's sql/otp.py),
+// but the server exposes /refresh_tokens (plural) keyed by user_id alone:
+// it just re-runs the same client_credentials call with that user's stored
+// client_id/secret. 403 ("Please login first") if the account isn't
+// verified — caller should fall back to sendLoginOtp in that case.
+export async function refreshAccessToken(userId) {
+  const { data } = await client.post('refresh_tokens', { user_id: Number(userId) });
+  return data || {};
+}
+
+// Re-authenticate via OTP — fallback when refreshAccessToken() isn't
+// available (e.g. account not yet verified). Re-sends an OTP to the
+// identifier on file, verified via the same varify_otp call signup uses.
+// Response is a plain detail string, e.g. "OTP sent to your email
+// address ... and your phone number ...".
+export async function sendLoginOtp(identifier) {
+  const { data } = await client.post('login', { phone_number: identifier });
+  return data || {};
+}
+
+// Bridge a Hevolve-OTP-verified identity into a HARTOS-native token for
+// /api/social/* calls. See HARTOS integrations/social/api.py link_hevolve —
+// trust-on-first-use, no independent re-verification of the opaque Hevolve
+// access_token; the client only calls this after OTP verify already
+// succeeded. Idempotent on email — safe to call again from the silent
+// SessionExpired refresh path. Targets HARTOS's resolved base URL, not this
+// file's Hevolve_Database BASE_URL.
+export async function linkHevolveAccount({ hevolveUserId, phoneNumber, name, email }) {
+  const endpointResolver = require('./endpointResolver').default;
+  const base = await endpointResolver.getApiBaseUrl();
+  const body = omitEmpty({
+    hevolve_user_id: hevolveUserId,
+    phone_number: phoneNumber,
+    name,
+    email,
+  });
+  const response = await fetch(`${base}/api/social/auth/link-hevolve`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  const json = await response.json().catch(() => null);
+  if (!response.ok || !json || !json.success) {
+    throw new Error((json && json.error) || `link-hevolve failed (${response.status})`);
+  }
+  return json.data; // { user, token }
+}

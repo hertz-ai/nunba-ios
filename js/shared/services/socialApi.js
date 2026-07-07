@@ -11,10 +11,30 @@ import apiCache from './apiCache';
 // priority chain (local PeerLink peer → LAN peer → regional → cloud).
 // Without that, a sick central kept getting hit for the full 30 s
 // cache TTL even when a local Nunba node was reachable.
+// 401 means the Keychain access_token expired (the server has no
+// refresh_token redemption endpoint, confirmed live — the only way back
+// is a fresh login OTP). App.tsx's 'SessionExpired' listener sends that
+// OTP and drops the user on the verify screen. Debounce so a burst of
+// parallel 401s (e.g. several screens' GETs firing at once) only kicks
+// off one re-login round-trip; 'authChanged' (fired after a fresh token
+// is set) clears the debounce so a later expiry can trigger it again.
+let _sessionExpiredEmittedAt = 0;
+const SESSION_EXPIRED_DEBOUNCE_MS = 10000;
+DeviceEventEmitter.addListener('authChanged', () => {
+  _sessionExpiredEmittedAt = 0;
+});
+
 const _emitApiError = (path, status, method) => {
   try {
     DeviceEventEmitter.emit('ApiError', { path, status, method });
   } catch (_) {}
+  if (status === 401) {
+    const now = Date.now();
+    if (now - _sessionExpiredEmittedAt > SESSION_EXPIRED_DEBOUNCE_MS) {
+      _sessionExpiredEmittedAt = now;
+      try { DeviceEventEmitter.emit('SessionExpired', { path }); } catch (_) {}
+    }
+  }
   // 5xx and 0 (network) are server-side / transport faults — fall over
   // to the next peer in the priority chain.  4xx (auth, validation) is
   // the caller's responsibility — keep the current endpoint since
@@ -116,8 +136,25 @@ const getAccessToken = () =>
     }
   });
 
+// Bridged HARTOS-native token (see signupApi.js linkHevolveAccount / HARTOS
+// integrations/social/api.py link_hevolve), kept in its own Keychain slot
+// (setHartosToken/getHartosToken) separate from the Hevolve access_token
+// used by _mailerHeaders below. HARTOS's require_auth only accepts its own
+// JWTs/api_tokens — the opaque Hevolve access_token was never valid here,
+// which is why /api/social/* previously 401'd regardless of token freshness.
+const getHartosToken = () =>
+  new Promise((resolve, reject) => {
+    try {
+      NativeModules.OnboardingModule.getHartosToken((token) => {
+        resolve(token);
+      });
+    } catch (err) {
+      reject(err);
+    }
+  });
+
 const getHeaders = async () => {
-  const token = await getAccessToken();
+  const token = await getHartosToken();
   return {
     'Content-Type': 'application/json',
     Authorization: `Bearer ${token}`,

@@ -12,7 +12,20 @@ import * as Animatable from 'react-native-animatable';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
 import { useNavigation } from '@react-navigation/native';
+import { NativeModules } from 'react-native';
 import useChannelStore from '../../../channelStore';
+
+// TEMP DIAGNOSTIC (2026-07-06) — remove once the token-expiry loop is
+// root-caused. Surfaces what getAccessToken() actually returns at the
+// moment a Connect attempt fails, since release builds have no console.
+const _debugToken = () =>
+  new Promise((resolve) => {
+    try {
+      NativeModules.OnboardingModule.getAccessToken((t) => resolve(t || ''));
+    } catch (_) {
+      resolve('<threw>');
+    }
+  });
 
 const CHANNEL_COLORS = {
   whatsapp: '#25D366',
@@ -86,10 +99,15 @@ const ChannelSetupScreen = () => {
           { text: 'OK', onPress: () => navigation.goBack() },
         ]);
       } else {
-        Alert.alert('Error', res.error || 'Failed to connect channel. Please try again.');
+        const tok = await _debugToken();
+        Alert.alert(
+          'Error',
+          `${res.error || 'Failed to connect channel. Please try again.'}\n\n[debug] token len=${tok.length} tail=${tok.slice(-8)}`,
+        );
       }
-    } catch {
-      Alert.alert('Error', 'Failed to connect channel. Please try again.');
+    } catch (e) {
+      const tok = await _debugToken();
+      Alert.alert('Error', `Failed to connect channel. Please try again.\n\n[debug] ${e?.message} token len=${tok.length} tail=${tok.slice(-8)}`);
     } finally {
       setConnecting(false);
     }
