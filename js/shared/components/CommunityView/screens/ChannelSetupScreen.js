@@ -15,17 +15,31 @@ import { useNavigation } from '@react-navigation/native';
 import { NativeModules } from 'react-native';
 import useChannelStore from '../../../channelStore';
 
-// TEMP DIAGNOSTIC (2026-07-06) — remove once the token-expiry loop is
-// root-caused. Surfaces what getAccessToken() actually returns at the
-// moment a Connect attempt fails, since release builds have no console.
+// TEMP DIAGNOSTIC (2026-07-06, fixed 2026-07-08) — remove once the
+// token-expiry loop is root-caused. Surfaces what actually authenticates
+// the Connect call. Was reading getAccessToken() (the Hevolve OTP token),
+// but /api/social/* calls send the separate HARTOS token — that mismatch
+// meant this diagnostic could never explain a "Missing or invalid
+// Authorization header" failure. Also surfaces which host endpointResolver
+// picked, since cloud-vs-local routing is the other leading theory.
 const _debugToken = () =>
   new Promise((resolve) => {
     try {
-      NativeModules.OnboardingModule.getAccessToken((t) => resolve(t || ''));
+      NativeModules.OnboardingModule.getHartosToken((t) => resolve(t || ''));
     } catch (_) {
       resolve('<threw>');
     }
   });
+
+const _debugSource = async () => {
+  try {
+    const resolver = require('../../../services/endpointResolver').default;
+    const { url, source } = await resolver.getApiBase();
+    return `${source} (${url})`;
+  } catch (e) {
+    return `<threw: ${e?.message}>`;
+  }
+};
 
 const CHANNEL_COLORS = {
   whatsapp: '#25D366',
@@ -90,7 +104,7 @@ const ChannelSetupScreen = () => {
     setConnecting(true);
     try {
       const payload = {
-        channel: selectedChannel.key,
+        channel_type: selectedChannel.key,
         ...formValues,
       };
       const res = await createBinding(payload);
@@ -100,14 +114,16 @@ const ChannelSetupScreen = () => {
         ]);
       } else {
         const tok = await _debugToken();
+        const src = await _debugSource();
         Alert.alert(
           'Error',
-          `${res.error || 'Failed to connect channel. Please try again.'}\n\n[debug] token len=${tok.length} tail=${tok.slice(-8)}`,
+          `${res.error || 'Failed to connect channel. Please try again.'}\n\n[debug] hartos token len=${tok.length} tail=${tok.slice(-8)}\n[debug] endpoint=${src}`,
         );
       }
     } catch (e) {
       const tok = await _debugToken();
-      Alert.alert('Error', `Failed to connect channel. Please try again.\n\n[debug] ${e?.message} token len=${tok.length} tail=${tok.slice(-8)}`);
+      const src = await _debugSource();
+      Alert.alert('Error', `Failed to connect channel. Please try again.\n\n[debug] ${e?.message}\n[debug] hartos token len=${tok.length} tail=${tok.slice(-8)}\n[debug] endpoint=${src}`);
     } finally {
       setConnecting(false);
     }

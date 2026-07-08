@@ -72,6 +72,10 @@ const OtpVerification = ({ navigation, route, rootNavigation }) => {
         // (SessionExpired) is the fallback, same as before this bridge
         // existed, so a failure here shouldn't block sign-in.
         const email = res.email_address ?? params.email ?? '';
+        // TEMP DIAGNOSTIC (2026-07-08) — remove once on-device auth bridge
+        // is confirmed working. Surfaces link-hevolve's actual outcome
+        // instead of silently swallowing it, per debugging item #0.
+        let hartosDebug = '<not attempted>';
         if (res.user_id != null && email) {
           try {
             const linked = await linkHevolveAccount({
@@ -83,7 +87,9 @@ const OtpVerification = ({ navigation, route, rootNavigation }) => {
             if (linked?.token && typeof OnboardingModule?.setHartosToken === 'function') {
               await OnboardingModule.setHartosToken(linked.token).catch(() => {});
             }
-          } catch (_) {
+            hartosDebug = linked?.token ? `ok tail=${String(linked.token).slice(-8)}` : 'ok but no token in response';
+          } catch (e) {
+            hartosDebug = `FAILED: ${e?.message}`;
             // Non-fatal — see comment above.
           }
         }
@@ -121,7 +127,7 @@ const OtpVerification = ({ navigation, route, rootNavigation }) => {
         const tokTail = res.access_token ? String(res.access_token).slice(-8) : '<none>';
         Alert.alert(
           'Verified',
-          `${isRelogin ? 'You are signed back in.' : 'You are signed up.'}\n\n[debug] access_token=${tokTail} expires_in=${res.expires_in}`,
+          `${isRelogin ? 'You are signed back in.' : 'You are signed up.'}\n\n[debug] access_token=${tokTail} expires_in=${res.expires_in}\n[debug] hartos link: ${hartosDebug}`,
           [{ text: 'OK', onPress: goToApp }],
         );
       } else {

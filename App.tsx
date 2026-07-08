@@ -486,7 +486,15 @@ function App(): React.JSX.Element {
                   if (linked?.token && typeof m?.setHartosToken === 'function') {
                     await m.setHartosToken(linked.token);
                   }
-                } catch (_) {
+                  // TEMP DIAGNOSTIC (2026-07-08) — remove once on-device auth
+                  // bridge is confirmed working. Silent path has no UI, so
+                  // route to the native log (visible via `log stream`).
+                  console.log(
+                    '[HARTOS-LINK] silent-refresh link ok, token tail=',
+                    linked?.token ? String(linked.token).slice(-8) : '<none>',
+                  );
+                } catch (e) {
+                  console.error('[HARTOS-LINK] silent-refresh link FAILED:', (e as Error)?.message);
                   // Non-fatal — a later /api/social/* 401 just re-fires this handler.
                 }
               }
