@@ -2,6 +2,7 @@ import { NativeModules, DeviceEventEmitter } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import endpointResolver from './endpointResolver';
 import apiCache from './apiCache';
+import { refreshAccessToken, linkHevolveAccount } from './signupApi';
 
 // Surface server errors so screens don't silently render empty.
 // HARTOS returning 500 on /communities or /posts was previously invisible
@@ -161,6 +162,88 @@ const getHeaders = async () => {
   };
 };
 
+// 2026-07-13 — permanent fix for the "Invalid or expired token" class of
+// error (previously surfaced raw to the user, e.g. on WhatsApp QR pairing).
+// The HARTOS JWT this app carries expires after ~1h; before this, a 401
+// just emitted 'SessionExpired' and returned the error body — App.tsx's
+// listener refreshed the token in the BACKGROUND, but the request that
+// triggered it was never retried, so the user always saw one raw failure
+// per expiry. This does the same Hevolve-refresh + HARTOS-relink dance
+// (previously only inline in App.tsx), but as an awaitable, deduped
+// (single in-flight refresh shared by concurrent 401s) function that
+// _authedFetch can call and then retry the ORIGINAL request with —
+// transparent to the caller whenever the refresh actually succeeds.
+let _refreshInFlight = null;
+export const ensureFreshHartosToken = () => {
+  if (_refreshInFlight) return _refreshInFlight;
+  _refreshInFlight = (async () => {
+    try {
+      const m = NativeModules.OnboardingModule;
+      const userId = await new Promise((resolve) => {
+        if (typeof m?.getUser_id !== 'function') return resolve(null);
+        m.getUser_id((id) => resolve(id || null));
+      });
+      if (!userId) return null;
+
+      const refreshed = await refreshAccessToken(userId).catch(() => null);
+      if (!refreshed?.access_token) return null; // e.g. 403 not verified
+      if (typeof m?.setAccessToken === 'function') {
+        await m.setAccessToken(refreshed.access_token);
+      }
+
+      const [name, email, phone] =
+        typeof m?.getStudentNameAndEmail === 'function'
+          ? await new Promise((resolve) => {
+              m.getStudentNameAndEmail((nm, em, ph) => resolve([nm, em, ph]));
+            })
+          : [null, null, null];
+      if (!email) return null; // link-hevolve requires it
+
+      const linked = await linkHevolveAccount({
+        hevolveUserId: userId,
+        phoneNumber: phone ?? '',
+        name: name ?? '',
+        email,
+      }).catch(() => null);
+      if (!linked?.token) return null;
+      if (typeof m?.setHartosToken === 'function') {
+        await m.setHartosToken(linked.token);
+      }
+      try { DeviceEventEmitter.emit('authChanged'); } catch (_) {}
+      return linked.token;
+    } catch (_) {
+      return null;
+    } finally {
+      _refreshInFlight = null;
+    }
+  })();
+  return _refreshInFlight;
+};
+
+// Authenticated fetch shared by every API family below (social, coding,
+// goals, intelligence, builds, ip). On a 401, tries ensureFreshHartosToken()
+// once and — only if it actually produced a new token — retries the SAME
+// request with fresh headers before giving up. Concurrent 401s across
+// different in-flight requests share the one refresh via the dedup above,
+// so a burst of parallel calls costs one refresh round-trip, not N.
+const _authedFetch = async (url, { method = 'GET', body, extraHeaders } = {}) => {
+  const doFetch = async () => {
+    const headers = await getHeaders();
+    if (extraHeaders) Object.assign(headers, await extraHeaders());
+    return fetch(url, {
+      method,
+      headers,
+      ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
+    });
+  };
+  let response = await doFetch();
+  if (response.status === 401) {
+    const fresh = await ensureFreshHartosToken();
+    if (fresh) response = await doFetch();
+  }
+  return response;
+};
+
 // Polish round 3 perf 2026-06-03: bust the GET cache for the path
 // and its first 2 ancestors so a POST /posts/123/like invalidates
 // both /posts/123 (detail) and /posts (list).  Keeps the cache
@@ -179,28 +262,18 @@ const get = async (path, params) => {
   // freshness is preserved when the user actually changes state.
   const cacheKey = `GET:${path}:${params ? JSON.stringify(params) : ''}`;
   return apiCache.wrap(cacheKey, null, 30000, async () => {
-    const [headers, base] = await Promise.all([
-      getHeaders(),
-      _resolveSocialBase(),
-    ]);
+    const base = await _resolveSocialBase();
     const url = buildUrl(path, params, base);
-    const response = await fetch(url, { method: 'GET', headers });
+    const response = await _authedFetch(url, { method: 'GET' });
     if (!response.ok) _emitApiError(path, response.status, 'GET');
     return _safeJson(response);
   });
 };
 
 const post = async (path, body) => {
-  const [headers, base] = await Promise.all([
-    getHeaders(),
-    _resolveSocialBase(),
-  ]);
+  const base = await _resolveSocialBase();
   const url = buildUrl(path, undefined, base);
-  const response = await fetch(url, {
-    method: 'POST',
-    headers,
-    body: JSON.stringify(body),
-  });
+  const response = await _authedFetch(url, { method: 'POST', body });
   if (!response.ok) _emitApiError(path, response.status, 'POST');
   const json = await _safeJson(response);
   if (response.ok) _bustForPath(path);
@@ -208,16 +281,9 @@ const post = async (path, body) => {
 };
 
 const patch = async (path, body) => {
-  const [headers, base] = await Promise.all([
-    getHeaders(),
-    _resolveSocialBase(),
-  ]);
+  const base = await _resolveSocialBase();
   const url = buildUrl(path, undefined, base);
-  const response = await fetch(url, {
-    method: 'PATCH',
-    headers,
-    body: JSON.stringify(body),
-  });
+  const response = await _authedFetch(url, { method: 'PATCH', body });
   if (!response.ok) _emitApiError(path, response.status, 'PATCH');
   const json = await _safeJson(response);
   if (response.ok) _bustForPath(path);
@@ -225,12 +291,9 @@ const patch = async (path, body) => {
 };
 
 const del = async (path) => {
-  const [headers, base] = await Promise.all([
-    getHeaders(),
-    _resolveSocialBase(),
-  ]);
+  const base = await _resolveSocialBase();
   const url = buildUrl(path, undefined, base);
-  const response = await fetch(url, { method: 'DELETE', headers });
+  const response = await _authedFetch(url, { method: 'DELETE' });
   if (!response.ok) _emitApiError(path, response.status, 'DELETE');
   const json = await _safeJson(response);
   if (response.ok) _bustForPath(path);
@@ -599,15 +662,13 @@ export const dashboardApi = {
 
 // --- Coding Agent (separate base URL: /api/coding, not /api/social) ---
 const codingGet = async (path, params) => {
-  const headers = await getHeaders();
   const url = buildUrl(path, params, CODING_BASE_URL);
-  const response = await fetch(url, { method: 'GET', headers });
+  const response = await _authedFetch(url, { method: 'GET' });
   return response.json();
 };
 const codingPost = async (path, body) => {
-  const headers = await getHeaders();
   const url = buildUrl(path, undefined, CODING_BASE_URL);
-  const response = await fetch(url, { method: 'POST', headers, body: JSON.stringify(body) });
+  const response = await _authedFetch(url, { method: 'POST', body });
   return response.json();
 };
 export const codingApi = {
@@ -620,19 +681,13 @@ export const codingApi = {
 
 // --- Unified Goals API (all goal types) ---
 const goalsGet = async (path, params) => {
-  const headers = await getHeaders();
   const url = buildUrl(path, params, GOALS_BASE_URL);
-  const response = await fetch(url, { method: 'GET', headers });
+  const response = await _authedFetch(url, { method: 'GET' });
   return response.json();
 };
 const goalsPost = async (path, body) => {
-  const headers = await getHeaders();
   const url = buildUrl(path, undefined, GOALS_BASE_URL);
-  const response = await fetch(url, {
-    method: 'POST',
-    headers,
-    body: JSON.stringify(body),
-  });
+  const response = await _authedFetch(url, { method: 'POST', body });
   return response.json();
 };
 export const goalsApi = {
@@ -642,35 +697,27 @@ export const goalsApi = {
 };
 
 // --- Commercial Intelligence API ---
-const intelGet = async (path, params) => {
-  const headers = await getHeaders();
-  // Also attach X-API-Key if stored
+const _intelExtraHeaders = async () => {
   try {
     const apiKey = await AsyncStorage.getItem('intelligence_api_key');
-    if (apiKey) headers['X-API-Key'] = apiKey;
-  } catch (_) {}
+    return apiKey ? { 'X-API-Key': apiKey } : {};
+  } catch (_) {
+    return {};
+  }
+};
+const intelGet = async (path, params) => {
   const url = buildUrl(path, params, INTELLIGENCE_BASE_URL);
-  const response = await fetch(url, { method: 'GET', headers });
+  const response = await _authedFetch(url, { method: 'GET', extraHeaders: _intelExtraHeaders });
   return response.json();
 };
 const intelPost = async (path, body) => {
-  const headers = await getHeaders();
-  try {
-    const apiKey = await AsyncStorage.getItem('intelligence_api_key');
-    if (apiKey) headers['X-API-Key'] = apiKey;
-  } catch (_) {}
   const url = buildUrl(path, undefined, INTELLIGENCE_BASE_URL);
-  const response = await fetch(url, {
-    method: 'POST',
-    headers,
-    body: JSON.stringify(body),
-  });
+  const response = await _authedFetch(url, { method: 'POST', body, extraHeaders: _intelExtraHeaders });
   return response.json();
 };
 const intelDel = async (path) => {
-  const headers = await getHeaders();
   const url = buildUrl(path, undefined, INTELLIGENCE_BASE_URL);
-  const response = await fetch(url, { method: 'DELETE', headers });
+  const response = await _authedFetch(url, { method: 'DELETE', extraHeaders: _intelExtraHeaders });
   return response.json();
 };
 export const intelligenceApi = {
@@ -688,19 +735,13 @@ export const intelligenceApi = {
 
 // --- Build Distribution API ---
 const buildsGet = async (path, params) => {
-  const headers = await getHeaders();
   const url = buildUrl(path, params, BUILDS_BASE_URL);
-  const response = await fetch(url, { method: 'GET', headers });
+  const response = await _authedFetch(url, { method: 'GET' });
   return response.json();
 };
 const buildsPost = async (path, body) => {
-  const headers = await getHeaders();
   const url = buildUrl(path, undefined, BUILDS_BASE_URL);
-  const response = await fetch(url, {
-    method: 'POST',
-    headers,
-    body: JSON.stringify(body),
-  });
+  const response = await _authedFetch(url, { method: 'POST', body });
   return response.json();
 };
 export const buildsApi = {
@@ -712,19 +753,13 @@ export const buildsApi = {
 
 // --- Defensive IP / Provenance API ---
 const ipGet = async (path, params) => {
-  const headers = await getHeaders();
   const url = buildUrl(path, params, IP_BASE_URL);
-  const response = await fetch(url, { method: 'GET', headers });
+  const response = await _authedFetch(url, { method: 'GET' });
   return response.json();
 };
 const ipPost = async (path, body) => {
-  const headers = await getHeaders();
   const url = buildUrl(path, undefined, IP_BASE_URL);
-  const response = await fetch(url, {
-    method: 'POST',
-    headers,
-    body: JSON.stringify(body),
-  });
+  const response = await _authedFetch(url, { method: 'POST', body });
   return response.json();
 };
 export const ipApi = {
@@ -887,19 +922,13 @@ let ADMIN_BASE_URL = `${_apiBase}/api/admin`;
 const getAdminBase = () => `${_apiBase}/api/admin`;
 
 const adminGet = async (path, params) => {
-  const headers = await getHeaders();
   const url = buildUrl(path, params, getAdminBase());
-  const response = await fetch(url, { method: 'GET', headers });
+  const response = await _authedFetch(url, { method: 'GET' });
   return response.json();
 };
 const adminPost = async (path, body) => {
-  const headers = await getHeaders();
   const url = buildUrl(path, undefined, getAdminBase());
-  const response = await fetch(url, {
-    method: 'POST',
-    headers,
-    body: JSON.stringify(body),
-  });
+  const response = await _authedFetch(url, { method: 'POST', body });
   return response.json();
 };
 

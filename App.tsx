@@ -43,7 +43,8 @@ import {
   createNavigationContainerRef,
 } from '@react-navigation/native';
 import {createNativeStackNavigator} from '@react-navigation/native-stack';
-import {sendLoginOtp, refreshAccessToken, linkHevolveAccount} from './js/shared/services/signupApi';
+import {sendLoginOtp} from './js/shared/services/signupApi';
+import {ensureFreshHartosToken} from './js/shared/services/socialApi';
 
 // ─── Vendored screens (all from js/shared/components/CommunityView/screens) ──
 // Import lazily so a single import-time error in one screen doesn't crash the
@@ -431,30 +432,32 @@ function App(): React.JSX.Element {
 
   // Global session-expiry handler. socialApi.js emits 'SessionExpired' the
   // first time any authenticated call gets the backend's 401 "Invalid or
-  // expired token" (the Keychain access_token aged out). Try the SILENT
-  // path first: POST /refresh_tokens with just the saved user_id re-derives
-  // a fresh token with zero user interaction (no refresh_token STRING is
-  // ever issued — client_credentials grants don't have one — but the
-  // server can re-mint from the user's stored client_id/secret given only
-  // their id). Only fall back to a fresh OTP + the verify screen if that
-  // 403s (account not verified) or errors.
+  // expired token" (the Keychain access_token aged out).
+  //
+  // 2026-07-13 — the actual Hevolve-refresh + HARTOS-relink dance now lives
+  // in socialApi.js's ensureFreshHartosToken(), shared with _authedFetch's
+  // own retry-after-401 path (every /api/social/*, /api/coding/*, etc. call
+  // silently retries once through the SAME refresh before this handler even
+  // fires for most cases). This listener stays as the fallback for the
+  // rarer case that needs full user interaction — a stale account with no
+  // refreshable Hevolve token — where a fresh OTP is unavoidable.
+  //
+  // Note: previously this handler treated a successful Hevolve-token
+  // refresh as "silent success" even if the followup HARTOS re-link failed,
+  // which could leave a stale HARTOS token in place while suppressing the
+  // OTP fallback. ensureFreshHartosToken() requires BOTH steps to actually
+  // succeed before reporting success, closing that gap.
   useEffect(() => {
     let handling = false;
     const sub = DeviceEventEmitter.addListener('SessionExpired', async () => {
       if (handling) return;
       handling = true;
       try {
+        const fresh = await ensureFreshHartosToken();
+        if (fresh) return; // silent success — no OTP, no navigation
+
         const m = NativeModules.OnboardingModule;
-
-        const userId = await new Promise<string | null>(resolve => {
-          if (typeof m?.getUser_id !== 'function') return resolve(null);
-          m.getUser_id((id: string) => resolve(id || null));
-        });
-
-        // Fetched once, up front, so both the silent-refresh branch (HARTOS
-        // token may also need re-bridging) and the OTP fallback branch below
-        // can use it without a second native round-trip.
-        const [name, email, phone] =
+        const [, email, phone] =
           typeof m?.getStudentNameAndEmail === 'function'
             ? await new Promise<[string | null, string | null, string | null]>(
                 resolve => {
@@ -464,47 +467,6 @@ function App(): React.JSX.Element {
                 },
               )
             : [null, null, null];
-
-        if (userId) {
-          try {
-            const refreshed = await refreshAccessToken(userId);
-            if (refreshed?.access_token) {
-              if (typeof m?.setAccessToken === 'function') {
-                await m.setAccessToken(refreshed.access_token);
-              }
-              // Best-effort re-bridge — the HARTOS token has its own
-              // lifetime and may have expired independently of the
-              // Hevolve token we just refreshed. Idempotent on email.
-              if (email) {
-                try {
-                  const linked = await linkHevolveAccount({
-                    hevolveUserId: userId,
-                    phoneNumber: phone ?? '',
-                    name: name ?? '',
-                    email,
-                  });
-                  if (linked?.token && typeof m?.setHartosToken === 'function') {
-                    await m.setHartosToken(linked.token);
-                  }
-                  // TEMP DIAGNOSTIC (2026-07-08) — remove once on-device auth
-                  // bridge is confirmed working. Silent path has no UI, so
-                  // route to the native log (visible via `log stream`).
-                  console.log(
-                    '[HARTOS-LINK] silent-refresh link ok, token tail=',
-                    linked?.token ? String(linked.token).slice(-8) : '<none>',
-                  );
-                } catch (e) {
-                  console.error('[HARTOS-LINK] silent-refresh link FAILED:', (e as Error)?.message);
-                  // Non-fatal — a later /api/social/* 401 just re-fires this handler.
-                }
-              }
-              DeviceEventEmitter.emit('authChanged');
-              return; // silent success — no OTP, no navigation
-            }
-          } catch (_) {
-            // Falls through to the OTP path below (e.g. 403 not verified).
-          }
-        }
 
         const identifier = phone || email;
         if (!identifier) return; // no saved contact to re-auth with

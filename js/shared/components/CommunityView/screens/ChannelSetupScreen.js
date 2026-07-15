@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput,
   SafeAreaView, StatusBar, ActivityIndicator, Alert, KeyboardAvoidingView,
@@ -14,6 +14,7 @@ import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityI
 import { useNavigation } from '@react-navigation/native';
 import { NativeModules } from 'react-native';
 import useChannelStore from '../../../channelStore';
+import InAppOAuthService from '../../../services/InAppOAuthService';
 
 // TEMP DIAGNOSTIC (2026-07-06, fixed 2026-07-08) — remove once the
 // token-expiry loop is root-caused. Surfaces what actually authenticates
@@ -66,6 +67,11 @@ const CHANNEL_ICONS = {
 const getColor = (ch) => CHANNEL_COLORS[(ch || '').toLowerCase()] || CHANNEL_COLORS.default;
 const getIcon = (ch) => CHANNEL_ICONS[(ch || '').toLowerCase()] || CHANNEL_ICONS.default;
 
+// WhatsApp's real backend auth_method is 'gateway_qr' (Baileys gateway QR
+// pairing); 'qr_session' covers other QR-paired channels. Both render the
+// same scan-QR UI.
+const isQrAuth = (authMethod) => authMethod === 'qr_session' || authMethod === 'gateway_qr';
+
 const ChannelSetupScreen = () => {
   const navigation = useNavigation();
   const catalog = useChannelStore((s) => s.catalog);
@@ -77,6 +83,9 @@ const ChannelSetupScreen = () => {
   const [selectedChannel, setSelectedChannel] = useState(null);
   const [formValues, setFormValues] = useState({});
   const [connecting, setConnecting] = useState(false);
+  // QR channels (e.g. WhatsApp) default to the QR button; this reveals the
+  // old manual field-entry form alongside it for users who want it.
+  const [showManualSetup, setShowManualSetup] = useState(false);
 
   useEffect(() => {
     fetchCatalog();
@@ -85,6 +94,7 @@ const ChannelSetupScreen = () => {
   const handleSelectChannel = (channelKey, channelDef) => {
     setSelectedChannel({ key: channelKey, ...channelDef });
     setFormValues({});
+    setShowManualSetup(false);
     setStep(2);
   };
 
@@ -93,10 +103,45 @@ const ChannelSetupScreen = () => {
       setStep(1);
       setSelectedChannel(null);
       setFormValues({});
+      setShowManualSetup(false);
     } else {
       navigation.goBack();
     }
   };
+
+  // Ported from Android (#464/#465): in-app PKCE OAuth click-through for
+  // auth_method 'oauth2' channels (Teams, Google Chat, etc). Same
+  // createBinding call as handleConnect, keyed by channel_type (matches
+  // the backend field fixed 2026-07-08).
+  const oauthSubRef = useRef(null);
+  const handleOAuthConnect = useCallback(async () => {
+    if (!selectedChannel) return;
+    setConnecting(true);
+    try {
+      const token = await InAppOAuthService.startOAuth(selectedChannel.key);
+      await createBinding({
+        channel_type: selectedChannel.key,
+        access_token: token.access_token,
+        scope: token.scope,
+      });
+      Alert.alert(
+        'Connected',
+        `${selectedChannel.name || selectedChannel.key} authorized successfully.`,
+        [{ text: 'OK', onPress: () => navigation.goBack() }],
+      );
+    } catch (err) {
+      Alert.alert(
+        'Authorization Failed',
+        err?.message || 'The provider did not authorize the connection.',
+      );
+    } finally {
+      setConnecting(false);
+    }
+  }, [selectedChannel, navigation, createBinding]);
+
+  useEffect(() => () => {
+    if (oauthSubRef.current) oauthSubRef.current.remove?.();
+  }, []);
 
   const handleConnect = async () => {
     if (!selectedChannel) return;
@@ -195,6 +240,42 @@ const ChannelSetupScreen = () => {
     </ScrollView>
   );
 
+  const renderGenericFields = (setupFields) => (
+    setupFields.length > 0 ? (
+      setupFields.map((field) => (
+        <View key={field.key || field.name} style={styles.fieldRow}>
+          <Text style={styles.fieldLabel}>{field.label || field.name}</Text>
+          <TextInput
+            style={styles.textInput}
+            placeholder={field.placeholder || ''}
+            placeholderTextColor="#555"
+            secureTextEntry={field.secret || false}
+            value={formValues[field.key || field.name] || ''}
+            onChangeText={(val) => setField(field.key || field.name, val)}
+            autoCapitalize="none"
+            autoCorrect={false}
+          />
+          {field.help ? (
+            <Text style={styles.fieldHelp}>{field.help}</Text>
+          ) : null}
+        </View>
+      ))
+    ) : (
+      <View style={styles.fieldRow}>
+        <Text style={styles.fieldLabel}>Sender ID / Phone / Username</Text>
+        <TextInput
+          style={styles.textInput}
+          placeholder="Enter your identifier"
+          placeholderTextColor="#555"
+          value={formValues.sender_id || ''}
+          onChangeText={(val) => setField('sender_id', val)}
+          autoCapitalize="none"
+          autoCorrect={false}
+        />
+      </View>
+    )
+  );
+
   const renderAuthForm = () => {
     if (!selectedChannel) return null;
 
@@ -226,7 +307,37 @@ const ChannelSetupScreen = () => {
             </View>
 
             {/* Auth-method-specific form */}
-            {authMethod === 'qr_session' ? (
+            {authMethod === 'oauth2' ? (
+              <View style={styles.formSection}>
+                <Text style={styles.formLabel}>One-Tap Connect</Text>
+                <Text style={styles.formHelpText}>
+                  You&apos;ll be taken to {selectedChannel.name || selectedChannel.key}
+                  &nbsp;to authorize Nunba. Tap Authorize there and we&apos;ll
+                  finish the connection automatically.
+                </Text>
+                <TouchableOpacity
+                  style={[styles.primaryBtn, { backgroundColor: color }]}
+                  onPress={handleOAuthConnect}
+                  activeOpacity={0.7}
+                  disabled={connecting}
+                >
+                  {connecting ? (
+                    <ActivityIndicator size="small" color="#FFF" />
+                  ) : (
+                    <MaterialCommunityIcons name={icon} size={20} color="#FFF" />
+                  )}
+                  <Text style={styles.primaryBtnText}>
+                    {connecting
+                      ? 'Opening authorization page…'
+                      : `Connect with ${selectedChannel.name || selectedChannel.key}`}
+                  </Text>
+                </TouchableOpacity>
+                <Text style={styles.formHelpText}>
+                  Nunba never sees your password — only the access token
+                  the provider grants.
+                </Text>
+              </View>
+            ) : isQrAuth(authMethod) ? (
               <View style={styles.formSection}>
                 <Text style={styles.formLabel}>QR Session Pairing</Text>
                 <Text style={styles.formHelpText}>
@@ -245,6 +356,21 @@ const ChannelSetupScreen = () => {
                   <Ionicons name="qr-code-outline" size={20} color="#FFF" />
                   <Text style={styles.primaryBtnText}>Scan QR Code</Text>
                 </TouchableOpacity>
+                <TouchableOpacity
+                  onPress={() => setShowManualSetup((v) => !v)}
+                  activeOpacity={0.7}
+                  style={styles.manualToggle}
+                >
+                  <Text style={styles.manualToggleText}>
+                    {showManualSetup ? 'Hide manual setup' : 'Set up manually instead'}
+                  </Text>
+                </TouchableOpacity>
+                {showManualSetup ? (
+                  <View style={styles.manualSection}>
+                    <Text style={styles.formLabel}>Manual Setup</Text>
+                    {renderGenericFields(setupFields)}
+                  </View>
+                ) : null}
               </View>
             ) : authMethod === 'api_key' ? (
               <View style={styles.formSection}>
@@ -285,44 +411,15 @@ const ChannelSetupScreen = () => {
               /* Generic form for other auth methods */
               <View style={styles.formSection}>
                 <Text style={styles.formLabel}>Setup</Text>
-                {setupFields.length > 0 ? (
-                  setupFields.map((field) => (
-                    <View key={field.key || field.name} style={styles.fieldRow}>
-                      <Text style={styles.fieldLabel}>{field.label || field.name}</Text>
-                      <TextInput
-                        style={styles.textInput}
-                        placeholder={field.placeholder || ''}
-                        placeholderTextColor="#555"
-                        secureTextEntry={field.secret || false}
-                        value={formValues[field.key || field.name] || ''}
-                        onChangeText={(val) => setField(field.key || field.name, val)}
-                        autoCapitalize="none"
-                        autoCorrect={false}
-                      />
-                      {field.help ? (
-                        <Text style={styles.fieldHelp}>{field.help}</Text>
-                      ) : null}
-                    </View>
-                  ))
-                ) : (
-                  <View style={styles.fieldRow}>
-                    <Text style={styles.fieldLabel}>Sender ID / Phone / Username</Text>
-                    <TextInput
-                      style={styles.textInput}
-                      placeholder="Enter your identifier"
-                      placeholderTextColor="#555"
-                      value={formValues.sender_id || ''}
-                      onChangeText={(val) => setField('sender_id', val)}
-                      autoCapitalize="none"
-                      autoCorrect={false}
-                    />
-                  </View>
-                )}
+                {renderGenericFields(setupFields)}
               </View>
             )}
 
-            {/* Connect button (not for QR — that navigates to scanner) */}
-            {authMethod !== 'qr_session' ? (
+            {/* Connect button — hidden for QR unless manual setup is
+                expanded (QR's own scan button covers the default path),
+                and always hidden for OAuth (has its own "Connect with X"
+                button). */}
+            {(!isQrAuth(authMethod) || showManualSetup) && authMethod !== 'oauth2' ? (
               <TouchableOpacity
                 style={[styles.connectBtn, connecting && styles.connectBtnDisabled]}
                 onPress={handleConnect}
@@ -441,6 +538,12 @@ const styles = StyleSheet.create({
     gap: 8, paddingVertical: hp('1.5%'), borderRadius: 12,
   },
   primaryBtnText: { color: '#FFF', fontSize: wp('3.5%'), fontWeight: '700' },
+  manualToggle: { alignItems: 'center', paddingVertical: hp('1.5%') },
+  manualToggleText: { color: '#6C63FF', fontSize: wp('3.2%'), fontWeight: '600' },
+  manualSection: {
+    marginTop: hp('1%'), paddingTop: hp('1.5%'),
+    borderTopWidth: 1, borderTopColor: '#2A2A3E',
+  },
   textInput: {
     backgroundColor: '#1A1A2E', borderRadius: 12, borderWidth: 1, borderColor: '#2A2A3E',
     color: '#FFF', fontSize: wp('3.5%'),
