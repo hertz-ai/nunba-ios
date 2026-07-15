@@ -45,6 +45,7 @@ import {
 import {createNativeStackNavigator} from '@react-navigation/native-stack';
 import {sendLoginOtp} from './js/shared/services/signupApi';
 import {ensureFreshHartosToken} from './js/shared/services/socialApi';
+import deepLinkService from './js/shared/services/deepLinkService';
 
 // ─── Vendored screens (all from js/shared/components/CommunityView/screens) ──
 // Import lazily so a single import-time error in one screen doesn't crash the
@@ -429,6 +430,26 @@ function App(): React.JSX.Element {
       authChangedSub.remove();
     };
   }, [checkAuth]);
+
+  // deepLinkService owns the custom-scheme (hevolve://, nunba://,
+  // hevolveai://) parsing/routing that the OAuth PKCE flow, share
+  // links, referral links, and campaign links all depend on — see
+  // CommunityView.js's identical call on Android. iOS's App.tsx
+  // never mounts CommunityView (it builds its own navigator+screens
+  // directly), so without this, deepLinkService.init() was never
+  // called at all: no Linking.addEventListener('url', ...) listener
+  // ever got registered, and every incoming deep link went nowhere
+  // once it reached JS. React Navigation's own `linking` prop above
+  // (a separate, simpler path->screen mechanism) is unaffected by
+  // this and keeps working as before.
+  useEffect(() => {
+    deepLinkService.init(navigationRef, isAuthed);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- register once; auth-state changes are propagated via setAuthenticated below, not by re-calling init (which would leak a duplicate Linking listener per call).
+  }, []);
+
+  useEffect(() => {
+    deepLinkService.setAuthenticated(isAuthed);
+  }, [isAuthed]);
 
   // Global session-expiry handler. socialApi.js emits 'SessionExpired' the
   // first time any authenticated call gets the backend's 401 "Invalid or
