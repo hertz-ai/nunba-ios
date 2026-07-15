@@ -290,7 +290,7 @@ export async function startOAuth(providerKey) {
       try {
         if (!payload?.state || payload.state !== state) return; // not ours
         cleanup();
-        if (payload.ok === 'false' || payload.error) {
+        if (payload.error || payload.ok === false) {
           reject(new Error(payload.error || 'User denied authorization'));
           return;
         }
