@@ -220,7 +220,15 @@ export const PROVIDERS = {
     authorizeUrl: 'https://login.microsoftonline.com/common/oauth2/v2.0/authorize',
     tokenUrl: 'https://login.microsoftonline.com/common/oauth2/v2.0/token',
     clientId: 'REPLACE_AT_BUILD',
-    scopes: 'openid profile email offline_access Chat.ReadWrite',
+    // Must match HARTOS's channel catalog exactly (integrations/channels/
+    // metadata.py's oauth_scopes for 'teams') -- that's what the backend
+    // actually calls with the resulting token. Graph-qualified resource
+    // URIs, not short scope names: short 'Chat.ReadWrite' would still
+    // resolve against Graph under v2.0, but omitting ChannelMessage.Send
+    // entirely (the old scope list did) means the token can read chats
+    // but can't post to a channel -- a permission gap that only surfaces
+    // the first time that specific call is made.
+    scopes: 'https://graph.microsoft.com/Chat.ReadWrite https://graph.microsoft.com/ChannelMessage.Send offline_access',
   },
   meta: {
     name: 'Meta',
