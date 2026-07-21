@@ -349,6 +349,7 @@ const ChannelSetupScreen = () => {
                     navigation.navigate('QRScanner', {
                       channel: selectedChannel.key,
                       channelName: selectedChannel.name || selectedChannel.key,
+                      isGatewayQr: authMethod === 'gateway_qr',
                     })
                   }
                   activeOpacity={0.7}

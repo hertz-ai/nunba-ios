@@ -841,6 +841,17 @@ export const channelsApi = {
   setPreferred: (id) => patch(`/channels/bindings/${id}/preferred`, {}),
   generatePairCode: () => post('/channels/pair/generate', {}),
   verifyPairCode: (data) => post('/channels/pair/verify', data),
+  // Real WhatsApp linking (embedded Baileys gateway) — separate from the
+  // generic pairing-code flow above. whatsappStatus polls for QR/auth
+  // state; whatsappPairCode mints the "Link with phone number" code.
+  whatsappStatus: () => get('/channels/whatsapp/qr', { _t: Date.now() }),
+  whatsappPairCode: (phone) => post('/channels/whatsapp/pair-code', { phone }),
+  // Real send/receive over the same session. sinceTs is a unix-seconds
+  // cursor for incremental polling (omit for the full recent buffer).
+  whatsappMessages: (sinceTs) => get('/channels/whatsapp/messages', {
+    _t: Date.now(), ...(sinceTs ? { since_ts: sinceTs } : {}),
+  }),
+  whatsappSend: (to, text) => post('/channels/whatsapp/send', { to, text }),
   presence: () => get('/channels/presence'),
   conversationHistory: (params) => get('/channels/conversations', params),
   // Send a message through a channel (Nunba-HART ChannelAdapter pattern)
