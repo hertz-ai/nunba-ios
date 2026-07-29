@@ -293,6 +293,21 @@ const PhoneEmailandName = ({ navigation }) => {
                   pickerButtonOnPress={handleCountrySelection}
                 />
               )}
+
+              {/* register_student requires an email unconditionally, but a
+                  first-time install (no saved phone yet) never reaches the
+                  Email-only view below since that only activates on restore
+                  — so a brand-new user could never enter an email at all
+                  and signup would always be rejected server-side. Show it
+                  here too for first-time users. */}
+              <Text style={styles.mid_subtitle}>Email</Text>
+              <TextInput
+                style={styles.text_input}
+                placeholder="Ex: Rishabh@gmail.com"
+                value={studentEmail}
+                autoCapitalize="none"
+                onChangeText={(newEmail) => setStudentEmail(newEmail)}
+              />
             </>
           )}
           <View
@@ -330,15 +345,17 @@ const PhoneEmailandName = ({ navigation }) => {
               <TouchableOpacity
                 style={styles.btn1}
                 onPress={() => {
-                  // Same validation as Android: name, then a valid email,
-                  // then a phone — all required for signup.
+                  // Email is required by the backend in both views (the
+                  // fresh-install phone view now renders it too). Phone is
+                  // only required in the fresh-install view — the restored
+                  // email-only view already has a phone from local storage.
                   if (!studentName) {
                     alert('Name cannot be blank');
                     return;
                   } else if (!reg.test(studentEmail)) {
                     alert('Enter valid Email');
                     return;
-                  } else if (!studentPhone) {
+                  } else if (!userDetails && !studentPhone) {
                     alert('Enter valid Contact');
                     return;
                   }
@@ -391,6 +408,39 @@ const PhoneEmailandName = ({ navigation }) => {
               autoCapitalize="none"
               onChangeText={(newEmail) => setStudentEmail(newEmail)}
             />
+
+            {!userDetails && (
+              <>
+                <Text style={landscapeStyles.mid_subtitle}>Phone :</Text>
+                <View style={styles.row}>
+                  <TouchableOpacity
+                    onPress={() => setShow(true)}
+                    style={styles.countryButton}
+                  >
+                    {countryCode ? (
+                      <Text style={styles.buttonText1}>{countryCode}</Text>
+                    ) : (
+                      <Text style={styles.buttonText}>
+                        {'Select Country Code'}
+                      </Text>
+                    )}
+                  </TouchableOpacity>
+                  <TextInput
+                    style={styles.textInput}
+                    placeholder="Ex: 0123456789"
+                    value={studentPhone}
+                    keyboardType="numeric"
+                    onChangeText={(newPhone) => setStudentPhone(newPhone)}
+                  />
+                </View>
+                {show && (
+                  <CountryPicker
+                    show={show}
+                    pickerButtonOnPress={handleCountrySelection}
+                  />
+                )}
+              </>
+            )}
           </View>
 
           <View
