@@ -41,9 +41,7 @@ settings:
     ENABLE_BITCODE: false
     SUPPORTS_MACCATALYST: false
     CODE_SIGN_STYLE: Automatic
-    # CODE_SIGN_IDENTITY left empty — set DEVELOPMENT_TEAM via Xcode
-    # signing automatic flow OR pass via xcodebuild flag for CI.
-    DEVELOPMENT_TEAM: ''
+    DEVELOPMENT_TEAM: 'Q8WA323644'
   configs:
     Debug:
       SWIFT_OPTIMIZATION_LEVEL: '-Onone'
