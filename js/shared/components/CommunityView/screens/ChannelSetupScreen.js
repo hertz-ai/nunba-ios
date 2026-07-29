@@ -13,8 +13,65 @@ import Ionicons from 'react-native-vector-icons/Ionicons';
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
 import { useNavigation } from '@react-navigation/native';
 import { NativeModules } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import useChannelStore from '../../../channelStore';
 import InAppOAuthService from '../../../services/InAppOAuthService';
+
+// TEMP DEBUG (2026-07-27) — real devices have no way to set the
+// hevolve_api_base AsyncStorage override (simulator testing did this by
+// editing the app container's manifest.json directly on disk, not possible
+// on hardware). Long-press the header title to point this device at a
+// local HARTOS server for testing real-gateway channels (e.g. WhatsApp),
+// bypassing the cloud deploy gap. Remove once there's a real debug menu.
+const _promptApiBaseOverride = async () => {
+  const current = (await AsyncStorage.getItem('hevolve_api_base')) || '';
+  Alert.prompt(
+    'API Base Override',
+    `Current: ${current || '(none — using cloud)'}\n\nEnter a local server URL (e.g. http://192.168.1.7:6777), or leave blank to clear.`,
+    async (value) => {
+      const trimmed = (value || '').trim();
+      if (trimmed) {
+        await AsyncStorage.setItem('hevolve_api_base', trimmed);
+        Alert.alert('Saved', `Now pointing at: ${trimmed}`);
+      } else {
+        await AsyncStorage.removeItem('hevolve_api_base');
+        Alert.alert('Cleared', 'Back to normal endpoint resolution (cloud).');
+      }
+    },
+    'plain-text',
+    current,
+  );
+};
+
+// TEMP DEBUG (2026-07-28) — the app's normal token self-heal
+// (ensureFreshHartosToken) chains through Hevolve's cloud refresh
+// endpoint even when pointed at a local server override, and that cloud
+// endpoint has a strict rate limit (1/sec, 5/min, 15/hour, 300/day) that
+// heavy local testing exhausts, silently breaking the self-heal (it
+// swallows the failure and leaves the stale/expired token in place).
+// Single-tap the header to inject a known-good local HARTOS bearer
+// token directly into the Keychain, bypassing that chain entirely for
+// local testing. Remove once there's a real debug menu.
+const _promptHartosTokenOverride = async () => {
+  const m = NativeModules.OnboardingModule;
+  const current = await new Promise((resolve) => {
+    if (typeof m?.getHartosToken !== 'function') return resolve('');
+    m.getHartosToken((t) => resolve(t || ''));
+  });
+  Alert.prompt(
+    'HARTOS Token Override',
+    `Current len=${current.length} tail=${current.slice(-8)}\n\nPaste a known-good bearer token to inject directly (bypasses the cloud refresh chain).`,
+    async (value) => {
+      const trimmed = (value || '').trim();
+      if (trimmed && typeof m?.setHartosToken === 'function') {
+        await m.setHartosToken(trimmed);
+        Alert.alert('Saved', `Token set (len=${trimmed.length}).`);
+      }
+    },
+    'plain-text',
+    '',
+  );
+};
 
 // TEMP DIAGNOSTIC (2026-07-06, fixed 2026-07-08) — remove once the
 // token-expiry loop is root-caused. Surfaces what actually authenticates
@@ -379,34 +436,7 @@ const ChannelSetupScreen = () => {
                 <Text style={styles.formHelpText}>
                   Enter your {selectedChannel.name || selectedChannel.key} API key or bot token.
                 </Text>
-                <TextInput
-                  style={styles.textInput}
-                  placeholder="Paste your API key here"
-                  placeholderTextColor="#555"
-                  secureTextEntry
-                  value={formValues.api_key || ''}
-                  onChangeText={(val) => setField('api_key', val)}
-                  autoCapitalize="none"
-                  autoCorrect={false}
-                />
-                {setupFields.map((field) => (
-                  <View key={field.key || field.name} style={styles.fieldRow}>
-                    <Text style={styles.fieldLabel}>{field.label || field.name}</Text>
-                    <TextInput
-                      style={styles.textInput}
-                      placeholder={field.placeholder || ''}
-                      placeholderTextColor="#555"
-                      secureTextEntry={field.secret || false}
-                      value={formValues[field.key || field.name] || ''}
-                      onChangeText={(val) => setField(field.key || field.name, val)}
-                      autoCapitalize="none"
-                      autoCorrect={false}
-                    />
-                    {field.help ? (
-                      <Text style={styles.fieldHelp}>{field.help}</Text>
-                    ) : null}
-                  </View>
-                ))}
+                {renderGenericFields(setupFields)}
               </View>
             ) : (
               /* Generic form for other auth methods */
@@ -451,9 +481,15 @@ const ChannelSetupScreen = () => {
         <TouchableOpacity onPress={handleBack} style={styles.backButton}>
           <Ionicons name="arrow-back" size={24} color="#FFF" />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>
-          {step === 1 ? 'Add Channel' : 'Configure'}
-        </Text>
+        <TouchableOpacity
+          onPress={_promptHartosTokenOverride}
+          onLongPress={_promptApiBaseOverride}
+          activeOpacity={1}
+        >
+          <Text style={styles.headerTitle}>
+            {step === 1 ? 'Add Channel' : 'Configure'}
+          </Text>
+        </TouchableOpacity>
         <View style={styles.headerSpacer} />
       </View>
 
