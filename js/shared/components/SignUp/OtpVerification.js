@@ -51,6 +51,26 @@ const OtpVerification = ({ navigation, route, rootNavigation }) => {
     try {
       const res = await verifyOtp({ identifier, otp });
       if (isVerifySuccess(res)) {
+        // 2026-08-18 — for an email-verified account (verificationMethod
+        // === 'email'), the server's own varify_otp response has been
+        // observed echoing the verification identifier (the email) back
+        // in its `phone_number` field. Blindly trusting res.phone_number
+        // then persists the EMAIL into the phone slot, which silently
+        // corrupts every downstream link-hevolve call (phone_number sent
+        // as an email string) and is what produced the "Invalid or
+        // expired token" failures on channel binding — the auto-refresh
+        // path (ensureFreshHartosToken) re-derives phone from this same
+        // stored value, so a bad phone here breaks refresh indefinitely,
+        // not just once. params.identifier is the phone the user actually
+        // typed on the previous screen and is never email-shaped, so it's
+        // the trustworthy fallback — and now the preferred value whenever
+        // the server's response looks like an email rather than a phone.
+        const serverPhone = res.phone_number;
+        const phone =
+          serverPhone && !String(serverPhone).includes('@')
+            ? serverPhone
+            : (params.identifier ?? '');
+
         // Persist what we got back, mirroring the Android Activity: token is
         // the Bearer for every future call; user_id marks the account as
         // logged in; name/email/phone keep the profile in sync.
@@ -64,7 +84,7 @@ const OtpVerification = ({ navigation, route, rootNavigation }) => {
           OnboardingModule.createStudentNameAndEmail(
             res.name ?? params.name ?? '',
             res.email_address ?? params.email ?? '',
-            res.phone_number ?? params.identifier ?? '',
+            phone,
           );
         }
         // Bridge into a HARTOS-native token for /api/social/* calls. Best
@@ -80,7 +100,7 @@ const OtpVerification = ({ navigation, route, rootNavigation }) => {
           try {
             const linked = await linkHevolveAccount({
               hevolveUserId: res.user_id,
-              phoneNumber: res.phone_number ?? params.identifier ?? '',
+              phoneNumber: phone,
               name: res.name ?? params.name ?? '',
               email,
             });

@@ -183,10 +183,20 @@ export const ensureFreshHartosToken = () => {
         if (typeof m?.getUser_id !== 'function') return resolve(null);
         m.getUser_id((id) => resolve(id || null));
       });
-      if (!userId) return null;
+      if (!userId) { console.log('[hartos-refresh] no userId, aborting'); return null; }
 
-      const refreshed = await refreshAccessToken(userId).catch(() => null);
-      if (!refreshed?.access_token) return null; // e.g. 403 not verified
+      // TEMP DIAGNOSTIC 2026-08-18 — every step below swallows its own
+      // errors, so a stuck "Invalid or expired token" loop gives no signal
+      // on which step actually failed. Remove once root-caused.
+      let refreshed;
+      try {
+        refreshed = await refreshAccessToken(userId);
+      } catch (e) {
+        console.log('[hartos-refresh] refreshAccessToken THREW:', e?.message, e?.response?.status, e?.response?.data);
+        return null;
+      }
+      console.log('[hartos-refresh] refreshAccessToken result:', JSON.stringify(refreshed));
+      if (!refreshed?.access_token) { console.log('[hartos-refresh] no access_token in refresh response, aborting'); return null; }
       if (typeof m?.setAccessToken === 'function') {
         await m.setAccessToken(refreshed.access_token);
       }
@@ -197,15 +207,32 @@ export const ensureFreshHartosToken = () => {
               m.getStudentNameAndEmail((nm, em, ph) => resolve([nm, em, ph]));
             })
           : [null, null, null];
-      if (!email) return null; // link-hevolve requires it
+      console.log('[hartos-refresh] name/email/phone:', name, email, phone);
+      if (!email) { console.log('[hartos-refresh] no email on file, aborting'); return null; }
 
-      const linked = await linkHevolveAccount({
-        hevolveUserId: userId,
-        phoneNumber: phone ?? '',
-        name: name ?? '',
-        email,
-      }).catch(() => null);
-      if (!linked?.token) return null;
+      // 2026-08-18 — same guard as OtpVerification.js: an email-verified
+      // account can end up with its stored "phone" slot holding the email
+      // (the server's own varify_otp response has been observed echoing
+      // the email back as phone_number). Sending an email-shaped value as
+      // phoneNumber here breaks link-hevolve, which is exactly the
+      // "Invalid or expired token" loop this function exists to fix — so
+      // never forward a stored phone that looks like an email.
+      const safePhone = phone && !String(phone).includes('@') ? phone : '';
+
+      let linked;
+      try {
+        linked = await linkHevolveAccount({
+          hevolveUserId: userId,
+          phoneNumber: safePhone,
+          name: name ?? '',
+          email,
+        });
+      } catch (e) {
+        console.log('[hartos-refresh] linkHevolveAccount THREW:', e?.message);
+        return null;
+      }
+      console.log('[hartos-refresh] linkHevolveAccount result:', JSON.stringify(linked));
+      if (!linked?.token) { console.log('[hartos-refresh] no token in linked response, aborting'); return null; }
       if (typeof m?.setHartosToken === 'function') {
         await m.setHartosToken(linked.token);
       }
