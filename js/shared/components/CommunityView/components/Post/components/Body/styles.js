@@ -12,6 +12,17 @@ const styles = StyleSheet.create({
     width: '100%',
     height: '100%',
   },
+  videoPlaceholder: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#1A1A1F',
+  },
+  videoPlaceholderText: {
+    color: 'white',
+    marginTop: 8,
+    fontSize: 13,
+    opacity: 0.85,
+  },
   videoContainer: {
     width: '100%',
     height: WIN_W / 1.5,

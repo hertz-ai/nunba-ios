@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput,
   SafeAreaView, StatusBar, ActivityIndicator, Alert, KeyboardAvoidingView,
@@ -12,7 +12,92 @@ import * as Animatable from 'react-native-animatable';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
 import { useNavigation } from '@react-navigation/native';
+import { NativeModules } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import useChannelStore from '../../../channelStore';
+import InAppOAuthService from '../../../services/InAppOAuthService';
+
+// TEMP DEBUG (2026-07-27) — real devices have no way to set the
+// hevolve_api_base AsyncStorage override (simulator testing did this by
+// editing the app container's manifest.json directly on disk, not possible
+// on hardware). Long-press the header title to point this device at a
+// local HARTOS server for testing real-gateway channels (e.g. WhatsApp),
+// bypassing the cloud deploy gap. Remove once there's a real debug menu.
+const _promptApiBaseOverride = async () => {
+  const current = (await AsyncStorage.getItem('hevolve_api_base')) || '';
+  Alert.prompt(
+    'API Base Override',
+    `Current: ${current || '(none — using cloud)'}\n\nEnter a local server URL (e.g. http://192.168.1.7:6777), or leave blank to clear.`,
+    async (value) => {
+      const trimmed = (value || '').trim();
+      if (trimmed) {
+        await AsyncStorage.setItem('hevolve_api_base', trimmed);
+        Alert.alert('Saved', `Now pointing at: ${trimmed}`);
+      } else {
+        await AsyncStorage.removeItem('hevolve_api_base');
+        Alert.alert('Cleared', 'Back to normal endpoint resolution (cloud).');
+      }
+    },
+    'plain-text',
+    current,
+  );
+};
+
+// TEMP DEBUG (2026-07-28) — the app's normal token self-heal
+// (ensureFreshHartosToken) chains through Hevolve's cloud refresh
+// endpoint even when pointed at a local server override, and that cloud
+// endpoint has a strict rate limit (1/sec, 5/min, 15/hour, 300/day) that
+// heavy local testing exhausts, silently breaking the self-heal (it
+// swallows the failure and leaves the stale/expired token in place).
+// Single-tap the header to inject a known-good local HARTOS bearer
+// token directly into the Keychain, bypassing that chain entirely for
+// local testing. Remove once there's a real debug menu.
+const _promptHartosTokenOverride = async () => {
+  const m = NativeModules.OnboardingModule;
+  const current = await new Promise((resolve) => {
+    if (typeof m?.getHartosToken !== 'function') return resolve('');
+    m.getHartosToken((t) => resolve(t || ''));
+  });
+  Alert.prompt(
+    'HARTOS Token Override',
+    `Current len=${current.length} tail=${current.slice(-8)}\n\nPaste a known-good bearer token to inject directly (bypasses the cloud refresh chain).`,
+    async (value) => {
+      const trimmed = (value || '').trim();
+      if (trimmed && typeof m?.setHartosToken === 'function') {
+        await m.setHartosToken(trimmed);
+        Alert.alert('Saved', `Token set (len=${trimmed.length}).`);
+      }
+    },
+    'plain-text',
+    '',
+  );
+};
+
+// TEMP DIAGNOSTIC (2026-07-06, fixed 2026-07-08) — remove once the
+// token-expiry loop is root-caused. Surfaces what actually authenticates
+// the Connect call. Was reading getAccessToken() (the Hevolve OTP token),
+// but /api/social/* calls send the separate HARTOS token — that mismatch
+// meant this diagnostic could never explain a "Missing or invalid
+// Authorization header" failure. Also surfaces which host endpointResolver
+// picked, since cloud-vs-local routing is the other leading theory.
+const _debugToken = () =>
+  new Promise((resolve) => {
+    try {
+      NativeModules.OnboardingModule.getHartosToken((t) => resolve(t || ''));
+    } catch (_) {
+      resolve('<threw>');
+    }
+  });
+
+const _debugSource = async () => {
+  try {
+    const resolver = require('../../../services/endpointResolver').default;
+    const { url, source } = await resolver.getApiBase();
+    return `${source} (${url})`;
+  } catch (e) {
+    return `<threw: ${e?.message}>`;
+  }
+};
 
 const CHANNEL_COLORS = {
   whatsapp: '#25D366',
@@ -39,6 +124,11 @@ const CHANNEL_ICONS = {
 const getColor = (ch) => CHANNEL_COLORS[(ch || '').toLowerCase()] || CHANNEL_COLORS.default;
 const getIcon = (ch) => CHANNEL_ICONS[(ch || '').toLowerCase()] || CHANNEL_ICONS.default;
 
+// WhatsApp's real backend auth_method is 'gateway_qr' (Baileys gateway QR
+// pairing); 'qr_session' covers other QR-paired channels. Both render the
+// same scan-QR UI.
+const isQrAuth = (authMethod) => authMethod === 'qr_session' || authMethod === 'gateway_qr';
+
 const ChannelSetupScreen = () => {
   const navigation = useNavigation();
   const catalog = useChannelStore((s) => s.catalog);
@@ -50,6 +140,9 @@ const ChannelSetupScreen = () => {
   const [selectedChannel, setSelectedChannel] = useState(null);
   const [formValues, setFormValues] = useState({});
   const [connecting, setConnecting] = useState(false);
+  // QR channels (e.g. WhatsApp) default to the QR button; this reveals the
+  // old manual field-entry form alongside it for users who want it.
+  const [showManualSetup, setShowManualSetup] = useState(false);
 
   useEffect(() => {
     fetchCatalog();
@@ -58,6 +151,7 @@ const ChannelSetupScreen = () => {
   const handleSelectChannel = (channelKey, channelDef) => {
     setSelectedChannel({ key: channelKey, ...channelDef });
     setFormValues({});
+    setShowManualSetup(false);
     setStep(2);
   };
 
@@ -66,10 +160,45 @@ const ChannelSetupScreen = () => {
       setStep(1);
       setSelectedChannel(null);
       setFormValues({});
+      setShowManualSetup(false);
     } else {
       navigation.goBack();
     }
   };
+
+  // Ported from Android (#464/#465): in-app PKCE OAuth click-through for
+  // auth_method 'oauth2' channels (Teams, Google Chat, etc). Same
+  // createBinding call as handleConnect, keyed by channel_type (matches
+  // the backend field fixed 2026-07-08).
+  const oauthSubRef = useRef(null);
+  const handleOAuthConnect = useCallback(async () => {
+    if (!selectedChannel) return;
+    setConnecting(true);
+    try {
+      const token = await InAppOAuthService.startOAuth(selectedChannel.key);
+      await createBinding({
+        channel_type: selectedChannel.key,
+        access_token: token.access_token,
+        scope: token.scope,
+      });
+      Alert.alert(
+        'Connected',
+        `${selectedChannel.name || selectedChannel.key} authorized successfully.`,
+        [{ text: 'OK', onPress: () => navigation.goBack() }],
+      );
+    } catch (err) {
+      Alert.alert(
+        'Authorization Failed',
+        err?.message || 'The provider did not authorize the connection.',
+      );
+    } finally {
+      setConnecting(false);
+    }
+  }, [selectedChannel, navigation, createBinding]);
+
+  useEffect(() => () => {
+    if (oauthSubRef.current) oauthSubRef.current.remove?.();
+  }, []);
 
   const handleConnect = async () => {
     if (!selectedChannel) return;
@@ -77,7 +206,7 @@ const ChannelSetupScreen = () => {
     setConnecting(true);
     try {
       const payload = {
-        channel: selectedChannel.key,
+        channel_type: selectedChannel.key,
         ...formValues,
       };
       const res = await createBinding(payload);
@@ -86,10 +215,17 @@ const ChannelSetupScreen = () => {
           { text: 'OK', onPress: () => navigation.goBack() },
         ]);
       } else {
-        Alert.alert('Error', res.error || 'Failed to connect channel. Please try again.');
+        const tok = await _debugToken();
+        const src = await _debugSource();
+        Alert.alert(
+          'Error',
+          `${res.error || 'Failed to connect channel. Please try again.'}\n\n[debug] hartos token len=${tok.length} tail=${tok.slice(-8)}\n[debug] endpoint=${src}`,
+        );
       }
-    } catch {
-      Alert.alert('Error', 'Failed to connect channel. Please try again.');
+    } catch (e) {
+      const tok = await _debugToken();
+      const src = await _debugSource();
+      Alert.alert('Error', `Failed to connect channel. Please try again.\n\n[debug] ${e?.message}\n[debug] hartos token len=${tok.length} tail=${tok.slice(-8)}\n[debug] endpoint=${src}`);
     } finally {
       setConnecting(false);
     }
@@ -161,6 +297,42 @@ const ChannelSetupScreen = () => {
     </ScrollView>
   );
 
+  const renderGenericFields = (setupFields) => (
+    setupFields.length > 0 ? (
+      setupFields.map((field) => (
+        <View key={field.key || field.name} style={styles.fieldRow}>
+          <Text style={styles.fieldLabel}>{field.label || field.name}</Text>
+          <TextInput
+            style={styles.textInput}
+            placeholder={field.placeholder || ''}
+            placeholderTextColor="#555"
+            secureTextEntry={field.secret || false}
+            value={formValues[field.key || field.name] || ''}
+            onChangeText={(val) => setField(field.key || field.name, val)}
+            autoCapitalize="none"
+            autoCorrect={false}
+          />
+          {field.help ? (
+            <Text style={styles.fieldHelp}>{field.help}</Text>
+          ) : null}
+        </View>
+      ))
+    ) : (
+      <View style={styles.fieldRow}>
+        <Text style={styles.fieldLabel}>Sender ID / Phone / Username</Text>
+        <TextInput
+          style={styles.textInput}
+          placeholder="Enter your identifier"
+          placeholderTextColor="#555"
+          value={formValues.sender_id || ''}
+          onChangeText={(val) => setField('sender_id', val)}
+          autoCapitalize="none"
+          autoCorrect={false}
+        />
+      </View>
+    )
+  );
+
   const renderAuthForm = () => {
     if (!selectedChannel) return null;
 
@@ -192,7 +364,37 @@ const ChannelSetupScreen = () => {
             </View>
 
             {/* Auth-method-specific form */}
-            {authMethod === 'qr_session' ? (
+            {authMethod === 'oauth2' ? (
+              <View style={styles.formSection}>
+                <Text style={styles.formLabel}>One-Tap Connect</Text>
+                <Text style={styles.formHelpText}>
+                  You&apos;ll be taken to {selectedChannel.name || selectedChannel.key}
+                  &nbsp;to authorize Nunba. Tap Authorize there and we&apos;ll
+                  finish the connection automatically.
+                </Text>
+                <TouchableOpacity
+                  style={[styles.primaryBtn, { backgroundColor: color }]}
+                  onPress={handleOAuthConnect}
+                  activeOpacity={0.7}
+                  disabled={connecting}
+                >
+                  {connecting ? (
+                    <ActivityIndicator size="small" color="#FFF" />
+                  ) : (
+                    <MaterialCommunityIcons name={icon} size={20} color="#FFF" />
+                  )}
+                  <Text style={styles.primaryBtnText}>
+                    {connecting
+                      ? 'Opening authorization page…'
+                      : `Connect with ${selectedChannel.name || selectedChannel.key}`}
+                  </Text>
+                </TouchableOpacity>
+                <Text style={styles.formHelpText}>
+                  Nunba never sees your password — only the access token
+                  the provider grants.
+                </Text>
+              </View>
+            ) : isQrAuth(authMethod) ? (
               <View style={styles.formSection}>
                 <Text style={styles.formLabel}>QR Session Pairing</Text>
                 <Text style={styles.formHelpText}>
@@ -204,6 +406,7 @@ const ChannelSetupScreen = () => {
                     navigation.navigate('QRScanner', {
                       channel: selectedChannel.key,
                       channelName: selectedChannel.name || selectedChannel.key,
+                      isGatewayQr: authMethod === 'gateway_qr',
                     })
                   }
                   activeOpacity={0.7}
@@ -211,6 +414,21 @@ const ChannelSetupScreen = () => {
                   <Ionicons name="qr-code-outline" size={20} color="#FFF" />
                   <Text style={styles.primaryBtnText}>Scan QR Code</Text>
                 </TouchableOpacity>
+                <TouchableOpacity
+                  onPress={() => setShowManualSetup((v) => !v)}
+                  activeOpacity={0.7}
+                  style={styles.manualToggle}
+                >
+                  <Text style={styles.manualToggleText}>
+                    {showManualSetup ? 'Hide manual setup' : 'Set up manually instead'}
+                  </Text>
+                </TouchableOpacity>
+                {showManualSetup ? (
+                  <View style={styles.manualSection}>
+                    <Text style={styles.formLabel}>Manual Setup</Text>
+                    {renderGenericFields(setupFields)}
+                  </View>
+                ) : null}
               </View>
             ) : authMethod === 'api_key' ? (
               <View style={styles.formSection}>
@@ -218,77 +436,21 @@ const ChannelSetupScreen = () => {
                 <Text style={styles.formHelpText}>
                   Enter your {selectedChannel.name || selectedChannel.key} API key or bot token.
                 </Text>
-                <TextInput
-                  style={styles.textInput}
-                  placeholder="Paste your API key here"
-                  placeholderTextColor="#555"
-                  secureTextEntry
-                  value={formValues.api_key || ''}
-                  onChangeText={(val) => setField('api_key', val)}
-                  autoCapitalize="none"
-                  autoCorrect={false}
-                />
-                {setupFields.map((field) => (
-                  <View key={field.key || field.name} style={styles.fieldRow}>
-                    <Text style={styles.fieldLabel}>{field.label || field.name}</Text>
-                    <TextInput
-                      style={styles.textInput}
-                      placeholder={field.placeholder || ''}
-                      placeholderTextColor="#555"
-                      secureTextEntry={field.secret || false}
-                      value={formValues[field.key || field.name] || ''}
-                      onChangeText={(val) => setField(field.key || field.name, val)}
-                      autoCapitalize="none"
-                      autoCorrect={false}
-                    />
-                    {field.help ? (
-                      <Text style={styles.fieldHelp}>{field.help}</Text>
-                    ) : null}
-                  </View>
-                ))}
+                {renderGenericFields(setupFields)}
               </View>
             ) : (
               /* Generic form for other auth methods */
               <View style={styles.formSection}>
                 <Text style={styles.formLabel}>Setup</Text>
-                {setupFields.length > 0 ? (
-                  setupFields.map((field) => (
-                    <View key={field.key || field.name} style={styles.fieldRow}>
-                      <Text style={styles.fieldLabel}>{field.label || field.name}</Text>
-                      <TextInput
-                        style={styles.textInput}
-                        placeholder={field.placeholder || ''}
-                        placeholderTextColor="#555"
-                        secureTextEntry={field.secret || false}
-                        value={formValues[field.key || field.name] || ''}
-                        onChangeText={(val) => setField(field.key || field.name, val)}
-                        autoCapitalize="none"
-                        autoCorrect={false}
-                      />
-                      {field.help ? (
-                        <Text style={styles.fieldHelp}>{field.help}</Text>
-                      ) : null}
-                    </View>
-                  ))
-                ) : (
-                  <View style={styles.fieldRow}>
-                    <Text style={styles.fieldLabel}>Sender ID / Phone / Username</Text>
-                    <TextInput
-                      style={styles.textInput}
-                      placeholder="Enter your identifier"
-                      placeholderTextColor="#555"
-                      value={formValues.sender_id || ''}
-                      onChangeText={(val) => setField('sender_id', val)}
-                      autoCapitalize="none"
-                      autoCorrect={false}
-                    />
-                  </View>
-                )}
+                {renderGenericFields(setupFields)}
               </View>
             )}
 
-            {/* Connect button (not for QR — that navigates to scanner) */}
-            {authMethod !== 'qr_session' ? (
+            {/* Connect button — hidden for QR unless manual setup is
+                expanded (QR's own scan button covers the default path),
+                and always hidden for OAuth (has its own "Connect with X"
+                button). */}
+            {(!isQrAuth(authMethod) || showManualSetup) && authMethod !== 'oauth2' ? (
               <TouchableOpacity
                 style={[styles.connectBtn, connecting && styles.connectBtnDisabled]}
                 onPress={handleConnect}
@@ -319,9 +481,15 @@ const ChannelSetupScreen = () => {
         <TouchableOpacity onPress={handleBack} style={styles.backButton}>
           <Ionicons name="arrow-back" size={24} color="#FFF" />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>
-          {step === 1 ? 'Add Channel' : 'Configure'}
-        </Text>
+        <TouchableOpacity
+          onPress={__DEV__ ? _promptHartosTokenOverride : undefined}
+          onLongPress={__DEV__ ? _promptApiBaseOverride : undefined}
+          activeOpacity={1}
+        >
+          <Text style={styles.headerTitle}>
+            {step === 1 ? 'Add Channel' : 'Configure'}
+          </Text>
+        </TouchableOpacity>
         <View style={styles.headerSpacer} />
       </View>
 
@@ -407,6 +575,12 @@ const styles = StyleSheet.create({
     gap: 8, paddingVertical: hp('1.5%'), borderRadius: 12,
   },
   primaryBtnText: { color: '#FFF', fontSize: wp('3.5%'), fontWeight: '700' },
+  manualToggle: { alignItems: 'center', paddingVertical: hp('1.5%') },
+  manualToggleText: { color: '#6C63FF', fontSize: wp('3.2%'), fontWeight: '600' },
+  manualSection: {
+    marginTop: hp('1%'), paddingTop: hp('1.5%'),
+    borderTopWidth: 1, borderTopColor: '#2A2A3E',
+  },
   textInput: {
     backgroundColor: '#1A1A2E', borderRadius: 12, borderWidth: 1, borderColor: '#2A2A3E',
     color: '#FFF', fontSize: wp('3.5%'),

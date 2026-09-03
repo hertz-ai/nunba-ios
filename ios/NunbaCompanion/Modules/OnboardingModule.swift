@@ -34,6 +34,16 @@ final class OnboardingModule: NSObject {
 
   static let userIdDefaultsKey = "com.hertzai.nunbacompanion.userId"
   static let accessTokenKeychainAccount = "com.hertzai.nunbacompanion.accessToken"
+  // Separate credential for HARTOS's /api/social/* layer — bridged from the
+  // Hevolve identity via POST /api/social/auth/link-hevolve. Kept in its own
+  // Keychain slot rather than overwriting accessToken because the two tokens
+  // authenticate against unrelated backends (Hevolve_Database vs HARTOS) and
+  // have independent lifetimes.
+  static let hartosTokenKeychainAccount = "com.hertzai.nunbacompanion.hartosToken"
+  static let pageStateDefaultsKey = "com.hertzai.nunbacompanion.pageState"
+  static let studentNameDefaultsKey = "com.hertzai.nunbacompanion.studentName"
+  static let studentEmailDefaultsKey = "com.hertzai.nunbacompanion.studentEmail"
+  static let studentPhoneDefaultsKey = "com.hertzai.nunbacompanion.studentPhone"
 
   // ─── React Native bridge requirements ──────────────────────────
 
@@ -113,6 +123,41 @@ final class OnboardingModule: NSObject {
     resolve(["stored": true])
   }
 
+  // MARK: — HARTOS token (Keychain-backed, separate from accessToken)
+
+  @objc(getHartosToken:)
+  func getHartosToken(_ callback: @escaping RCTResponseSenderBlock) {
+    let token = Self.readHartosToken() ?? ""
+    callback([token])
+  }
+
+  static func readHartosToken() -> String? {
+    KeychainStore.readString(account: hartosTokenKeychainAccount)
+  }
+
+  @discardableResult
+  static func writeHartosToken(_ token: String?) -> Bool {
+    KeychainStore.writeString(token, account: hartosTokenKeychainAccount,
+                              accessible: .deviceOnly)
+  }
+
+  /// Persist the HARTOS bridge token from JS, minted by
+  /// POST /api/social/auth/link-hevolve right after OTP verify succeeds
+  /// (and again from the silent-refresh path on SessionExpired).
+  @objc(setHartosToken:resolver:rejecter:)
+  func setHartosToken(
+    _ token: String,
+    resolver resolve: @escaping RCTPromiseResolveBlock,
+    rejecter reject: @escaping RCTPromiseRejectBlock
+  ) {
+    let ok = Self.writeHartosToken(token.isEmpty ? nil : token)
+    if ok {
+      resolve(["stored": true])
+    } else {
+      reject("KEYCHAIN_WRITE_FAILED", "Could not persist HARTOS token", nil)
+    }
+  }
+
   // MARK: — WAMP publish bridge
 
   /// publishToWamp(topic, payload) — JS calls this from computePolicy.js
@@ -175,5 +220,72 @@ final class OnboardingModule: NSObject {
   ) {
     AutobahnConnectionManager.shared.unsubscribeCommunity(communityId: communityId)
     resolve(["unsubscribed": true])
+  }
+
+  // MARK: — Signup page-state persistence
+
+  /// SignUpCombined.js persists its in-progress signup navigation state
+  /// via createPageState(json) and restores it via getPageState(callback)
+  /// on mount. iOS sibling of the Android createPageState/getPageState
+  /// pair. The payload is non-sensitive navigation JSON → UserDefaults.
+  ///
+  /// Without these, OnboardingModule.getPageState was `undefined` on iOS,
+  /// the JS call threw, the screen's `isReady` gate never flipped, and
+  /// SignUpCombined rendered `null` (blank screen) — see review of the
+  /// iOS port.
+  @objc(createPageState:)
+  func createPageState(_ state: String) {
+    if state.isEmpty {
+      UserDefaults.standard.removeObject(forKey: Self.pageStateDefaultsKey)
+    } else {
+      UserDefaults.standard.set(state, forKey: Self.pageStateDefaultsKey)
+    }
+  }
+
+  /// Returns the persisted signup page state JSON, or "" when none has
+  /// been stored yet. JS treats the empty string as "no saved state".
+  @objc(getPageState:)
+  func getPageState(_ callback: @escaping RCTResponseSenderBlock) {
+    let state = UserDefaults.standard.string(forKey: Self.pageStateDefaultsKey) ?? ""
+    callback([state])
+  }
+
+  // MARK: — Signup name/email/phone persistence
+
+  /// PhoneEmailandName.js persists the entered signup details via
+  /// createStudentNameAndEmail(name, email, phone) on Submit and restores
+  /// them via getStudentNameAndEmail(callback) on mount. iOS sibling of
+  /// the Android createStudentNameAndEmail/getStudentNameAndEmail pair.
+  /// The payload is non-sensitive onboarding input → UserDefaults.
+  ///
+  /// Without these, the JS guard skipped the save entirely on iOS, so
+  /// re-opening the signup form lost the user's entered details.
+  @objc(createStudentNameAndEmail:email:phone:)
+  func createStudentNameAndEmail(_ name: String, email: String, phone: String) {
+    let defaults = UserDefaults.standard
+    setOrClear(name, key: Self.studentNameDefaultsKey, in: defaults)
+    setOrClear(email, key: Self.studentEmailDefaultsKey, in: defaults)
+    setOrClear(phone, key: Self.studentPhoneDefaultsKey, in: defaults)
+  }
+
+  /// Returns the persisted [name, email, phone] to the JS callback. Each
+  /// slot is NSNull (→ JS `null`) when nothing has been stored, because
+  /// the JS restore handler keys off `value != null` per field.
+  @objc(getStudentNameAndEmail:)
+  func getStudentNameAndEmail(_ callback: @escaping RCTResponseSenderBlock) {
+    let defaults = UserDefaults.standard
+    callback([
+      defaults.string(forKey: Self.studentNameDefaultsKey) ?? NSNull(),
+      defaults.string(forKey: Self.studentEmailDefaultsKey) ?? NSNull(),
+      defaults.string(forKey: Self.studentPhoneDefaultsKey) ?? NSNull(),
+    ])
+  }
+
+  private func setOrClear(_ value: String, key: String, in defaults: UserDefaults) {
+    if value.isEmpty {
+      defaults.removeObject(forKey: key)
+    } else {
+      defaults.set(value, forKey: key)
+    }
   }
 }

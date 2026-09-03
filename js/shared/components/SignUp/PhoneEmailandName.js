@@ -24,9 +24,33 @@ import {
 import i18next from 'i18next';
 import useLanguageStore from '../../zustandStore';
 import axios from 'axios';
-import { CountryList, CountryPicker } from 'react-native-country-codes-picker';
+// The package exposes CountryPicker as its DEFAULT export only (index.js does
+// `export default CountryPicker`). The previous named import resolved to
+// `undefined`, so rendering <CountryPicker /> when the picker opened threw
+// "Element type is invalid … got: undefined" — the "Select Country Code" crash.
+import CountryPicker from 'react-native-country-codes-picker';
 
 import resources from './translations';
+// Shared cross-platform signup service (the Android signUp + OTP send is
+// native Java with no iOS counterpart — see services/signupApi.js).
+import { registerStudent } from '../../services/signupApi';
+
+// i18next is initialized here at module scope because this screen is the
+// entry point of the iOS signup flow and renders WITHOUT any sibling
+// screen (e.g. StudentLanguage) having run its own init() first. Without
+// this, i18next.t(...) returns empty strings and every label on this
+// screen — including the Submit button — renders blank. Mirror of the
+// init() in the sibling SignUp screens; guarded so we don't re-init if a
+// sibling already initialized it.
+const defaultLanguage = 'en-US';
+if (!i18next.isInitialized) {
+  i18next.init({
+    compatibilityJSON: 'v3',
+    interpolation: { escapeValue: false },
+    lng: defaultLanguage,
+    resources,
+  });
+}
 
 const { OnboardingModule, ActivityStarterModule } = NativeModules;
 
@@ -62,6 +86,12 @@ const PhoneEmailandName = ({ navigation }) => {
 
   useEffect(() => {
     const restoreStudentNameAndEmail = async () => {
+      if (
+        !OnboardingModule ||
+        typeof OnboardingModule.getStudentNameAndEmail !== 'function'
+      ) {
+        return;
+      }
       OnboardingModule.getStudentNameAndEmail(
         (StudentName, StudentEmail, studentPhone) => {
           console.log(StudentName, StudentEmail, studentPhone, 'hello');
@@ -75,6 +105,9 @@ const PhoneEmailandName = ({ navigation }) => {
           if (studentPhone != null) {
             console.log('this is the inner', studentPhone);
             setStudentPhone(studentPhone);
+            // Matches Android: once a phone is saved, switch to the Email step
+            // (userDetails=true). The phone stays in state; the screen now
+            // collects the email before signup.
             setuserDetails(true);
           }
         },
@@ -114,9 +147,18 @@ const PhoneEmailandName = ({ navigation }) => {
   };
 
   const startRecording = () => {
-    NativeModules.ActivityStarterModule.startSpeechListening();
-    setIsRecording(true);
-    setRecognizedTextForPhone('');
+    // Voice input is an Android-native feature (SpeechRecognizer + bound
+    // SpeechService) that isn't ported to iOS yet. Guard the native call —
+    // same typeof pattern as the signup handlers above — so tapping the mic
+    // surfaces a message instead of crashing on "undefined is not an object".
+    const starter = NativeModules.ActivityStarterModule;
+    if (starter && typeof starter.startSpeechListening === 'function') {
+      starter.startSpeechListening();
+      setIsRecording(true);
+      setRecognizedTextForPhone('');
+    } else {
+      alert('Voice input is coming soon on iOS.');
+    }
   };
 
   const stopRecording = () => {
@@ -128,6 +170,68 @@ const PhoneEmailandName = ({ navigation }) => {
       setCountryCode(item.dial_code);
     }
     setShow(false);
+  };
+
+  const [submitting, setSubmitting] = useState(false);
+
+  // Navigate to the OTP screen once register_student has triggered the code
+  // send. `verification_method` (from the register response) decides whether
+  // the code went to phone or email, which the OTP screen needs to build the
+  // verify request. Replaces Android's native navigateToOtpVerification.
+  const proceedAfterSignup = (phoneNumber, verificationMethod) => {
+    navigation.navigate('OtpVerification', {
+      identifier: phoneNumber,
+      verificationMethod,
+      name: studentName,
+      email: studentEmail,
+    });
+  };
+
+  // Shared submit handler for both portrait and landscape layouts. Persists
+  // the entered details, then calls the shared JS signup service (Android's
+  // signUp is native Java with no iOS counterpart) to send the OTP, and
+  // navigates to the in-app OTP verification screen on success.
+  const submitSignup = async (phoneNumber) => {
+    if (submitting) return;
+    console.log(
+      'this is the create student',
+      studentName,
+      studentEmail,
+      phoneNumber,
+    );
+    if (
+      OnboardingModule &&
+      typeof OnboardingModule.createStudentNameAndEmail === 'function'
+    ) {
+      OnboardingModule.createStudentNameAndEmail(
+        studentName,
+        studentEmail,
+        phoneNumber,
+      );
+    }
+    setSubmitting(true);
+    try {
+      const res = await registerStudent({
+        name: studentName,
+        email: studentEmail,
+        phone: phoneNumber,
+      });
+      // RegistrationDTO.response is "failure"/"error" when the server rejects
+      // (e.g. already registered); anything else means the OTP was sent.
+      const status = (res.response || '').toLowerCase();
+      if (status.startsWith('failure') || status.startsWith('error')) {
+        alert(res.detail || 'Sign up failed. Please try again.');
+        return;
+      }
+      proceedAfterSignup(phoneNumber, res.verification_method);
+    } catch (e) {
+      alert(
+        'Could not reach the server. Check your connection and try again.\n' +
+          (e?.message || ''),
+      );
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   return (
@@ -156,6 +260,7 @@ const PhoneEmailandName = ({ navigation }) => {
                 style={styles.text_input}
                 placeholder="Ex: Rishabh@gmail.com"
                 value={studentEmail}
+                autoCapitalize="none"
                 onChangeText={(newEmail) => setStudentEmail(newEmail)}
               />
             </>
@@ -188,6 +293,21 @@ const PhoneEmailandName = ({ navigation }) => {
                   pickerButtonOnPress={handleCountrySelection}
                 />
               )}
+
+              {/* register_student requires an email unconditionally, but a
+                  first-time install (no saved phone yet) never reaches the
+                  Email-only view below since that only activates on restore
+                  — so a brand-new user could never enter an email at all
+                  and signup would always be rejected server-side. Show it
+                  here too for first-time users. */}
+              <Text style={styles.mid_subtitle}>Email</Text>
+              <TextInput
+                style={styles.text_input}
+                placeholder="Ex: Rishabh@gmail.com"
+                value={studentEmail}
+                autoCapitalize="none"
+                onChangeText={(newEmail) => setStudentEmail(newEmail)}
+              />
             </>
           )}
           <View
@@ -225,45 +345,24 @@ const PhoneEmailandName = ({ navigation }) => {
               <TouchableOpacity
                 style={styles.btn1}
                 onPress={() => {
+                  // Email is required by the backend in both views (the
+                  // fresh-install phone view now renders it too). Phone is
+                  // only required in the fresh-install view — the restored
+                  // email-only view already has a phone from local storage.
                   if (!studentName) {
                     alert('Name cannot be blank');
                     return;
                   } else if (!reg.test(studentEmail)) {
                     alert('Enter valid Email');
                     return;
-                  } else if (!studentPhone) {
+                  } else if (!userDetails && !studentPhone) {
                     alert('Enter valid Contact');
                     return;
-                  } else {
-                    console.log(
-                      'this is the create student',
-                      studentName,
-                      studentEmail,
-                      studentPhone,
-                    );
-                    OnboardingModule.createStudentNameAndEmail(
-                      studentName,
-                      studentEmail,
-                      studentPhone,
-                    );
-
-                    OnboardingModule.signUp((user, error) => {
-                      console.log('User:', user);
-                      console.log('Error:', error);
-                      if (null == error || '' == error) {
-                        console.log('User Detail:', user);
-
-                        confirmButtonRef.current.fadeIn(600).then(() => {
-                          NativeModules.ActivityStarterModule.navigateToOtpVerification();
-                          console.log('User with in Detail:', user);
-                        });
-                      } else {
-                        alert(error);
-                      }
-                      console.log('Error this ', error);
-                      console.log('User this', user);
-                    });
                   }
+                  // The phone is restored with its country code already
+                  // prepended; only prepend when entering fresh in the phone
+                  // view (userDetails === false).
+                  submitSignup(userDetails ? studentPhone : countryCode + studentPhone);
                 }}
               >
                 <Text style={styles.btn_text}>{i18next.t('Submit')}</Text>
@@ -306,8 +405,42 @@ const PhoneEmailandName = ({ navigation }) => {
                 studentEmail ? studentEmail : 'Ex: Rishabh@gmail.com'
               }
               value={studentEmail}
+              autoCapitalize="none"
               onChangeText={(newEmail) => setStudentEmail(newEmail)}
             />
+
+            {!userDetails && (
+              <>
+                <Text style={landscapeStyles.mid_subtitle}>Phone :</Text>
+                <View style={styles.row}>
+                  <TouchableOpacity
+                    onPress={() => setShow(true)}
+                    style={styles.countryButton}
+                  >
+                    {countryCode ? (
+                      <Text style={styles.buttonText1}>{countryCode}</Text>
+                    ) : (
+                      <Text style={styles.buttonText}>
+                        {'Select Country Code'}
+                      </Text>
+                    )}
+                  </TouchableOpacity>
+                  <TextInput
+                    style={styles.textInput}
+                    placeholder="Ex: 0123456789"
+                    value={studentPhone}
+                    keyboardType="numeric"
+                    onChangeText={(newPhone) => setStudentPhone(newPhone)}
+                  />
+                </View>
+                {show && (
+                  <CountryPicker
+                    show={show}
+                    pickerButtonOnPress={handleCountrySelection}
+                  />
+                )}
+              </>
+            )}
           </View>
 
           <View
@@ -344,6 +477,7 @@ const PhoneEmailandName = ({ navigation }) => {
             >
               <TouchableOpacity
                 onPress={() => {
+                  // Same validation as Android: name, valid email, phone.
                   if (!studentName) {
                     alert('Name cannot be blank');
                     return;
@@ -353,41 +487,8 @@ const PhoneEmailandName = ({ navigation }) => {
                   } else if (!studentPhone) {
                     alert('Enter valid Contact');
                     return;
-                  } else if (!countryCode) {
-                    alert('Select Country Code');
-                    return;
-                  } else {
-                    const fullPhoneNumber = countryCode + studentPhone;
-                    console.log(
-                      'this is the create student',
-                      studentName,
-                      studentEmail,
-                      fullPhoneNumber,
-                    );
-                    OnboardingModule.createStudentNameAndEmail(
-                      studentName,
-                      studentEmail,
-                      fullPhoneNumber,
-                    );
-
-                    OnboardingModule.signUp((user, error) => {
-                      console.log('User:', user);
-                      console.log('Error:', error);
-                      if (null == error || '' == error) {
-                        console.log('User Detail:', user);
-
-                        confirmButtonRef.current.fadeIn(600).then(() => {
-                          NativeModules.ActivityStarterModule.navigateToOtpVerification();
-                          console.log('User with in Detail:', user);
-                        });
-                      } else {
-                        alert(error);
-                        console.log(error, 'this is the error');
-                      }
-                      console.log('Error this ', error);
-                      console.log('User this', user);
-                    });
                   }
+                  submitSignup(userDetails ? studentPhone : countryCode + studentPhone);
                 }}
                 style={landscapeStyles.btn}
               >
@@ -424,7 +525,10 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFFFFF',
   },
   subtitle: {
-    marginTop: hp('3%'),
+    // Clear the iPhone status bar / notch — the screen isn't wrapped in a
+    // SafeAreaView, so the first element must inset itself or it renders
+    // behind the clock (~59pt safe-area top on notched devices).
+    marginTop: hp('8%'),
     fontFamily: 'Roboto-Regular',
     fontSize: wp('5.3%'),
   },

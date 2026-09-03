@@ -2,6 +2,7 @@ import { NativeModules, DeviceEventEmitter } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import endpointResolver from './endpointResolver';
 import apiCache from './apiCache';
+import { refreshAccessToken, linkHevolveAccount } from './signupApi';
 
 // Surface server errors so screens don't silently render empty.
 // HARTOS returning 500 on /communities or /posts was previously invisible
@@ -11,10 +12,30 @@ import apiCache from './apiCache';
 // priority chain (local PeerLink peer → LAN peer → regional → cloud).
 // Without that, a sick central kept getting hit for the full 30 s
 // cache TTL even when a local Nunba node was reachable.
+// 401 means the Keychain access_token expired (the server has no
+// refresh_token redemption endpoint, confirmed live — the only way back
+// is a fresh login OTP). App.tsx's 'SessionExpired' listener sends that
+// OTP and drops the user on the verify screen. Debounce so a burst of
+// parallel 401s (e.g. several screens' GETs firing at once) only kicks
+// off one re-login round-trip; 'authChanged' (fired after a fresh token
+// is set) clears the debounce so a later expiry can trigger it again.
+let _sessionExpiredEmittedAt = 0;
+const SESSION_EXPIRED_DEBOUNCE_MS = 10000;
+DeviceEventEmitter.addListener('authChanged', () => {
+  _sessionExpiredEmittedAt = 0;
+});
+
 const _emitApiError = (path, status, method) => {
   try {
     DeviceEventEmitter.emit('ApiError', { path, status, method });
   } catch (_) {}
+  if (status === 401) {
+    const now = Date.now();
+    if (now - _sessionExpiredEmittedAt > SESSION_EXPIRED_DEBOUNCE_MS) {
+      _sessionExpiredEmittedAt = now;
+      try { DeviceEventEmitter.emit('SessionExpired', { path }); } catch (_) {}
+    }
+  }
   // 5xx and 0 (network) are server-side / transport faults — fall over
   // to the next peer in the priority chain.  4xx (auth, validation) is
   // the caller's responsibility — keep the current endpoint since
@@ -116,12 +137,138 @@ const getAccessToken = () =>
     }
   });
 
+// Bridged HARTOS-native token (see signupApi.js linkHevolveAccount / HARTOS
+// integrations/social/api.py link_hevolve), kept in its own Keychain slot
+// (setHartosToken/getHartosToken) separate from the Hevolve access_token
+// used by _mailerHeaders below. HARTOS's require_auth only accepts its own
+// JWTs/api_tokens — the opaque Hevolve access_token was never valid here,
+// which is why /api/social/* previously 401'd regardless of token freshness.
+const getHartosToken = () =>
+  new Promise((resolve, reject) => {
+    try {
+      NativeModules.OnboardingModule.getHartosToken((token) => {
+        resolve(token);
+      });
+    } catch (err) {
+      reject(err);
+    }
+  });
+
 const getHeaders = async () => {
-  const token = await getAccessToken();
+  const token = await getHartosToken();
   return {
     'Content-Type': 'application/json',
     Authorization: `Bearer ${token}`,
   };
+};
+
+// 2026-07-13 — permanent fix for the "Invalid or expired token" class of
+// error (previously surfaced raw to the user, e.g. on WhatsApp QR pairing).
+// The HARTOS JWT this app carries expires after ~1h; before this, a 401
+// just emitted 'SessionExpired' and returned the error body — App.tsx's
+// listener refreshed the token in the BACKGROUND, but the request that
+// triggered it was never retried, so the user always saw one raw failure
+// per expiry. This does the same Hevolve-refresh + HARTOS-relink dance
+// (previously only inline in App.tsx), but as an awaitable, deduped
+// (single in-flight refresh shared by concurrent 401s) function that
+// _authedFetch can call and then retry the ORIGINAL request with —
+// transparent to the caller whenever the refresh actually succeeds.
+let _refreshInFlight = null;
+export const ensureFreshHartosToken = () => {
+  if (_refreshInFlight) return _refreshInFlight;
+  _refreshInFlight = (async () => {
+    try {
+      const m = NativeModules.OnboardingModule;
+      const userId = await new Promise((resolve) => {
+        if (typeof m?.getUser_id !== 'function') return resolve(null);
+        m.getUser_id((id) => resolve(id || null));
+      });
+      if (!userId) { console.log('[hartos-refresh] no userId, aborting'); return null; }
+
+      // TEMP DIAGNOSTIC 2026-08-18 — every step below swallows its own
+      // errors, so a stuck "Invalid or expired token" loop gives no signal
+      // on which step actually failed. Remove once root-caused.
+      let refreshed;
+      try {
+        refreshed = await refreshAccessToken(userId);
+      } catch (e) {
+        console.log('[hartos-refresh] refreshAccessToken THREW:', e?.message, e?.response?.status, e?.response?.data);
+        return null;
+      }
+      console.log('[hartos-refresh] refreshAccessToken result:', JSON.stringify(refreshed));
+      if (!refreshed?.access_token) { console.log('[hartos-refresh] no access_token in refresh response, aborting'); return null; }
+      if (typeof m?.setAccessToken === 'function') {
+        await m.setAccessToken(refreshed.access_token);
+      }
+
+      const [name, email, phone] =
+        typeof m?.getStudentNameAndEmail === 'function'
+          ? await new Promise((resolve) => {
+              m.getStudentNameAndEmail((nm, em, ph) => resolve([nm, em, ph]));
+            })
+          : [null, null, null];
+      console.log('[hartos-refresh] name/email/phone:', name, email, phone);
+      if (!email) { console.log('[hartos-refresh] no email on file, aborting'); return null; }
+
+      // 2026-08-18 — same guard as OtpVerification.js: an email-verified
+      // account can end up with its stored "phone" slot holding the email
+      // (the server's own varify_otp response has been observed echoing
+      // the email back as phone_number). Sending an email-shaped value as
+      // phoneNumber here breaks link-hevolve, which is exactly the
+      // "Invalid or expired token" loop this function exists to fix — so
+      // never forward a stored phone that looks like an email.
+      const safePhone = phone && !String(phone).includes('@') ? phone : '';
+
+      let linked;
+      try {
+        linked = await linkHevolveAccount({
+          hevolveUserId: userId,
+          phoneNumber: safePhone,
+          name: name ?? '',
+          email,
+        });
+      } catch (e) {
+        console.log('[hartos-refresh] linkHevolveAccount THREW:', e?.message);
+        return null;
+      }
+      console.log('[hartos-refresh] linkHevolveAccount result:', JSON.stringify(linked));
+      if (!linked?.token) { console.log('[hartos-refresh] no token in linked response, aborting'); return null; }
+      if (typeof m?.setHartosToken === 'function') {
+        await m.setHartosToken(linked.token);
+      }
+      try { DeviceEventEmitter.emit('authChanged'); } catch (_) {}
+      return linked.token;
+    } catch (_) {
+      return null;
+    } finally {
+      _refreshInFlight = null;
+    }
+  })();
+  return _refreshInFlight;
+};
+
+// Authenticated fetch shared by every API family below (social, coding,
+// goals, intelligence, builds, ip). On a 401, tries ensureFreshHartosToken()
+// once and — only if it actually produced a new token — retries the SAME
+// request with fresh headers before giving up. Concurrent 401s across
+// different in-flight requests share the one refresh via the dedup above,
+// so a burst of parallel calls costs one refresh round-trip, not N.
+const _authedFetch = async (url, { method = 'GET', body, extraHeaders } = {}) => {
+  const doFetch = async () => {
+    const headers = await getHeaders();
+    if (extraHeaders) Object.assign(headers, await extraHeaders());
+    return fetch(url, {
+      method,
+      headers,
+      ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
+    });
+  };
+  let response = await doFetch();
+  if (response.status === 401) {
+    const fresh = await ensureFreshHartosToken();
+    if (fresh) response = await doFetch();
+  }
+  return response;
 };
 
 // Polish round 3 perf 2026-06-03: bust the GET cache for the path
@@ -142,28 +289,18 @@ const get = async (path, params) => {
   // freshness is preserved when the user actually changes state.
   const cacheKey = `GET:${path}:${params ? JSON.stringify(params) : ''}`;
   return apiCache.wrap(cacheKey, null, 30000, async () => {
-    const [headers, base] = await Promise.all([
-      getHeaders(),
-      _resolveSocialBase(),
-    ]);
+    const base = await _resolveSocialBase();
     const url = buildUrl(path, params, base);
-    const response = await fetch(url, { method: 'GET', headers });
+    const response = await _authedFetch(url, { method: 'GET' });
     if (!response.ok) _emitApiError(path, response.status, 'GET');
     return _safeJson(response);
   });
 };
 
 const post = async (path, body) => {
-  const [headers, base] = await Promise.all([
-    getHeaders(),
-    _resolveSocialBase(),
-  ]);
+  const base = await _resolveSocialBase();
   const url = buildUrl(path, undefined, base);
-  const response = await fetch(url, {
-    method: 'POST',
-    headers,
-    body: JSON.stringify(body),
-  });
+  const response = await _authedFetch(url, { method: 'POST', body });
   if (!response.ok) _emitApiError(path, response.status, 'POST');
   const json = await _safeJson(response);
   if (response.ok) _bustForPath(path);
@@ -171,16 +308,9 @@ const post = async (path, body) => {
 };
 
 const patch = async (path, body) => {
-  const [headers, base] = await Promise.all([
-    getHeaders(),
-    _resolveSocialBase(),
-  ]);
+  const base = await _resolveSocialBase();
   const url = buildUrl(path, undefined, base);
-  const response = await fetch(url, {
-    method: 'PATCH',
-    headers,
-    body: JSON.stringify(body),
-  });
+  const response = await _authedFetch(url, { method: 'PATCH', body });
   if (!response.ok) _emitApiError(path, response.status, 'PATCH');
   const json = await _safeJson(response);
   if (response.ok) _bustForPath(path);
@@ -188,12 +318,9 @@ const patch = async (path, body) => {
 };
 
 const del = async (path) => {
-  const [headers, base] = await Promise.all([
-    getHeaders(),
-    _resolveSocialBase(),
-  ]);
+  const base = await _resolveSocialBase();
   const url = buildUrl(path, undefined, base);
-  const response = await fetch(url, { method: 'DELETE', headers });
+  const response = await _authedFetch(url, { method: 'DELETE' });
   if (!response.ok) _emitApiError(path, response.status, 'DELETE');
   const json = await _safeJson(response);
   if (response.ok) _bustForPath(path);
@@ -562,15 +689,13 @@ export const dashboardApi = {
 
 // --- Coding Agent (separate base URL: /api/coding, not /api/social) ---
 const codingGet = async (path, params) => {
-  const headers = await getHeaders();
   const url = buildUrl(path, params, CODING_BASE_URL);
-  const response = await fetch(url, { method: 'GET', headers });
+  const response = await _authedFetch(url, { method: 'GET' });
   return response.json();
 };
 const codingPost = async (path, body) => {
-  const headers = await getHeaders();
   const url = buildUrl(path, undefined, CODING_BASE_URL);
-  const response = await fetch(url, { method: 'POST', headers, body: JSON.stringify(body) });
+  const response = await _authedFetch(url, { method: 'POST', body });
   return response.json();
 };
 export const codingApi = {
@@ -583,19 +708,13 @@ export const codingApi = {
 
 // --- Unified Goals API (all goal types) ---
 const goalsGet = async (path, params) => {
-  const headers = await getHeaders();
   const url = buildUrl(path, params, GOALS_BASE_URL);
-  const response = await fetch(url, { method: 'GET', headers });
+  const response = await _authedFetch(url, { method: 'GET' });
   return response.json();
 };
 const goalsPost = async (path, body) => {
-  const headers = await getHeaders();
   const url = buildUrl(path, undefined, GOALS_BASE_URL);
-  const response = await fetch(url, {
-    method: 'POST',
-    headers,
-    body: JSON.stringify(body),
-  });
+  const response = await _authedFetch(url, { method: 'POST', body });
   return response.json();
 };
 export const goalsApi = {
@@ -605,35 +724,27 @@ export const goalsApi = {
 };
 
 // --- Commercial Intelligence API ---
-const intelGet = async (path, params) => {
-  const headers = await getHeaders();
-  // Also attach X-API-Key if stored
+const _intelExtraHeaders = async () => {
   try {
     const apiKey = await AsyncStorage.getItem('intelligence_api_key');
-    if (apiKey) headers['X-API-Key'] = apiKey;
-  } catch (_) {}
+    return apiKey ? { 'X-API-Key': apiKey } : {};
+  } catch (_) {
+    return {};
+  }
+};
+const intelGet = async (path, params) => {
   const url = buildUrl(path, params, INTELLIGENCE_BASE_URL);
-  const response = await fetch(url, { method: 'GET', headers });
+  const response = await _authedFetch(url, { method: 'GET', extraHeaders: _intelExtraHeaders });
   return response.json();
 };
 const intelPost = async (path, body) => {
-  const headers = await getHeaders();
-  try {
-    const apiKey = await AsyncStorage.getItem('intelligence_api_key');
-    if (apiKey) headers['X-API-Key'] = apiKey;
-  } catch (_) {}
   const url = buildUrl(path, undefined, INTELLIGENCE_BASE_URL);
-  const response = await fetch(url, {
-    method: 'POST',
-    headers,
-    body: JSON.stringify(body),
-  });
+  const response = await _authedFetch(url, { method: 'POST', body, extraHeaders: _intelExtraHeaders });
   return response.json();
 };
 const intelDel = async (path) => {
-  const headers = await getHeaders();
   const url = buildUrl(path, undefined, INTELLIGENCE_BASE_URL);
-  const response = await fetch(url, { method: 'DELETE', headers });
+  const response = await _authedFetch(url, { method: 'DELETE', extraHeaders: _intelExtraHeaders });
   return response.json();
 };
 export const intelligenceApi = {
@@ -651,19 +762,13 @@ export const intelligenceApi = {
 
 // --- Build Distribution API ---
 const buildsGet = async (path, params) => {
-  const headers = await getHeaders();
   const url = buildUrl(path, params, BUILDS_BASE_URL);
-  const response = await fetch(url, { method: 'GET', headers });
+  const response = await _authedFetch(url, { method: 'GET' });
   return response.json();
 };
 const buildsPost = async (path, body) => {
-  const headers = await getHeaders();
   const url = buildUrl(path, undefined, BUILDS_BASE_URL);
-  const response = await fetch(url, {
-    method: 'POST',
-    headers,
-    body: JSON.stringify(body),
-  });
+  const response = await _authedFetch(url, { method: 'POST', body });
   return response.json();
 };
 export const buildsApi = {
@@ -675,19 +780,13 @@ export const buildsApi = {
 
 // --- Defensive IP / Provenance API ---
 const ipGet = async (path, params) => {
-  const headers = await getHeaders();
   const url = buildUrl(path, params, IP_BASE_URL);
-  const response = await fetch(url, { method: 'GET', headers });
+  const response = await _authedFetch(url, { method: 'GET' });
   return response.json();
 };
 const ipPost = async (path, body) => {
-  const headers = await getHeaders();
   const url = buildUrl(path, undefined, IP_BASE_URL);
-  const response = await fetch(url, {
-    method: 'POST',
-    headers,
-    body: JSON.stringify(body),
-  });
+  const response = await _authedFetch(url, { method: 'POST', body });
   return response.json();
 };
 export const ipApi = {
@@ -769,6 +868,17 @@ export const channelsApi = {
   setPreferred: (id) => patch(`/channels/bindings/${id}/preferred`, {}),
   generatePairCode: () => post('/channels/pair/generate', {}),
   verifyPairCode: (data) => post('/channels/pair/verify', data),
+  // Real WhatsApp linking (embedded Baileys gateway) — separate from the
+  // generic pairing-code flow above. whatsappStatus polls for QR/auth
+  // state; whatsappPairCode mints the "Link with phone number" code.
+  whatsappStatus: () => get('/channels/whatsapp/qr', { _t: Date.now() }),
+  whatsappPairCode: (phone) => post('/channels/whatsapp/pair-code', { phone }),
+  // Real send/receive over the same session. sinceTs is a unix-seconds
+  // cursor for incremental polling (omit for the full recent buffer).
+  whatsappMessages: (sinceTs) => get('/channels/whatsapp/messages', {
+    _t: Date.now(), ...(sinceTs ? { since_ts: sinceTs } : {}),
+  }),
+  whatsappSend: (to, text) => post('/channels/whatsapp/send', { to, text }),
   presence: () => get('/channels/presence'),
   conversationHistory: (params) => get('/channels/conversations', params),
   // Send a message through a channel (Nunba-HART ChannelAdapter pattern)
@@ -850,19 +960,13 @@ let ADMIN_BASE_URL = `${_apiBase}/api/admin`;
 const getAdminBase = () => `${_apiBase}/api/admin`;
 
 const adminGet = async (path, params) => {
-  const headers = await getHeaders();
   const url = buildUrl(path, params, getAdminBase());
-  const response = await fetch(url, { method: 'GET', headers });
+  const response = await _authedFetch(url, { method: 'GET' });
   return response.json();
 };
 const adminPost = async (path, body) => {
-  const headers = await getHeaders();
   const url = buildUrl(path, undefined, getAdminBase());
-  const response = await fetch(url, {
-    method: 'POST',
-    headers,
-    body: JSON.stringify(body),
-  });
+  const response = await _authedFetch(url, { method: 'POST', body });
   return response.json();
 };
 
