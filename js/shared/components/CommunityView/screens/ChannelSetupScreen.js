@@ -482,8 +482,8 @@ const ChannelSetupScreen = () => {
           <Ionicons name="arrow-back" size={24} color="#FFF" />
         </TouchableOpacity>
         <TouchableOpacity
-          onPress={_promptHartosTokenOverride}
-          onLongPress={_promptApiBaseOverride}
+          onPress={__DEV__ ? _promptHartosTokenOverride : undefined}
+          onLongPress={__DEV__ ? _promptApiBaseOverride : undefined}
           activeOpacity={1}
         >
           <Text style={styles.headerTitle}>
