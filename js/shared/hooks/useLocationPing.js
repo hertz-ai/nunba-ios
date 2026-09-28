@@ -1,5 +1,6 @@
 import { useEffect, useRef, useCallback } from 'react';
-import { PermissionsAndroid, Platform } from 'react-native';
+import { Alert, PermissionsAndroid, Platform } from 'react-native';
+import Geolocation from '@react-native-community/geolocation';
 import useEncounterStore from '../encounterStore';
 import useDeviceCapabilityStore from '../deviceCapabilityStore';
 import { encountersApi } from '../services/socialApi';
@@ -11,13 +12,17 @@ const useLocationPing = () => {
   const nearbyCount = useEncounterStore((s) => s.nearbyCount);
   const matches = useEncounterStore((s) => s.matches);
 
+  const generationRef = useRef(0);
+  const startingRef = useRef(false);
   const watchIdRef = useRef(null);
   const pingIntervalRef = useRef(null);
   const matchIntervalRef = useRef(null);
 
   const stopTracking = useCallback(() => {
+    generationRef.current += 1;
+    startingRef.current = false;
     if (watchIdRef.current !== null) {
-      navigator.geolocation.clearWatch(watchIdRef.current);
+      Geolocation.clearWatch(watchIdRef.current);
       watchIdRef.current = null;
     }
     if (pingIntervalRef.current) {
@@ -32,41 +37,48 @@ const useLocationPing = () => {
   }, []);
 
   const startTracking = useCallback(async () => {
+    if (startingRef.current || watchIdRef.current !== null) return;
+    startingRef.current = true;
+    const generation = ++generationRef.current;
+    let precise = true;
     try {
       if (Platform.OS === 'android') {
-        const granted = await PermissionsAndroid.request(
-          PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION,
-          {
-            title: 'Location Permission',
-            message:
-              'This app needs access to your location to find people nearby.',
-            buttonNeutral: 'Ask Me Later',
-            buttonNegative: 'Cancel',
-            buttonPositive: 'OK',
-          },
-        );
-        if (granted !== PermissionsAndroid.RESULTS.GRANTED) {
-          console.warn('Location permission denied');
+        const permissions = PermissionsAndroid.PERMISSIONS;
+        const granted = await PermissionsAndroid.requestMultiple([
+          permissions.ACCESS_COARSE_LOCATION,
+          permissions.ACCESS_FINE_LOCATION,
+        ]);
+        if (generation !== generationRef.current) return;
+        precise = granted[permissions.ACCESS_FINE_LOCATION] === PermissionsAndroid.RESULTS.GRANTED;
+        if (!precise && granted[permissions.ACCESS_COARSE_LOCATION] !== PermissionsAndroid.RESULTS.GRANTED) {
+          Alert.alert('Location permission needed', 'Allow location access to find people nearby. If Android no longer asks, enable Location in this app’s settings.');
           return;
         }
       }
 
-      useEncounterStore.getState().setTracking(true);
-
-      watchIdRef.current = navigator.geolocation.watchPosition(
+      watchIdRef.current = Geolocation.watchPosition(
         (position) => {
+          if (generation !== generationRef.current) return;
+          useEncounterStore.getState().setTracking(true);
           const { latitude, longitude } = position.coords;
           useEncounterStore.getState().setLocation(latitude, longitude);
         },
         (error) => {
-          console.warn('Geolocation watchPosition error:', error.message);
+          if (generation !== generationRef.current) return;
+          stopTracking();
+          Alert.alert('Location unavailable', error.message || 'Check that device location is turned on, then try again.');
         },
         {
-          enableHighAccuracy: true,
+          enableHighAccuracy: precise,
           distanceFilter: 10,
           interval: 30000,
         },
       );
+
+      if (generation !== generationRef.current) {
+        stopTracking();
+        return;
+      }
 
       // Ping location and get nearby count every 30 seconds
       const doPing = async () => {
@@ -108,9 +120,13 @@ const useLocationPing = () => {
       pingIntervalRef.current = setInterval(doPing, 30000);
       matchIntervalRef.current = setInterval(doMatchPoll, 15000);
     } catch (err) {
-      console.warn('startTracking error:', err);
+      if (generation !== generationRef.current) return;
+      stopTracking();
+      Alert.alert('Could not enable location', err.message || 'Please try again.');
+    } finally {
+      if (generation === generationRef.current) startingRef.current = false;
     }
-  }, []);
+  }, [stopTracking]);
 
   useEffect(() => {
     return () => {

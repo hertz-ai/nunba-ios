@@ -11,6 +11,7 @@
 //   - models/gson/OtpResponse.java           (verify response)
 //   - android/app/build.gradle               (base_url_SignLogin)
 import axios from 'axios';
+import { NativeModules } from 'react-native';
 
 // = BuildConfig.base_url_SignLogin on Android. The signup/verify endpoints
 // are pre-auth (no Bearer); the access_token is what verify returns.
@@ -94,30 +95,41 @@ export async function sendLoginOtp(identifier) {
   return data || {};
 }
 
-// Bridge a Hevolve-OTP-verified identity into a HARTOS-native token for
-// /api/social/* calls. See HARTOS integrations/social/api.py link_hevolve —
-// trust-on-first-use, no independent re-verification of the opaque Hevolve
-// access_token; the client only calls this after OTP verify already
-// succeeded. Idempotent on email — safe to call again from the silent
-// SessionExpired refresh path. Targets HARTOS's resolved base URL, not this
-// file's Hevolve_Database BASE_URL.
-export async function linkHevolveAccount({ hevolveUserId, phoneNumber, name, email }) {
+// Exchange the authenticated Hevolve account for a HARTOS token. Only the
+// configured HTTPS cloud may receive the Hevolve credential.
+export async function linkHevolveAccount({ hevolveUserId, phoneNumber, name, email, accessToken }) {
   const endpointResolver = require('./endpointResolver').default;
   const base = await endpointResolver.getApiBaseUrl();
+  if (base !== 'https://azurekong.hertzai.com') {
+    throw new Error('Social account linking requires the configured HTTPS cloud.');
+  }
+  const token = accessToken || await new Promise(resolve => {
+    const getToken = NativeModules.OnboardingModule?.getAccessToken;
+    if (typeof getToken !== 'function') return resolve(null);
+    getToken(resolve);
+  });
+  if (!token || !email) throw new Error('Sign in again to connect your social account.');
   const body = omitEmpty({
     hevolve_user_id: hevolveUserId,
-    phone_number: phoneNumber,
+    phone_number: phoneNumber && !String(phoneNumber).includes('@') ? phoneNumber : undefined,
     name,
     email,
   });
-  const response = await fetch(`${base}/api/social/auth/link-hevolve`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body),
-  });
-  const json = await response.json().catch(() => null);
-  if (!response.ok || !json || !json.success) {
-    throw new Error((json && json.error) || `link-hevolve failed (${response.status})`);
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 10000);
+  try {
+    const response = await fetch(`${base}/api/social/auth/link-hevolve`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify(body),
+      signal: controller.signal,
+    });
+    const json = await response.json().catch(() => null);
+    if (!response.ok || !json?.success || !json?.data?.token) {
+      throw new Error(typeof json?.error === 'string' ? json.error : `Social login failed (${response.status})`);
+    }
+    return json.data;
+  } finally {
+    clearTimeout(timer);
   }
-  return json.data; // { user, token }
 }

@@ -2,7 +2,7 @@ import { NativeModules, DeviceEventEmitter } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import endpointResolver from './endpointResolver';
 import apiCache from './apiCache';
-import { refreshAccessToken, linkHevolveAccount } from './signupApi';
+import { linkHevolveAccount } from './signupApi';
 
 // Surface server errors so screens don't silently render empty.
 // HARTOS returning 500 on /communities or /posts was previously invisible
@@ -162,80 +162,29 @@ const getHeaders = async () => {
   };
 };
 
-// 2026-07-13 — permanent fix for the "Invalid or expired token" class of
-// error (previously surfaced raw to the user, e.g. on WhatsApp QR pairing).
-// The HARTOS JWT this app carries expires after ~1h; before this, a 401
-// just emitted 'SessionExpired' and returned the error body — App.tsx's
-// listener refreshed the token in the BACKGROUND, but the request that
-// triggered it was never retried, so the user always saw one raw failure
-// per expiry. This does the same Hevolve-refresh + HARTOS-relink dance
-// (previously only inline in App.tsx), but as an awaitable, deduped
-// (single in-flight refresh shared by concurrent 401s) function that
-// _authedFetch can call and then retry the ORIGINAL request with —
-// transparent to the caller whenever the refresh actually succeeds.
+// Re-link with the currently authenticated account, keeping the Hevolve
+// credential separate from the HARTOS Keychain slot. Never log either token.
 let _refreshInFlight = null;
 export const ensureFreshHartosToken = () => {
   if (_refreshInFlight) return _refreshInFlight;
   _refreshInFlight = (async () => {
     try {
       const m = NativeModules.OnboardingModule;
-      const userId = await new Promise((resolve) => {
-        if (typeof m?.getUser_id !== 'function') return resolve(null);
-        m.getUser_id((id) => resolve(id || null));
+      const token = await getAccessToken();
+      if (!token) return null;
+      const userId = await getUserId();
+      const [name, email, phone] = await new Promise(resolve => {
+        if (typeof m?.getStudentNameAndEmail !== 'function') return resolve([]);
+        m.getStudentNameAndEmail((nm, em, ph) => resolve([nm, em, ph]));
       });
-      if (!userId) { console.log('[hartos-refresh] no userId, aborting'); return null; }
-
-      // TEMP DIAGNOSTIC 2026-08-18 — every step below swallows its own
-      // errors, so a stuck "Invalid or expired token" loop gives no signal
-      // on which step actually failed. Remove once root-caused.
-      let refreshed;
-      try {
-        refreshed = await refreshAccessToken(userId);
-      } catch (e) {
-        console.log('[hartos-refresh] refreshAccessToken THREW:', e?.message, e?.response?.status, e?.response?.data);
-        return null;
-      }
-      console.log('[hartos-refresh] refreshAccessToken result:', JSON.stringify(refreshed));
-      if (!refreshed?.access_token) { console.log('[hartos-refresh] no access_token in refresh response, aborting'); return null; }
-      if (typeof m?.setAccessToken === 'function') {
-        await m.setAccessToken(refreshed.access_token);
-      }
-
-      const [name, email, phone] =
-        typeof m?.getStudentNameAndEmail === 'function'
-          ? await new Promise((resolve) => {
-              m.getStudentNameAndEmail((nm, em, ph) => resolve([nm, em, ph]));
-            })
-          : [null, null, null];
-      console.log('[hartos-refresh] name/email/phone:', name, email, phone);
-      if (!email) { console.log('[hartos-refresh] no email on file, aborting'); return null; }
-
-      // 2026-08-18 — same guard as OtpVerification.js: an email-verified
-      // account can end up with its stored "phone" slot holding the email
-      // (the server's own varify_otp response has been observed echoing
-      // the email back as phone_number). Sending an email-shaped value as
-      // phoneNumber here breaks link-hevolve, which is exactly the
-      // "Invalid or expired token" loop this function exists to fix — so
-      // never forward a stored phone that looks like an email.
-      const safePhone = phone && !String(phone).includes('@') ? phone : '';
-
-      let linked;
-      try {
-        linked = await linkHevolveAccount({
-          hevolveUserId: userId,
-          phoneNumber: safePhone,
-          name: name ?? '',
-          email,
-        });
-      } catch (e) {
-        console.log('[hartos-refresh] linkHevolveAccount THREW:', e?.message);
-        return null;
-      }
-      console.log('[hartos-refresh] linkHevolveAccount result:', JSON.stringify(linked));
-      if (!linked?.token) { console.log('[hartos-refresh] no token in linked response, aborting'); return null; }
-      if (typeof m?.setHartosToken === 'function') {
-        await m.setHartosToken(linked.token);
-      }
+      if (!email) return null;
+      const linked = await linkHevolveAccount({
+        hevolveUserId: userId, phoneNumber: phone, name, email, accessToken: token,
+      });
+      // A sign-out/account change while the exchange was pending must not
+      // install the previous account's social identity.
+      if (await getAccessToken() !== token) return null;
+      await m.setHartosToken(linked.token);
       try { DeviceEventEmitter.emit('authChanged'); } catch (_) {}
       return linked.token;
     } catch (_) {
@@ -264,7 +213,7 @@ const _authedFetch = async (url, { method = 'GET', body, extraHeaders } = {}) =>
     });
   };
   let response = await doFetch();
-  if (response.status === 401) {
+  if (response.status === 401 && url.startsWith('https://azurekong.hertzai.com/')) {
     const fresh = await ensureFreshHartosToken();
     if (fresh) response = await doFetch();
   }

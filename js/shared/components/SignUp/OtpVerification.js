@@ -1,5 +1,5 @@
 /* eslint-disable prettier/prettier */
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   NativeModules,
   DeviceEventEmitter,
@@ -17,7 +17,7 @@ import {
 } from 'react-native-responsive-screen';
 import i18next from 'i18next';
 
-import { verifyOtp, isVerifySuccess, linkHevolveAccount } from '../../services/signupApi';
+import { verifyOtp, isVerifySuccess, linkHevolveAccount, sendLoginOtp } from '../../services/signupApi';
 
 const { OnboardingModule } = NativeModules;
 
@@ -41,6 +41,28 @@ const OtpVerification = ({ navigation, route, rootNavigation }) => {
   // same screen as a plain top-level route — no rootNavigation prop, no
   // signup account to create. Verifying just refreshes the token in place.
   const isRelogin = params.mode === 'relogin';
+
+  const [resendSeconds, setResendSeconds] = useState(0);
+  useEffect(() => {
+    if (resendSeconds <= 0) return;
+    const timer = setTimeout(() => setResendSeconds(value => Math.max(0, value - 1)), 1000);
+    return () => clearTimeout(timer);
+  }, [resendSeconds]);
+
+  const onResend = async () => {
+    if (busy || resendSeconds > 0 || !identifier) return;
+    setBusy(true);
+    try {
+      await sendLoginOtp(identifier);
+      setOtp('');
+      setResendSeconds(30);
+      Alert.alert('Code requested', 'Check your email inbox and spam folder. Use the most recent code.');
+    } catch (error) {
+      Alert.alert('Could not request a code', 'Please try again in a moment.');
+    } finally {
+      setBusy(false);
+    }
+  };
 
   const onVerify = async () => {
     if (!otp || otp.length < 4) {
@@ -75,10 +97,11 @@ const OtpVerification = ({ navigation, route, rootNavigation }) => {
         // the Bearer for every future call; user_id marks the account as
         // logged in; name/email/phone keep the profile in sync.
         if (typeof OnboardingModule?.setAccessToken === 'function' && res.access_token) {
-          OnboardingModule.setAccessToken(res.access_token).catch(() => {});
+          await OnboardingModule.setAccessToken(res.access_token);
+          if (OnboardingModule.setHartosToken) await OnboardingModule.setHartosToken('');
         }
         if (typeof OnboardingModule?.setUser_id === 'function' && res.user_id != null) {
-          OnboardingModule.setUser_id(String(res.user_id)).catch(() => {});
+          await OnboardingModule.setUser_id(String(res.user_id));
         }
         if (typeof OnboardingModule?.createStudentNameAndEmail === 'function') {
           OnboardingModule.createStudentNameAndEmail(
@@ -92,24 +115,21 @@ const OtpVerification = ({ navigation, route, rootNavigation }) => {
         // (SessionExpired) is the fallback, same as before this bridge
         // existed, so a failure here shouldn't block sign-in.
         const email = res.email_address ?? params.email ?? '';
-        // TEMP DIAGNOSTIC (2026-07-08) — remove once on-device auth bridge
-        // is confirmed working. Surfaces link-hevolve's actual outcome
-        // instead of silently swallowing it, per debugging item #0.
-        let hartosDebug = '<not attempted>';
+        let socialConnected = false;
         if (res.user_id != null && email) {
           try {
             const linked = await linkHevolveAccount({
               hevolveUserId: res.user_id,
+              accessToken: res.access_token,
               phoneNumber: phone,
               name: res.name ?? params.name ?? '',
               email,
             });
             if (linked?.token && typeof OnboardingModule?.setHartosToken === 'function') {
-              await OnboardingModule.setHartosToken(linked.token).catch(() => {});
+              await OnboardingModule.setHartosToken(linked.token);
+              socialConnected = true;
             }
-            hartosDebug = linked?.token ? `ok tail=${String(linked.token).slice(-8)}` : 'ok but no token in response';
           } catch (e) {
-            hartosDebug = `FAILED: ${e?.message}`;
             // Non-fatal — see comment above.
           }
         }
@@ -141,13 +161,9 @@ const OtpVerification = ({ navigation, route, rootNavigation }) => {
             );
           }
         };
-        // TEMP DIAGNOSTIC (2026-07-06) — remove once the token-expiry loop
-        // is root-caused. Shows what the server actually returned so we
-        // can tell apart "no token issued" from "token issued but rejected".
-        const tokTail = res.access_token ? String(res.access_token).slice(-8) : '<none>';
         Alert.alert(
           'Verified',
-          `${isRelogin ? 'You are signed back in.' : 'You are signed up.'}\n\n[debug] access_token=${tokTail} expires_in=${res.expires_in}\n[debug] hartos link: ${hartosDebug}`,
+          `${isRelogin ? 'You are signed back in.' : 'You are signed up.'}${socialConnected ? '' : '\nSocial connection is unavailable. Please try again from Encounters.'}`,
           [{ text: 'OK', onPress: goToApp }],
         );
       } else {
@@ -193,6 +209,19 @@ const OtpVerification = ({ navigation, route, rootNavigation }) => {
           <Text style={styles.btnText}>{i18next.t('Verify')}</Text>
         )}
       </TouchableOpacity>
+
+      {identifier && (
+        <TouchableOpacity
+          onPress={onResend}
+          disabled={busy || resendSeconds > 0}
+          accessibilityRole="button"
+          accessibilityLabel="Resend code"
+        >
+          <Text style={styles.backText}>
+            {resendSeconds > 0 ? `Resend in ${resendSeconds}s` : 'Resend code'}
+          </Text>
+        </TouchableOpacity>
+      )}
 
       {navigation?.canGoBack?.() && (
         <TouchableOpacity onPress={() => navigation.goBack()} disabled={busy}>

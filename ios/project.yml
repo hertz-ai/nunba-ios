@@ -99,6 +99,8 @@ targets:
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.hertzai.nunbacompanion
+        # Simulator Keychain requires an ad-hoc signed app with its own access group.
+        "CODE_SIGN_ENTITLEMENTS[sdk=iphonesimulator*]": NunbaCompanion/Simulator.entitlements
         PRODUCT_NAME: NunbaCompanion
         DISPLAY_NAME: Nunba Companion
         INFOPLIST_FILE: NunbaCompanion/Info.plist
