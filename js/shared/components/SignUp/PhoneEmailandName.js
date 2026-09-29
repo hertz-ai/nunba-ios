@@ -291,6 +291,8 @@ const PhoneEmailandName = ({ navigation }) => {
                 <CountryPicker
                   show={show}
                   pickerButtonOnPress={handleCountrySelection}
+                  enableModalAvoiding={true}
+                  androidWindowSoftInputMode="pan"
                 />
               )}
 
@@ -437,6 +439,8 @@ const PhoneEmailandName = ({ navigation }) => {
                   <CountryPicker
                     show={show}
                     pickerButtonOnPress={handleCountrySelection}
+                    enableModalAvoiding={true}
+                    androidWindowSoftInputMode="pan"
                   />
                 )}
               </>
