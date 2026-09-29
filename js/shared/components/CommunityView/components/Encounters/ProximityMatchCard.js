@@ -13,10 +13,16 @@ import {
 import Ionicons from 'react-native-vector-icons/Ionicons';
 
 const ProximityMatchCard = ({ match, currentUserId, onReveal, onChat }) => {
-  const isPending = match.status === 'pending';
-  const isWaiting =
-    match.status === 'revealed_a' || match.status === 'revealed_b';
+  // status is a shared, non-viewer-relative string ('revealed_a' means
+  // "user_a revealed", not "you revealed"). Checking it directly showed
+  // "You revealed yourself / Waiting for them" to BOTH sides once either
+  // one revealed — the second person never saw their own Reveal button,
+  // so a match could never actually complete. The server already computes
+  // the viewer-relative you_revealed/other_revealed booleans (to_dict in
+  // models.py); key off those instead.
   const isMatched = match.status === 'matched';
+  const isPending = !isMatched && !match.you_revealed;
+  const isWaiting = !isMatched && match.you_revealed && !match.other_revealed;
 
   const distance = match.distance
     ? match.distance >= 1000
