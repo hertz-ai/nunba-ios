@@ -71,10 +71,25 @@ test('a fresh match with nobody revealed yet shows the Reveal button', async () 
 
 test('matched status shows the Matched UI regardless of the revealed fields', async () => {
   const match = {
-    id: 'm1', status: 'matched', user_a: 'a', user_b: 'b',
+    id: 'm1', status: 'matched', user_a: {id: 'a'}, user_b: {id: 'b'},
     display_name_a: 'Alex', display_name_b: 'Sam',
   };
   let tree;
   await act(async () => { tree = create(<ProximityMatchCard match={match} currentUserId="a" />); });
   expect(findText(tree, 'Matched!').length).toBeGreaterThan(0);
+});
+
+test('Start Chat resolves the OTHER user\'s id, not the {id} object itself (regression: user_a/user_b are objects, not strings)', async () => {
+  const match = {
+    id: 'm1', status: 'matched', user_a: {id: 'a'}, user_b: {id: 'b'},
+    display_name_a: 'Alex', display_name_b: 'Sam',
+  };
+  const onChat = jest.fn();
+  let tree;
+  await act(async () => {
+    tree = create(<ProximityMatchCard match={match} currentUserId="a" onChat={onChat} />);
+  });
+  const button = tree.root.findByType('TouchableOpacity');
+  await act(async () => { button.props.onPress(); });
+  expect(onChat).toHaveBeenCalledWith('b');
 });

@@ -73,10 +73,15 @@ const ProximityMatchCard = ({ match, currentUserId, onReveal, onChat }) => {
             <TouchableOpacity
               style={styles.chatButton}
               onPress={() => {
+                // Server sends user_a/user_b as {id} objects, not plain
+                // id strings — comparing them to currentUserId directly
+                // was always false, so otherUserId always resolved to
+                // match.user_b (an object, not a usable id) regardless
+                // of which side the viewer was actually on.
                 const otherUserId =
-                  match.user_a === currentUserId
-                    ? match.user_b
-                    : match.user_a;
+                  match.user_a?.id === currentUserId
+                    ? match.user_b?.id
+                    : match.user_a?.id;
                 onChat && onChat(otherUserId);
               }}
             >
