@@ -7,6 +7,7 @@ import {
   StyleSheet,
   SafeAreaView,
   StatusBar,
+  Alert,
 } from 'react-native';
 import {
   widthPercentageToDP as wp,
@@ -30,7 +31,7 @@ try {
 }
 const INSTA = themeColors.gradientInstagram;
 import useLocationPing from '../../../hooks/useLocationPing';
-import { encountersApi } from '../../../services/socialApi';
+import { encountersApi, conversationsApi } from '../../../services/socialApi';
 import ProximityBanner from '../components/Encounters/ProximityBanner';
 import ProximityMatchCard from '../components/Encounters/ProximityMatchCard';
 import MissedConnectionCard from '../components/Encounters/MissedConnectionCard';
@@ -171,11 +172,28 @@ const EncountersScreen = () => {
   }, []);
 
   const handleChat = useCallback(
-    (userId) => {
-      // Navigate to chat - placeholder for existing chat integration
-      console.log('Start chat with:', userId);
+    async (userId) => {
+      // Mirrors FriendsScreen.js's handleMessage — conversation auto-dedups
+      // server-side on (kind='dm', sorted member_hash), so this is safe to
+      // call repeatedly; it just reopens the existing thread.
+      if (!userId) {
+        Alert.alert('Could not start chat', 'Missing the other person’s id.');
+        return;
+      }
+      try {
+        const res = await conversationsApi.create({ kind: 'dm', member_ids: [userId] });
+        const data = (res && res.data) || res || {};
+        const convId = data.id || data.conversation_id;
+        if (!convId) {
+          Alert.alert('Could not start chat', 'No conversation id returned.');
+          return;
+        }
+        navigation.navigate('ConversationHistory', { conversation_id: convId });
+      } catch (e) {
+        Alert.alert('Could not start chat', e?.message || 'Try again later.');
+      }
     },
-    [],
+    [navigation],
   );
 
   const handleMissedPress = useCallback(
