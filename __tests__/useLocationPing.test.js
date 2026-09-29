@@ -23,7 +23,7 @@ let hook, root;
 function Probe() { hook = useLocationPing(); return null; }
 beforeEach(async () => {
   jest.useFakeTimers(); jest.clearAllMocks();
-  store.setState({isTracking: false, lat: null, lon: null});
+  store.setState({isTracking: false, lat: null, lon: null, nearbyCount: 0, matches: []});
   Geolocation.watchPosition.mockReturnValue(7);
   await act(async () => { root = create(<Probe />); });
 });
@@ -67,6 +67,30 @@ test('provider errors stop tracking and show a visible error', async () => {
   encountersApi.proximityMatches.mockClear();
   await act(async () => jest.advanceTimersByTime(60000));
   expect(encountersApi.proximityMatches).not.toHaveBeenCalled();
+});
+
+test('a real nearby-now envelope updates nearbyCount (regression: server wraps as {success, data})', async () => {
+  PermissionsAndroid.requestMultiple.mockResolvedValue({coarse: 'granted', fine: 'granted'});
+  encountersApi.nearbyCount.mockResolvedValue({success: true, data: {nearby_count: 3}});
+  await act(async () => hook.startTracking());
+  await act(async () => Geolocation.watchPosition.mock.calls[0][0]({coords: {latitude: 12, longitude: 80}}));
+  await act(async () => jest.advanceTimersByTime(30000));
+  expect(store.getState().nearbyCount).toBe(3);
+});
+test('the old flat {count} shape does not update nearbyCount (would silently mask the envelope bug)', async () => {
+  PermissionsAndroid.requestMultiple.mockResolvedValue({coarse: 'granted', fine: 'granted'});
+  encountersApi.nearbyCount.mockResolvedValue({count: 3});
+  await act(async () => hook.startTracking());
+  await act(async () => Geolocation.watchPosition.mock.calls[0][0]({coords: {latitude: 12, longitude: 80}}));
+  await act(async () => jest.advanceTimersByTime(30000));
+  expect(store.getState().nearbyCount).toBe(0);
+});
+test('a real proximity-matches envelope updates matches (regression: server wraps the list as {success, data})', async () => {
+  PermissionsAndroid.requestMultiple.mockResolvedValue({coarse: 'granted', fine: 'granted'});
+  encountersApi.proximityMatches.mockResolvedValue({success: true, data: [{id: 'm1'}]});
+  await act(async () => hook.startTracking());
+  await act(async () => jest.advanceTimersByTime(15000));
+  expect(store.getState().matches).toEqual([{id: 'm1'}]);
 });
 
 test('iOS uses the native location watch and becomes active only after a fix', async () => {

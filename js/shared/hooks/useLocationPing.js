@@ -92,8 +92,11 @@ const useLocationPing = () => {
           }
           try {
             const result = await encountersApi.nearbyCount();
-            if (result && typeof result.count === 'number') {
-              useEncounterStore.getState().setNearbyCount(result.count);
+            // Server envelope is {success, data: {nearby_count}} (api_common._ok) —
+            // not the flat {count} shape this used to check, so nearbyCount
+            // never updated from its initial 0 regardless of real proximity.
+            if (result?.success && typeof result.data?.nearby_count === 'number') {
+              useEncounterStore.getState().setNearbyCount(result.data.nearby_count);
             }
           } catch (e) {
             console.warn('Nearby count failed:', e.message);
@@ -105,8 +108,10 @@ const useLocationPing = () => {
       const doMatchPoll = async () => {
         try {
           const result = await encountersApi.proximityMatches();
-          if (result && Array.isArray(result.matches)) {
-            useEncounterStore.getState().setMatches(result.matches);
+          // Server envelope is {success, data: [...]} — ProximityService.get_matches
+          // returns the list directly as `data`, not as `data.matches`.
+          if (result?.success && Array.isArray(result.data)) {
+            useEncounterStore.getState().setMatches(result.data);
           }
         } catch (e) {
           console.warn('Proximity matches poll failed:', e.message);
