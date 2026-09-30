@@ -94,6 +94,38 @@ class AppDelegate: RCTAppDelegate {
     #endif
   }
 
+  // MARK: — Deep link forwarding (custom URL schemes + universal links)
+  //
+  // Without these two overrides, RCTLinkingManager's native side never
+  // fires, so RN's `Linking.addEventListener('url', ...)` in JS never
+  // gets called for ANY incoming deep link on iOS — hevolve://, nunba://,
+  // hevolveai:// custom schemes AND https://hevolve.ai/hevolve.app
+  // universal links (share links, referral links, campaign links, and
+  // the OAuth PKCE redirect `hevolve://oauth-complete` all go dark).
+  // RCTAppDelegate does not provide a default implementation of either
+  // method — confirmed by grep over node_modules/react-native's
+  // RCTAppDelegate.mm, which has no `openURL`/`continueUserActivity`
+  // handling at all.
+  override func application(
+    _ application: UIApplication,
+    open url: URL,
+    options: [UIApplication.OpenURLOptionsKey: Any] = [:]
+  ) -> Bool {
+    return RCTLinkingManager.application(application, open: url, options: options)
+  }
+
+  override func application(
+    _ application: UIApplication,
+    continue userActivity: NSUserActivity,
+    restorationHandler: @escaping ([any UIUserActivityRestoring]?) -> Void
+  ) -> Bool {
+    return RCTLinkingManager.application(
+      application,
+      continue: userActivity,
+      restorationHandler: restorationHandler
+    )
+  }
+
   // MARK: — Background remote notification handler.
   // RN 0.81's RCTAppDelegate DOES implement these UIApplicationDelegate
   // methods (verified by the Swift compiler insisting we mark them

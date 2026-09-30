@@ -170,30 +170,32 @@ final class LocalLlamaInferenceEngineTests: XCTestCase {
         let loaded = await LocalInferenceEngine.shared.isLoaded
         XCTAssertFalse(loaded, "precondition: engine must be unloaded")
 
-        // TODO(Mac-build): once real llama_decode is wired the scaffold
-        // placeholder goes away.  Then this test asserts:
-        //
-        //   do { _ = try await engine.generate(prompt: "x") }
-        //   catch LocalInferenceError.notLoaded {} // ✓
-        //
-        // For now the scaffold's `|| true` short-circuit means generate
-        // returns a placeholder string even when not loaded.  That's
-        // intentional: it lets the RN bridge be exercised before the
-        // framework lands.  The real assertion is gated on the placeholder
-        // string format so a regression to "real generation without load"
-        // would also be caught.
+        // generate()'s guard is `isLoaded, ctxPtr != nil || true` — the
+        // `|| true` only neutralizes the ctxPtr half (never wired until
+        // the real llama.cpp context lands); `isLoaded` still gates for
+        // real, so generate() already throws .notLoaded correctly here.
         do {
-            let reply = try await LocalInferenceEngine.shared.generate(prompt: "test")
-            XCTAssertTrue(reply.contains("[NunbaLocal scaffold]"),
-                          "until llama.cpp is wired, replies MUST be the scaffold placeholder")
+            _ = try await LocalInferenceEngine.shared.generate(prompt: "x")
+            XCTFail("generate must throw .notLoaded when the engine is unloaded")
+        } catch LocalInferenceError.notLoaded {
+            // ✓
         } catch {
-            XCTFail("scaffold generate must not throw: \(error)")
+            XCTFail("expected .notLoaded, got: \(error)")
         }
     }
 
     // MARK: generate — task cancellation propagates
 
-    func test_generate_propagates_task_cancellation() async {
+    func test_generate_propagates_task_cancellation() async throws {
+        // Must be loaded first: generate()'s isLoaded guard throws
+        // .notLoaded before ever reaching Task.checkCancellation(), so an
+        // unloaded engine here would fail on the wrong error entirely.
+        let tmp = FileManager.default.temporaryDirectory
+            .appendingPathComponent("nunba-test-cancel-\(UUID().uuidString).gguf")
+        try Data(repeating: 0, count: 1).write(to: tmp)
+        defer { try? FileManager.default.removeItem(at: tmp) }
+        try await LocalInferenceEngine.shared.loadModel(at: tmp)
+
         // Pre-cancel a task before it runs.  The scaffold checks
         // Task.checkCancellation() so the call must throw .cancelled.
         let task = Task {

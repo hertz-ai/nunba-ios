@@ -7,6 +7,7 @@ import {
   StyleSheet,
   SafeAreaView,
   StatusBar,
+  Alert,
 } from 'react-native';
 import {
   widthPercentageToDP as wp,
@@ -30,7 +31,7 @@ try {
 }
 const INSTA = themeColors.gradientInstagram;
 import useLocationPing from '../../../hooks/useLocationPing';
-import { encountersApi } from '../../../services/socialApi';
+import { encountersApi, authApi, conversationsApi } from '../../../services/socialApi';
 import ProximityBanner from '../components/Encounters/ProximityBanner';
 import ProximityMatchCard from '../components/Encounters/ProximityMatchCard';
 import MissedConnectionCard from '../components/Encounters/MissedConnectionCard';
@@ -163,19 +164,53 @@ const EncountersScreen = () => {
   ]);
 
   const handleReveal = useCallback(async (matchId) => {
-    try {
-      await encountersApi.revealMatch(matchId);
-    } catch (e) {
-      console.warn('Reveal failed:', e.message);
+    // socialApi returns the {success, data} envelope instead of throwing on
+    // HTTP errors, so a rejected reveal used to vanish silently and the card
+    // only changed on the next 15 s poll.
+    const result = await encountersApi
+      .revealMatch(matchId)
+      .catch((e) => ({ success: false, error: e.message }));
+    if (result?.success) {
+      if (result.data) {
+        const { matches, setMatches } = useEncounterStore.getState();
+        setMatches(matches.map((m) => (m.id === matchId ? { ...m, ...result.data } : m)));
+      }
+    } else {
+      Alert.alert("Couldn't reveal", result?.error || 'Please try again.');
     }
   }, []);
 
+  // The HARTOS user id (not the Hevolve numeric id in currentUser) -- a
+  // matched card needs it to tell which side of the match is the viewer.
+  const [socialUserId, setSocialUserId] = useState(null);
+  useEffect(() => {
+    let cancelled = false;
+    authApi
+      .me()
+      .then((r) => { if (!cancelled && r?.data?.id) setSocialUserId(r.data.id); })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, []);
+
+  // Same DM flow as FriendsScreen: the server dedups (kind='dm', members),
+  // so tapping again reopens the existing thread.
   const handleChat = useCallback(
-    (userId) => {
-      // Navigate to chat - placeholder for existing chat integration
-      console.log('Start chat with:', userId);
+    async (userId, name) => {
+      if (!userId) {
+        Alert.alert("Couldn't start chat", 'Please try again in a moment.');
+        return;
+      }
+      const res = await conversationsApi
+        .create({ kind: 'dm', member_ids: [userId] })
+        .catch((e) => ({ success: false, error: e.message }));
+      const convId = res?.data?.id || res?.data?.conversation_id;
+      if (res?.success && convId) {
+        navigation.navigate('DirectChat', { conversation_id: convId, name: name || undefined });
+      } else {
+        Alert.alert("Couldn't start chat", res?.error || 'Please try again.');
+      }
     },
-    [],
+    [navigation],
   );
 
   const handleMissedPress = useCallback(
@@ -282,7 +317,7 @@ const EncountersScreen = () => {
             renderItem={({ item }) => (
               <ProximityMatchCard
                 match={item}
-                currentUserId={null}
+                currentUserId={socialUserId}
                 onReveal={handleReveal}
                 onChat={handleChat}
               />
@@ -512,7 +547,7 @@ const EncountersScreen = () => {
         renderItem={({ item }) => (
           <BleMatchCard
             match={item}
-            currentUserId={null /* TODO: thread current user id from auth */}
+            currentUserId={socialUserId}
             onIcebreaker={handleSendIcebreaker}
             onHide={handleHideMatch}
           />

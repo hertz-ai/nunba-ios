@@ -30,6 +30,29 @@ export interface OnboardingModule {
   /** Resolves with the persisted Bearer token, or '' when no session. */
   getAccessToken(callback: (token: string) => void): void;
 
+  /** Persist a Bearer token from JS (login / silent-refresh handlers). */
+  setAccessToken(token: string): Promise<{ stored: boolean }>;
+
+  /**
+   * Resolves with the persisted [name, email, phone] from signup, each
+   * null when unset. Used by App.tsx's SessionExpired handler to recover
+   * an identifier for the OTP-fallback re-login path.
+   */
+  getStudentNameAndEmail(
+    callback: (name: string | null, email: string | null, phone: string | null) => void,
+  ): void;
+
+  /**
+   * Bridged HARTOS-native token for /api/social/* calls (separate from
+   * accessToken, which authenticates Hevolve_Database's /data/* + /db/*
+   * calls). Minted by POST /api/social/auth/link-hevolve. Resolves with
+   * '' when no bridge token has been stored yet.
+   */
+  getHartosToken(callback: (token: string) => void): void;
+
+  /** Persist the HARTOS bridge token from JS (see getHartosToken). */
+  setHartosToken(token: string): Promise<{ stored: boolean }>;
+
   /**
    * Fan-out a WAMP publish through the long-lived AutobahnConnectionManager
    * session. No-op when the session isn't active. Returns void —

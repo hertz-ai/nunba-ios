@@ -10,10 +10,11 @@ import {
   Linking, Platform
 
 } from 'react-native';
-import {NavigationContainer} from '@react-navigation/native';
+import {NavigationContainer, NavigationIndependentTree} from '@react-navigation/native';
 import {createNativeStackNavigator} from '@react-navigation/native-stack';
 
 import PhoneEmailandName from './PhoneEmailandName';
+import OtpVerification from './OtpVerification';
 
 const {OnboardingModule} = NativeModules;
 
@@ -40,7 +41,7 @@ const options = {
   },
 };
 
-const SignUpCombined = () => {
+const SignUpCombined = ({navigation: rootNavigation}) => {
   const startState = {
     type: 'stack',
     key: 'stack-1',
@@ -124,6 +125,7 @@ const SignUpCombined = () => {
   }
 
   return (
+<NavigationIndependentTree>
 <NavigationContainer
        initialState={initialState}
        onStateChange={state => {
@@ -132,8 +134,15 @@ const SignUpCombined = () => {
        }}>
 <Stack.Navigator screenOptions={{headerShown: false}}>
 <Stack.Screen name='PhoneEmailandName' component={PhoneEmailandName} />
+{/* Pass the OUTER (App.tsx) navigation into the OTP screen so that, after a
+    successful verify, it can leave this independent signup tree and enter the
+    app at MainScreen. */}
+<Stack.Screen name='OtpVerification'>
+{props => <OtpVerification {...props} rootNavigation={rootNavigation} />}
+</Stack.Screen>
 </Stack.Navigator>
 </NavigationContainer>
+</NavigationIndependentTree>
    );
 };
 
