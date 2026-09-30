@@ -195,7 +195,7 @@ const EncountersScreen = () => {
   // Same DM flow as FriendsScreen: the server dedups (kind='dm', members),
   // so tapping again reopens the existing thread.
   const handleChat = useCallback(
-    async (userId) => {
+    async (userId, name) => {
       if (!userId) {
         Alert.alert("Couldn't start chat", 'Please try again in a moment.');
         return;
@@ -205,7 +205,7 @@ const EncountersScreen = () => {
         .catch((e) => ({ success: false, error: e.message }));
       const convId = res?.data?.id || res?.data?.conversation_id;
       if (res?.success && convId) {
-        navigation.navigate('ConversationHistory', { conversation_id: convId });
+        navigation.navigate('DirectChat', { conversation_id: convId, name: name || undefined });
       } else {
         Alert.alert("Couldn't start chat", res?.error || 'Please try again.');
       }

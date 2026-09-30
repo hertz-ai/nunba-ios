@@ -91,7 +91,7 @@ test('Start Chat resolves the OTHER user\'s id, not the {id} object itself (regr
   });
   const button = tree.root.findByType('TouchableOpacity');
   await act(async () => { button.props.onPress(); });
-  expect(onChat).toHaveBeenCalledWith('b');
+  expect(onChat).toHaveBeenCalledWith('b', 'Sam');
 });
 
 // Found on two phones on different accounts: the distance the server sends
@@ -128,7 +128,7 @@ test('matched: names and the chat target come from the user objects the server s
   expect(allText(tree)).toContain('Rohan');
   expect(allText(tree)).toContain('Asha');
   await pressStartChat(tree);
-  expect(onChat).toHaveBeenCalledWith('u-asha');
+  expect(onChat).toHaveBeenCalledWith('u-asha', 'Asha');
 });
 
 test("matched: the server's other_user_id wins, even before the viewer's id is known", async () => {
@@ -137,7 +137,7 @@ test("matched: the server's other_user_id wins, even before the viewer's id is k
   let tree;
   await act(async () => { tree = create(<ProximityMatchCard match={match} currentUserId={null} onChat={onChat} />); });
   await pressStartChat(tree);
-  expect(onChat).toHaveBeenCalledWith('u-b');
+  expect(onChat).toHaveBeenCalledWith('u-b', 'User');
 });
 
 test('matched: with no way to tell the sides apart, never guess (no chat with yourself)', async () => {
@@ -146,5 +146,5 @@ test('matched: with no way to tell the sides apart, never guess (no chat with yo
   let tree;
   await act(async () => { tree = create(<ProximityMatchCard match={match} currentUserId={null} onChat={onChat} />); });
   await pressStartChat(tree);
-  expect(onChat).toHaveBeenCalledWith(null);
+  expect(onChat).toHaveBeenCalledWith(null, null);
 });

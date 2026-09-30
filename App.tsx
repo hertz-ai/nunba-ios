@@ -130,6 +130,7 @@ const ChannelSetupScreen          = lazy(() => import('./js/shared/components/Co
 // before the pod is added (the camera UI just doesn't render).
 const QRScannerScreen             = lazy(() => import('./js/shared/components/CommunityView/screens/QRScannerScreen'));
 const ConversationHistoryScreen   = lazy(() => import('./js/shared/components/CommunityView/screens/ConversationHistoryScreen'));
+const DirectChatScreen            = lazy(() => import('./js/shared/components/CommunityView/screens/DirectChatScreen'));
 
 const ProviderManagementScreen    = lazy(() => import('./js/shared/components/CommunityView/screens/ProviderManagementScreen'));
 
@@ -221,6 +222,7 @@ type RootStackParamList = {
   ChannelSetup: undefined;
   QRScanner: undefined;                  // ← placeholder
   ConversationHistory: undefined;
+  DirectChat: {conversation_id: string; name?: string; avatar_url?: string | null};
   // Admin
   ProviderManagement: undefined;
   // Settings parity ports
@@ -626,6 +628,7 @@ function App(): React.JSX.Element {
         <Stack.Screen name="ChannelSetup" component={withGuards(ChannelSetupScreen, 'ChannelSetup')} />
         <Stack.Screen name="QRScanner" component={withGuards(QRScannerScreen, 'QRScanner')} />
         <Stack.Screen name="ConversationHistory" component={withGuards(ConversationHistoryScreen, 'ConversationHistory')} />
+        <Stack.Screen name="DirectChat" component={withGuards(DirectChatScreen, 'DirectChat')} options={{headerShown: false}} />
 
         {/* Admin */}
         <Stack.Screen name="ProviderManagement" component={withGuards(ProviderManagementScreen, 'ProviderManagement')} />

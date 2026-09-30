@@ -30,6 +30,13 @@ const otherSideId = (match, currentUserId) => {
   if (b === currentUserId) return a;
   return null;
 };
+// Their name, for the chat header; null when we can't tell which side is theirs.
+const otherSideName = (match, otherId) => {
+  if (!otherId) return null;
+  if (sideId(match.user_a) === otherId) return sideName(match, 'a');
+  if (sideId(match.user_b) === otherId) return sideName(match, 'b');
+  return null;
+};
 
 const ProximityMatchCard = ({ match, currentUserId, onReveal, onChat }) => {
   const isMatched = match.status === 'matched';
@@ -96,7 +103,10 @@ const ProximityMatchCard = ({ match, currentUserId, onReveal, onChat }) => {
             <Text style={styles.matchedLabel}>Matched!</Text>
             <TouchableOpacity
               style={styles.chatButton}
-              onPress={() => onChat && onChat(otherSideId(match, currentUserId))}
+              onPress={() => {
+                const otherId = otherSideId(match, currentUserId);
+                if (onChat) onChat(otherId, otherSideName(match, otherId));
+              }}
             >
               <Ionicons name="chatbubble-outline" size={16} color="#000000" />
               <Text style={styles.chatButtonText}>Start Chat</Text>

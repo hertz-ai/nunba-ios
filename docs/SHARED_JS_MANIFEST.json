@@ -288,6 +288,7 @@
         "CommunityView/screens/CreateMissedConnectionScreen.js",
         "CommunityView/screens/CustomBotChatScreen.js",
         "CommunityView/screens/CustomGamesScreen.js",
+        "CommunityView/screens/DirectChatScreen.js",
         "CommunityView/screens/EncountersScreen.js",
         "CommunityView/screens/ExperimentDiscoveryScreen.js",
         "CommunityView/screens/FederatedFeedScreen.js",
