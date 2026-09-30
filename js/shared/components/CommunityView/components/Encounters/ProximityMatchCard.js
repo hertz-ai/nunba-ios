@@ -12,23 +12,45 @@ import {
 } from 'react-native-responsive-screen';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 
-const ProximityMatchCard = ({ match, currentUserId, onReveal, onChat }) => {
-  // status is a shared, non-viewer-relative string ('revealed_a' means
-  // "user_a revealed", not "you revealed"). Checking it directly showed
-  // "You revealed yourself / Waiting for them" to BOTH sides once either
-  // one revealed — the second person never saw their own Reveal button,
-  // so a match could never actually complete. The server already computes
-  // the viewer-relative you_revealed/other_revealed booleans (to_dict in
-  // models.py); key off those instead.
-  const isMatched = match.status === 'matched';
-  const isPending = !isMatched && !match.you_revealed;
-  const isWaiting = !isMatched && match.you_revealed && !match.other_revealed;
+// The id behind a match side: the server sends { id, ... } objects.
+const sideId = (side) => (side && typeof side === 'object' ? side.id : side);
+const sideName = (match, key) =>
+  match[`display_name_${key}`]
+  || match[`user_${key}`]?.display_name
+  || match[`user_${key}`]?.username
+  || 'User';
+// The other person in a matched pair.  Unknown until we know which side the
+// viewer is on -- never guess, or Start Chat opens a chat with yourself.
+const otherSideId = (match, currentUserId) => {
+  if (match.other_user_id) return match.other_user_id;
+  if (!currentUserId) return null;
+  const a = sideId(match.user_a);
+  const b = sideId(match.user_b);
+  if (a === currentUserId) return b;
+  if (b === currentUserId) return a;
+  return null;
+};
 
-  const distance = match.distance
-    ? match.distance >= 1000
-      ? `${(match.distance / 1000).toFixed(1)}km`
-      : `${Math.round(match.distance)}m`
-    : null;
+const ProximityMatchCard = ({ match, currentUserId, onReveal, onChat }) => {
+  const isMatched = match.status === 'matched';
+  // 'revealed_a' / 'revealed_b' only say *someone* revealed.  The server
+  // tells each viewer which side they are on via you_revealed /
+  // other_revealed; reading the status alone showed "You revealed yourself"
+  // (and hid the Reveal button) to the person who hadn't, so a match could
+  // never become mutual.
+  const youRevealed = match.you_revealed === true;
+  const theyRevealed = match.other_revealed === true;
+  const isWaiting = !isMatched && youRevealed;
+  const canReveal = !isMatched && !youRevealed && match.status !== 'expired';
+
+  // HARTOS sends a coarse distance_bucket ("~50m away"), never the exact
+  // metres; keep the numeric form for any caller that has one.
+  const distance = match.distance_bucket
+    || (match.distance
+      ? `~${match.distance >= 1000
+        ? `${(match.distance / 1000).toFixed(1)}km`
+        : `${Math.round(match.distance)}m`} away`
+      : null);
 
   return (
     <View style={styles.card}>
@@ -40,12 +62,14 @@ const ProximityMatchCard = ({ match, currentUserId, onReveal, onChat }) => {
         )}
       </View>
       <View style={styles.content}>
-        {isPending && (
+        {canReveal && (
           <>
             {distance && (
-              <Text style={styles.distanceText}>~{distance} away</Text>
+              <Text style={styles.distanceText}>{distance}</Text>
             )}
-            <Text style={styles.statusText}>Someone is nearby</Text>
+            <Text style={styles.statusText}>
+              {theyRevealed ? 'Someone nearby revealed themselves' : 'Someone is nearby'}
+            </Text>
             <TouchableOpacity
               style={styles.revealButton}
               onPress={() => onReveal && onReveal(match.id)}
@@ -66,24 +90,13 @@ const ProximityMatchCard = ({ match, currentUserId, onReveal, onChat }) => {
         {isMatched && (
           <>
             <Text style={styles.matchedName}>
-              {match.display_name_a || 'User'} &{' '}
-              {match.display_name_b || 'User'}
+              {sideName(match, 'a')} &{' '}
+              {sideName(match, 'b')}
             </Text>
             <Text style={styles.matchedLabel}>Matched!</Text>
             <TouchableOpacity
               style={styles.chatButton}
-              onPress={() => {
-                // Server sends user_a/user_b as {id} objects, not plain
-                // id strings — comparing them to currentUserId directly
-                // was always false, so otherUserId always resolved to
-                // match.user_b (an object, not a usable id) regardless
-                // of which side the viewer was actually on.
-                const otherUserId =
-                  match.user_a?.id === currentUserId
-                    ? match.user_b?.id
-                    : match.user_a?.id;
-                onChat && onChat(otherUserId);
-              }}
+              onPress={() => onChat && onChat(otherSideId(match, currentUserId))}
             >
               <Ionicons name="chatbubble-outline" size={16} color="#000000" />
               <Text style={styles.chatButtonText}>Start Chat</Text>
