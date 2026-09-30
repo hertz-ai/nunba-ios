@@ -75,22 +75,30 @@ const StatusChip = ({ label, tone }) => (
 const BleMatchCard = ({ match, currentUserId, onIcebreaker, onHide }) => {
   if (!match) return null;
 
+  // Which side the viewer is on. /encounter/matches sends user_a/user_b as
+  // plain HARTOS ids; until the viewer's own id is known, don't guess --
+  // a guess shows the viewer's own avatar and their own icebreaker status
+  // as the other person's.
+  const viewerSide =
+    currentUserId && match.user_a === currentUserId ? 'a'
+      : currentUserId && match.user_b === currentUserId ? 'b'
+        : null;
+
   // "Other party" — never show the viewer's own avatar.
   const otherUserId =
-    match.user_a === currentUserId ? match.user_b : match.user_a;
+    viewerSide === 'a' ? match.user_b : viewerSide === 'b' ? match.user_a : null;
   const initial = (otherUserId || '?').slice(0, 1).toUpperCase();
 
   // Per-side icebreaker status — show a soft chip if either side has
   // already acted, so the user isn't confused about why Send is disabled.
-  const viewerSide = match.user_a === currentUserId ? 'a' : 'b';
   const viewerStatus =
-    viewerSide === 'a'
-      ? match.icebreaker_a_status
-      : match.icebreaker_b_status;
+    viewerSide === 'a' ? match.icebreaker_a_status
+      : viewerSide === 'b' ? match.icebreaker_b_status
+        : undefined;
   const otherStatus =
-    viewerSide === 'a'
-      ? match.icebreaker_b_status
-      : match.icebreaker_a_status;
+    viewerSide === 'a' ? match.icebreaker_b_status
+      : viewerSide === 'b' ? match.icebreaker_a_status
+        : undefined;
 
   const viewerHasSent = viewerStatus === 'sent';
   const viewerHasDeclined = viewerStatus === 'declined';

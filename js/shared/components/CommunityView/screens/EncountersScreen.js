@@ -547,7 +547,7 @@ const EncountersScreen = () => {
         renderItem={({ item }) => (
           <BleMatchCard
             match={item}
-            currentUserId={null /* TODO: thread current user id from auth */}
+            currentUserId={socialUserId}
             onIcebreaker={handleSendIcebreaker}
             onHide={handleHideMatch}
           />
