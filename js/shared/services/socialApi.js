@@ -381,14 +381,15 @@ export const bleEncounterApi = {
   listMapPins: () => get('/encounter/map-pins'),
 
   // J207 — generate draft for user-approval surface
-  draftIcebreaker: (match_id) =>
-    post('/encounter/icebreaker/draft', { match_id }),
+  // kind: 'ble' (server default) or 'proximity' for a GPS match.
+  draftIcebreaker: (match_id, kind) =>
+    post('/encounter/icebreaker/draft', kind ? { match_id, kind } : { match_id }),
 
   // J209, J210 — final user-approval / decline tap
-  approveIcebreaker: (match_id, text) =>
-    post('/encounter/icebreaker/approve', { match_id, text }),
-  declineIcebreaker: (match_id, reason) =>
-    post('/encounter/icebreaker/decline', { match_id, reason }),
+  approveIcebreaker: (match_id, text, kind) =>
+    post('/encounter/icebreaker/approve', kind ? { match_id, text, kind } : { match_id, text }),
+  declineIcebreaker: (match_id, reason, kind) =>
+    post('/encounter/icebreaker/decline', kind ? { match_id, reason, kind } : { match_id, reason }),
 
   // WAMP topic constants (single-source via server response so the
   // client never hard-codes them — the server's WAMP_TOPICS dict

@@ -1,6 +1,8 @@
 /**
- * IcebreakerDraftSheet — review-before-send modal for BLE encounter
- * icebreaker drafts.  RN parity for the web SPA's
+ * IcebreakerDraftSheet — review-before-send modal for encounter
+ * icebreaker drafts ("Break the ice"), for a BLE match or, with
+ * match.kind === 'proximity', a GPS match.  The approved text becomes
+ * the first message of the DM; onSent gets its conversation_id.  RN parity for the web SPA's
  * landing-page/src/components/Social/Encounters/shared/IcebreakerDraftSheet.jsx
  * (commit a3398905, F2 GREENLIT).
  *
@@ -89,7 +91,7 @@ const DECLINE_REASONS = ['Not feeling it', 'Already met', 'Too late', 'Other'];
 const AUTO_CLOSE_SENT_MS = 1200;
 const AUTO_CLOSE_DECLINE_MS = 2000;
 
-const IcebreakerDraftSheet = ({ open, match, viewer, onClose, onSent }) => {
+const IcebreakerDraftSheet = ({ open, match, viewer, onClose, onSent, onOpenChat }) => {
   const [state, setState] = useState(STATE.LOADING);
   const [drafts, setDrafts] = useState([]); // [primary, alt1, alt2]
   const [selectedIdx, setSelectedIdx] = useState(0);
@@ -98,6 +100,10 @@ const IcebreakerDraftSheet = ({ open, match, viewer, onClose, onSent }) => {
   const [error, setError] = useState(null);
   const mounted = useRef(true);
   const closeTimer = useRef(null);
+  // Read through a ref so a new handler from the parent never re-fires
+  // the draft request.
+  const onOpenChatRef = useRef(onOpenChat);
+  onOpenChatRef.current = onOpenChat;
 
   useEffect(
     () => () => {
@@ -122,9 +128,15 @@ const IcebreakerDraftSheet = ({ open, match, viewer, onClose, onSent }) => {
     setRationale('');
     (async () => {
       try {
-        const result = await bleEncounterApi.draftIcebreaker(match.id);
+        const result = await bleEncounterApi.draftIcebreaker(match.id, match.kind);
         if (cancelled || !mounted.current) return;
         const data = result?.data || {};
+        // Already broke the ice with them: the chat is the next step,
+        // not a second opener.
+        if (data.conversation_id && typeof onOpenChatRef.current === 'function') {
+          onOpenChatRef.current(data.conversation_id);
+          return;
+        }
         const list = [data.draft, ...(Array.isArray(data.alt_drafts) ? data.alt_drafts : [])]
           .filter((s) => typeof s === 'string' && s.length > 0)
           .slice(0, 3);
@@ -150,7 +162,7 @@ const IcebreakerDraftSheet = ({ open, match, viewer, onClose, onSent }) => {
     return () => {
       cancelled = true;
     };
-  }, [open, match?.id]);
+  }, [open, match?.id, match?.kind]);
 
   // Per F2 web: WAMP subscribe goes here — RN parity gated on #407.
   // Once AutobahnConnectionManager subscribes to
@@ -193,10 +205,12 @@ const IcebreakerDraftSheet = ({ open, match, viewer, onClose, onSent }) => {
     setState(STATE.SENDING);
     setError(null);
     try {
-      await bleEncounterApi.approveIcebreaker(match.id, editedText);
+      const result = await bleEncounterApi.approveIcebreaker(match.id, editedText, match.kind);
       if (!mounted.current) return;
       setState(STATE.SENT);
-      if (typeof onSent === 'function') onSent(match);
+      // conversation_id: the DM the approved text landed in (null when
+      // the server has DMs off).
+      if (typeof onSent === 'function') onSent(match, result?.data?.conversation_id || null);
       scheduleAutoClose(AUTO_CLOSE_SENT_MS);
     } catch (e) {
       if (!mounted.current) return;
@@ -216,7 +230,7 @@ const IcebreakerDraftSheet = ({ open, match, viewer, onClose, onSent }) => {
       setState(STATE.SENDING);
       setError(null);
       try {
-        await bleEncounterApi.declineIcebreaker(match.id, reason);
+        await bleEncounterApi.declineIcebreaker(match.id, reason, match.kind);
         if (!mounted.current) return;
         setState(STATE.SENT_DECLINE);
         scheduleAutoClose(AUTO_CLOSE_DECLINE_MS);
@@ -240,10 +254,14 @@ const IcebreakerDraftSheet = ({ open, match, viewer, onClose, onSent }) => {
     setState(STATE.LOADING);
     setError(null);
     bleEncounterApi
-      .draftIcebreaker(match.id)
+      .draftIcebreaker(match.id, match.kind)
       .then((result) => {
         if (!mounted.current) return;
         const data = result?.data || {};
+        if (data.conversation_id && typeof onOpenChatRef.current === 'function') {
+          onOpenChatRef.current(data.conversation_id);
+          return;
+        }
         const list = [data.draft, ...(Array.isArray(data.alt_drafts) ? data.alt_drafts : [])]
           .filter((s) => typeof s === 'string' && s.length > 0)
           .slice(0, 3);

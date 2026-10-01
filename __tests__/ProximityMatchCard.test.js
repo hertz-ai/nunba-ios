@@ -79,23 +79,23 @@ test('matched status shows the Matched UI regardless of the revealed fields', as
   expect(findText(tree, 'Matched!').length).toBeGreaterThan(0);
 });
 
-test('Start Chat resolves the OTHER user\'s id, not the {id} object itself (regression: user_a/user_b are objects, not strings)', async () => {
+test('Break the ice names the OTHER user, not the {id} object itself (regression: user_a/user_b are objects, not strings)', async () => {
   const match = {
     id: 'm1', status: 'matched', user_a: {id: 'a'}, user_b: {id: 'b'},
     display_name_a: 'Alex', display_name_b: 'Sam',
   };
-  const onChat = jest.fn();
+  const onBreakTheIce = jest.fn();
   let tree;
   await act(async () => {
-    tree = create(<ProximityMatchCard match={match} currentUserId="a" onChat={onChat} />);
+    tree = create(<ProximityMatchCard match={match} currentUserId="a" onBreakTheIce={onBreakTheIce} />);
   });
   const button = tree.root.findByType('TouchableOpacity');
   await act(async () => { button.props.onPress(); });
-  expect(onChat).toHaveBeenCalledWith('b', 'Sam');
+  expect(onBreakTheIce).toHaveBeenCalledWith(match, 'Sam');
 });
 
 // Found on two phones on different accounts: the distance the server sends
-// never showed, and Start Chat must open a DM with the *other* person.
+// never showed, and Break the ice must address the *other* person.
 const allText = (tree) => {
   const out = [];
   const walk = (n) => {
@@ -106,9 +106,9 @@ const allText = (tree) => {
   walk(tree.toJSON());
   return out.join(' ');
 };
-const pressStartChat = async (tree) => {
+const pressBreakTheIce = async (tree) => {
   const btn = tree.root.findAll((n) => n.type === 'TouchableOpacity' && n.props.onPress)
-    .find((n) => n.findAll((c) => c.children.includes('Start Chat')).length > 0);
+    .find((n) => n.findAll((c) => c.children.includes('Break the ice')).length > 0);
   await act(async () => btn.props.onPress());
 };
 
@@ -119,32 +119,32 @@ test("a pending match shows the server's coarse distance_bucket", async () => {
   expect(allText(tree)).toContain('~50m away');
 });
 
-test('matched: names and the chat target come from the user objects the server sends', async () => {
-  const onChat = jest.fn();
+test('matched: names and the icebreaker target come from the user objects the server sends', async () => {
+  const onBreakTheIce = jest.fn();
   const match = {id: 'm1', status: 'matched',
     user_a: {id: 'u-rohan', display_name: 'Rohan'}, user_b: {id: 'u-asha', display_name: 'Asha'}};
   let tree;
-  await act(async () => { tree = create(<ProximityMatchCard match={match} currentUserId="u-rohan" onChat={onChat} />); });
+  await act(async () => { tree = create(<ProximityMatchCard match={match} currentUserId="u-rohan" onBreakTheIce={onBreakTheIce} />); });
   expect(allText(tree)).toContain('Rohan');
   expect(allText(tree)).toContain('Asha');
-  await pressStartChat(tree);
-  expect(onChat).toHaveBeenCalledWith('u-asha', 'Asha');
+  await pressBreakTheIce(tree);
+  expect(onBreakTheIce).toHaveBeenCalledWith(match, 'Asha');
 });
 
 test("matched: the server's other_user_id wins, even before the viewer's id is known", async () => {
-  const onChat = jest.fn();
+  const onBreakTheIce = jest.fn();
   const match = {id: 'm1', status: 'matched', other_user_id: 'u-b', user_a: {id: 'u-a'}, user_b: {id: 'u-b'}};
   let tree;
-  await act(async () => { tree = create(<ProximityMatchCard match={match} currentUserId={null} onChat={onChat} />); });
-  await pressStartChat(tree);
-  expect(onChat).toHaveBeenCalledWith('u-b', 'User');
+  await act(async () => { tree = create(<ProximityMatchCard match={match} currentUserId={null} onBreakTheIce={onBreakTheIce} />); });
+  await pressBreakTheIce(tree);
+  expect(onBreakTheIce).toHaveBeenCalledWith(match, 'User');
 });
 
-test('matched: with no way to tell the sides apart, never guess (no chat with yourself)', async () => {
-  const onChat = jest.fn();
+test('matched: with no way to tell the sides apart, never guess a name (could be your own)', async () => {
+  const onBreakTheIce = jest.fn();
   const match = {id: 'm1', status: 'matched', user_a: {id: 'u-a'}, user_b: {id: 'u-b'}};
   let tree;
-  await act(async () => { tree = create(<ProximityMatchCard match={match} currentUserId={null} onChat={onChat} />); });
-  await pressStartChat(tree);
-  expect(onChat).toHaveBeenCalledWith(null, null);
+  await act(async () => { tree = create(<ProximityMatchCard match={match} currentUserId={null} onBreakTheIce={onBreakTheIce} />); });
+  await pressBreakTheIce(tree);
+  expect(onBreakTheIce).toHaveBeenCalledWith(match, null);
 });

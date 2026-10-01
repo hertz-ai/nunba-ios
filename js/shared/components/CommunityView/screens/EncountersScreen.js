@@ -31,7 +31,7 @@ try {
 }
 const INSTA = themeColors.gradientInstagram;
 import useLocationPing from '../../../hooks/useLocationPing';
-import { encountersApi, authApi, conversationsApi } from '../../../services/socialApi';
+import { encountersApi, authApi } from '../../../services/socialApi';
 import ProximityBanner from '../components/Encounters/ProximityBanner';
 import ProximityMatchCard from '../components/Encounters/ProximityMatchCard';
 import MissedConnectionCard from '../components/Encounters/MissedConnectionCard';
@@ -192,27 +192,6 @@ const EncountersScreen = () => {
     return () => { cancelled = true; };
   }, []);
 
-  // Same DM flow as FriendsScreen: the server dedups (kind='dm', members),
-  // so tapping again reopens the existing thread.
-  const handleChat = useCallback(
-    async (userId, name) => {
-      if (!userId) {
-        Alert.alert("Couldn't start chat", 'Please try again in a moment.');
-        return;
-      }
-      const res = await conversationsApi
-        .create({ kind: 'dm', member_ids: [userId] })
-        .catch((e) => ({ success: false, error: e.message }));
-      const convId = res?.data?.id || res?.data?.conversation_id;
-      if (res?.success && convId) {
-        navigation.navigate('DirectChat', { conversation_id: convId, name: name || undefined });
-      } else {
-        Alert.alert("Couldn't start chat", res?.error || 'Please try again.');
-      }
-    },
-    [navigation],
-  );
-
   const handleMissedPress = useCallback(
     (item) => {
       navigation.navigate('MissedConnectionDetail', { missedId: item.id });
@@ -239,19 +218,42 @@ const EncountersScreen = () => {
     );
   }, []);
 
-  // PRODUCT_MAP J207-J210 — open icebreaker draft modal for a BLE
-  // match.  IcebreakerDraftSheet (mounted once below) handles the
-  // draft → review → send/decline state machine.
+  // PRODUCT_MAP J207-J210 — "Break the ice": open the icebreaker draft
+  // modal for a BLE match or a GPS match.  IcebreakerDraftSheet (mounted
+  // once below) handles the draft → review → send/decline state machine;
+  // `kind` tells the server which match table the id belongs to.
   const handleSendIcebreaker = useCallback((match) => {
     if (!match?.id) return;
-    setIcebreakerMatch(match);
+    setIcebreakerMatch({ ...match, kind: 'ble' });
   }, []);
 
-  // After successful send, refetch matches so the icebreaker_a/b
-  // status flips ('sent') reflect on the BleMatchCard chips.
-  const handleIcebreakerSent = useCallback(() => {
-    fetchBleMatches();
-  }, [fetchBleMatches]);
+  const handleBreakTheIce = useCallback((match, name) => {
+    if (!match?.id) return;
+    setIcebreakerMatch({ ...match, kind: 'proximity', peerName: name || undefined });
+  }, []);
+
+  const openIcebreakerChat = useCallback(
+    (convId, name) => {
+      setIcebreakerMatch(null);
+      navigation.navigate('DirectChat', { conversation_id: convId, name });
+    },
+    [navigation],
+  );
+
+  // After a send, refetch so the BleMatchCard 'sent' chips update, and
+  // open the DM the approved text landed in -- the reply comes there.
+  const handleIcebreakerSent = useCallback(
+    (match, convId) => {
+      fetchBleMatches();
+      if (convId) openIcebreakerChat(convId, match?.peerName);
+    },
+    [fetchBleMatches, openIcebreakerChat],
+  );
+
+  const handleIcebreakerOpenChat = useCallback(
+    (convId) => openIcebreakerChat(convId, icebreakerMatch?.peerName),
+    [openIcebreakerChat, icebreakerMatch],
+  );
 
   const handleIcebreakerClose = useCallback(() => {
     setIcebreakerMatch(null);
@@ -319,7 +321,7 @@ const EncountersScreen = () => {
                 match={item}
                 currentUserId={socialUserId}
                 onReveal={handleReveal}
-                onChat={handleChat}
+                onBreakTheIce={handleBreakTheIce}
               />
             )}
             contentContainerStyle={styles.listContent}
@@ -655,6 +657,7 @@ const EncountersScreen = () => {
         viewer={null /* TODO: thread current viewer from auth */}
         onClose={handleIcebreakerClose}
         onSent={handleIcebreakerSent}
+        onOpenChat={handleIcebreakerOpenChat}
       />
     </SafeAreaView>
   );

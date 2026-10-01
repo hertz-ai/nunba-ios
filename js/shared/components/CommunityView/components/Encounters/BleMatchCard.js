@@ -16,7 +16,7 @@
  *   - NO photo capture, NO user-uploaded image — initial-only avatar
  *     placeholder (encounter design constraint per
  *     project_encounter_icebreaker.md).
- *   - "Send icebreaker" is a USER ACTION button.  This component only
+ *   - "Break the ice" is a USER ACTION button.  This component only
  *     triggers the parent callback — it never auto-fires the
  *     icebreaker flow.  IcebreakerDraftSheet mounts on the parent in
  *     response to the callback.
@@ -157,7 +157,7 @@ const BleMatchCard = ({ match, currentUserId, onIcebreaker, onHide }) => {
             activeOpacity={sendDisabled ? 1 : 0.7}
             disabled={sendDisabled}
             accessibilityRole="button"
-            accessibilityLabel="Send icebreaker"
+            accessibilityLabel="Break the ice"
             accessibilityState={{ disabled: sendDisabled }}
             testID={`ble-match-${match.id}-icebreaker`}
           >
@@ -172,7 +172,7 @@ const BleMatchCard = ({ match, currentUserId, onIcebreaker, onHide }) => {
                 sendDisabled && styles.sendTextDisabled,
               ]}
             >
-              Send icebreaker
+              Break the ice
             </Text>
           </TouchableOpacity>
         )}

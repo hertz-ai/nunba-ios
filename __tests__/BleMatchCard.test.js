@@ -126,7 +126,7 @@ describe('BleMatchCard', () => {
     expect(initial).not.toBeNull();
   });
 
-  test('Send icebreaker button calls onIcebreaker(match)', async () => {
+  test('Break the ice button calls onIcebreaker(match)', async () => {
     const onIcebreaker = jest.fn();
     let tree;
     await act(async () => {
@@ -144,7 +144,7 @@ describe('BleMatchCard', () => {
       (n) =>
         n.type === 'TouchableOpacity' &&
         n.props &&
-        n.props.accessibilityLabel === 'Send icebreaker',
+        n.props.accessibilityLabel === 'Break the ice',
     );
     expect(sendBtn).not.toBeNull();
     await act(async () => {
@@ -171,7 +171,7 @@ describe('BleMatchCard', () => {
       (n) =>
         n.type === 'TouchableOpacity' &&
         n.props &&
-        n.props.accessibilityLabel === 'Send icebreaker',
+        n.props.accessibilityLabel === 'Break the ice',
     );
     expect(sendBtn.props.disabled).toBe(true);
     expect(sendBtn.props.accessibilityState).toEqual({ disabled: true });
@@ -183,7 +183,7 @@ describe('BleMatchCard', () => {
       (n) =>
         n.type === 'TouchableOpacity' &&
         n.props &&
-        n.props.accessibilityLabel === 'Send icebreaker',
+        n.props.accessibilityLabel === 'Break the ice',
     );
 
   test('viewer on side b reads their own status from icebreaker_b_status', async () => {

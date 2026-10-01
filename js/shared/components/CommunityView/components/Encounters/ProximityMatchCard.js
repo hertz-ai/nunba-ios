@@ -20,7 +20,7 @@ const sideName = (match, key) =>
   || match[`user_${key}`]?.username
   || 'User';
 // The other person in a matched pair.  Unknown until we know which side the
-// viewer is on -- never guess, or Start Chat opens a chat with yourself.
+// viewer is on -- never guess, or Break the ice writes to yourself.
 const otherSideId = (match, currentUserId) => {
   if (match.other_user_id) return match.other_user_id;
   if (!currentUserId) return null;
@@ -38,7 +38,7 @@ const otherSideName = (match, otherId) => {
   return null;
 };
 
-const ProximityMatchCard = ({ match, currentUserId, onReveal, onChat }) => {
+const ProximityMatchCard = ({ match, currentUserId, onReveal, onBreakTheIce }) => {
   const isMatched = match.status === 'matched';
   // 'revealed_a' / 'revealed_b' only say *someone* revealed.  The server
   // tells each viewer which side they are on via you_revealed /
@@ -105,11 +105,14 @@ const ProximityMatchCard = ({ match, currentUserId, onReveal, onChat }) => {
               style={styles.chatButton}
               onPress={() => {
                 const otherId = otherSideId(match, currentUserId);
-                if (onChat) onChat(otherId, otherSideName(match, otherId));
+                if (onBreakTheIce) onBreakTheIce(match, otherSideName(match, otherId));
               }}
+              accessibilityRole="button"
+              accessibilityLabel="Break the ice"
+              testID={`proximity-match-${match.id}-break-the-ice`}
             >
-              <Ionicons name="chatbubble-outline" size={16} color="#000000" />
-              <Text style={styles.chatButtonText}>Start Chat</Text>
+              <Ionicons name="snow-outline" size={16} color="#000000" />
+              <Text style={styles.chatButtonText}>Break the ice</Text>
             </TouchableOpacity>
           </>
         )}
