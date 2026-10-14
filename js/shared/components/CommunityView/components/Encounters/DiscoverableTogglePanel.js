@@ -61,6 +61,18 @@ import { bleEncounterApi } from '../../../../services/socialApi';
 const ACCENT = '#6C63FF';
 const ERR = '#ff6b6b';
 
+// socialApi returns error envelopes rather than throwing on HTTP failures.
+const requireSavedResponse = (result) => {
+  if (result?.success === false || result?.error || !result?.data) {
+    throw new Error(typeof result?.error === 'string'
+      ? result.error : 'Could not confirm the change with the server. Please retry.');
+  }
+  return result.data;
+};
+const authRejected = (message) => /invalid or expired token|unauthorized|401/i.test(message);
+const AUTH_ERROR = 'The server rejected your login. Discoverable cannot be enabled until the connection to your account is restored.';
+
+
 // Isolate the 1Hz ticker so toggling parent state doesn't cascade
 // re-renders into the Switch / Checkbox every second.
 const TTLCountdown = React.memo(({ expiresAtIso }) => {
@@ -121,7 +133,7 @@ const DiscoverableTogglePanel = () => {
     setLoading(true);
     try {
       const result = await bleEncounterApi.getDiscoverable();
-      const data = result?.data || {};
+      const data = requireSavedResponse(result);
       if (!mounted.current) return;
       setEnabled(!!data.enabled);
       setExpiresAt(data.expires_at || null);
@@ -146,7 +158,7 @@ const DiscoverableTogglePanel = () => {
         msg.includes('Unexpected token') ||
         msg.includes('Unexpected character');
       if (!isParseError) {
-        setError("Couldn't load — tap the toggle to retry");
+        setError(authRejected(msg) ? AUTH_ERROR : "Couldn't load. Tap the toggle to retry.");
       }
     } finally {
       if (mounted.current) setLoading(false);
@@ -170,9 +182,8 @@ const DiscoverableTogglePanel = () => {
         const result = await bleEncounterApi.setDiscoverable({
           enabled: next,
           age_claim_18: ageClaim,
-          vibe_tags: vibeTags,
         });
-        const data = result?.data || {};
+        const data = requireSavedResponse(result);
         if (!mounted.current) return;
         setEnabled(!!data.enabled);
         setExpiresAt(data.expires_at || null);
@@ -192,7 +203,9 @@ const DiscoverableTogglePanel = () => {
           msg.includes('JSON Parse error') ||
           msg.includes('Unexpected token') ||
           msg.includes('Unexpected character');
-        if (msg.includes('429') || msg.includes('toggle limit')) {
+        if (authRejected(msg)) {
+          setError(AUTH_ERROR);
+        } else if (msg.includes('429') || msg.includes('toggle limit')) {
           setRateLimited(true);
           setError(
             'Toggle limit reached for the next 24 hours. ' +

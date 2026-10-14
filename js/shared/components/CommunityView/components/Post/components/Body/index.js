@@ -14,12 +14,10 @@ import {
   widthPercentageToDP as wp,
   heightPercentageToDP as hp,
 } from 'react-native-responsive-screen';
-// Use plain react-native-video instead of react-native-video-controls.
-// The controls wrapper renders a hardcoded "Video unavailable" text +
-// error icon when the source fails to load — user reported seeing that
-// overlay on broken video URLs (2026-06-02).  Plain Video has no built-in
-// error UI; we silently hide the post via videoErrored state.
+// react-native-video v6 supports both old and new architecture (RN 0.71+),
+// so the old RCTVideo view-manager availability check is no longer needed.
 import Video from 'react-native-video';
+
 const Body = ({ resourceUri, contentType, caption, userData }) => {
   const navigation = useNavigation();
   const [textShown, setTextShown] = useState(false);
@@ -201,7 +199,6 @@ const Body = ({ resourceUri, contentType, caption, userData }) => {
                 resizeMode="cover"
                 repeat={false}
                 onError={() => setVideoErrored(true)}
-                ignoreSilentSwitch="ignore"
               />
               <TouchableOpacity style={styles.muteButton} onPress={toggleMute}>
                 <Icon name={muteIcon} size={24} color="white" />

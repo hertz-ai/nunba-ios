@@ -196,12 +196,21 @@ function parseCustomScheme(url) {
     if (oauthMatch) {
       const params = new URLSearchParams(oauthMatch[1] || '');
       const channelType = params.get('channel_type') || '';
-      if (!channelType) return null;  // require at minimum the channel
+      // #465: PKCE direct-from-provider redirects carry `code` + `state`
+      // but no `channel_type` (the provider doesn't know our channel
+      // taxonomy).  Accept either shape: legacy server-mediated form
+      // (channel_type + ok + message) OR PKCE form (code + state).
+      const code = params.get('code') || '';
+      const state = params.get('state') || '';
+      if (!channelType && !code && !state) return null;
       return {
         type: 'oauth_complete',
         channel_type: channelType,
-        ok: params.get('ok') === 'true',
-        message: params.get('message') || '',
+        ok: params.get('ok') === 'true' || (!!code && !params.get('error')),
+        message: params.get('message') || params.get('error_description') || '',
+        code,
+        state,
+        error: params.get('error') || '',
       };
     }
 
@@ -309,20 +318,39 @@ class DeepLinkService {
   }
 
   /**
-   * PR O — channel OAuth completion deep-link handler.
-   *
-   * Re-emits as DeviceEventEmitter('onAgentOAuthComplete') so the
-   * AgentOverlay's OAuthLinkCard auto-dismisses and any UX layer
-   * (toast, banner) can react.  No navigation — the OAuth flow leaves
-   * the user wherever they were when they tapped "Connect with X".
+   * Channel OAuth completion deep-link handler — routes by payload
+   * shape, since two independently-built OAuth designs share this one
+   * redirect_uri (`<scheme>://oauth-complete`) for every provider:
+   *   - PKCE (InAppOAuthService, #465): the app calls the provider
+   *     directly and the provider's own redirect carries `code` +
+   *     `state`. InAppOAuthService listens for 'oauth_complete' with
+   *     that exact shape to resume its pending token exchange.
+   *   - Legacy server-hop ("PR O"): a HARTOS server already did the
+   *     code exchange and redirects back with just the outcome
+   *     (`channel_type` + `ok` + `message`, no `code`). Consumed by
+   *     AgentOverlay's OAuthLinkCard via 'onAgentOAuthComplete'.
+   * Emitting unconditionally as 'onAgentOAuthComplete' (the old
+   * behavior) silently dropped every PKCE callback — nothing ever
+   * listened for it under that name/shape, so "Connect with X" just
+   * hung until the 5-minute timeout on every provider.
    */
   _handleOAuthComplete(parsed) {
     try {
-      DeviceEventEmitter.emit('onAgentOAuthComplete', {
-        channel_type: parsed.channel_type,
-        ok: !!parsed.ok,
-        message: parsed.message || '',
-      });
+      if (parsed.code && parsed.state) {
+        DeviceEventEmitter.emit('oauth_complete', {
+          state: parsed.state,
+          code: parsed.code,
+          ok: !parsed.error,
+          error: parsed.error || '',
+        });
+      }
+      if (parsed.channel_type) {
+        DeviceEventEmitter.emit('onAgentOAuthComplete', {
+          channel_type: parsed.channel_type,
+          ok: !!parsed.ok,
+          message: parsed.message || '',
+        });
+      }
       return { type: 'oauth_complete', ...parsed };
     } catch {
       return { error: 'Failed to dispatch oauth_complete' };

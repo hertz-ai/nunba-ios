@@ -37,8 +37,15 @@ import {
 // some host configurations (the symptom we hit: RN tree mounts an
 // outer wrapper but Text/ActivityIndicator never show).
 import {SafeAreaView, SafeAreaProvider} from 'react-native-safe-area-context';
-import {NavigationContainer, LinkingOptions} from '@react-navigation/native';
+import {
+  NavigationContainer,
+  LinkingOptions,
+  createNavigationContainerRef,
+} from '@react-navigation/native';
 import {createNativeStackNavigator} from '@react-navigation/native-stack';
+import {sendLoginOtp} from './js/shared/services/signupApi';
+import {ensureFreshHartosToken} from './js/shared/services/socialApi';
+import deepLinkService from './js/shared/services/deepLinkService';
 
 // ─── Vendored screens (all from js/shared/components/CommunityView/screens) ──
 // Import lazily so a single import-time error in one screen doesn't crash the
@@ -56,6 +63,7 @@ const AddPost                     = lazy(() => import('./js/shared/components/Co
 const ReportModal                 = lazy(() => import('./js/shared/components/CommunityView/components/Post/components/Header/ReportModal'));
 const ReportModalComment          = lazy(() => import('./js/shared/components/CommunityView/components/Post/components/Footer/ReportModalComment'));
 
+const PrivacySettingsScreen = lazy(() => import('./js/shared/components/CommunityView/screens/PrivacySettingsScreen'));
 const EncountersScreen            = lazy(() => import('./js/shared/components/CommunityView/screens/EncountersScreen'));
 // Screens that import react-native-maps — placeholder until Phase 5 (tier-2 native).
 // CreateMissedConnection + MissedConnectionDetail now probe react-native-maps
@@ -123,6 +131,7 @@ const ChannelSetupScreen          = lazy(() => import('./js/shared/components/Co
 // before the pod is added (the camera UI just doesn't render).
 const QRScannerScreen             = lazy(() => import('./js/shared/components/CommunityView/screens/QRScannerScreen'));
 const ConversationHistoryScreen   = lazy(() => import('./js/shared/components/CommunityView/screens/ConversationHistoryScreen'));
+const DirectChatScreen            = lazy(() => import('./js/shared/components/CommunityView/screens/DirectChatScreen'));
 
 const ProviderManagementScreen    = lazy(() => import('./js/shared/components/CommunityView/screens/ProviderManagementScreen'));
 
@@ -138,12 +147,18 @@ const InstitutionSignupScreen     = lazy(() => import('./js/shared/components/Co
 
 // Auth flow screens (Phase 4 — initial route when no token)
 const SignUpCombined              = lazy(() => import('./js/shared/components/SignUp/SignUpCombined'));
+// Reused (mode: 'relogin') as a top-level route when a stored access_token
+// has expired — see the 'SessionExpired' handler below. Registered here
+// (rather than only inside SignUpCombined's independent nav tree) so it
+// can navigate.goBack() to whatever screen actually hit the 401.
+const OtpVerification              = lazy(() => import('./js/shared/components/SignUp/OtpVerification'));
 
 // ─── Type-safe route param map ───────────────────────────────────
 
 type RootStackParamList = {
   // Auth
   SignUpCombined: undefined;
+  SessionRelogin: {identifier?: string; mode?: 'relogin'} | undefined;
   // Main
   MainScreen: undefined;
   ShareLanding: {token?: string};
@@ -204,10 +219,12 @@ type RootStackParamList = {
   Mindstory: undefined;
   AllFeatures: undefined;
   // Channels
+  PrivacySettings: undefined;
   ChannelBindings: undefined;
   ChannelSetup: undefined;
   QRScanner: undefined;                  // ← placeholder
   ConversationHistory: undefined;
+  DirectChat: {conversation_id: string; name?: string; avatar_url?: string | null};
   // Admin
   ProviderManagement: undefined;
   // Settings parity ports
@@ -222,6 +239,7 @@ type RootStackParamList = {
 };
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
+const navigationRef = createNavigationContainerRef<RootStackParamList>();
 
 // ─── Deep linking ────────────────────────────────────────────────
 
@@ -230,6 +248,7 @@ const linking: LinkingOptions<RootStackParamList> = {
   config: {
     screens: {
       MainScreen: '',
+      SessionRelogin: {path: 'login', parse: {mode: () => 'relogin'}},
       ShareLanding: 's/:token',
       PostDetail: 'p/:postId',
       Profile: 'profile/:userId?',
@@ -255,6 +274,7 @@ const linking: LinkingOptions<RootStackParamList> = {
       AgentHive: 'hive',
       AgentDashboard: 'agent/:agentId',
       Mindstory: 'mindstory',
+      PrivacySettings: 'privacy',
       ChannelBindings: 'channels',
     },
   },
@@ -417,6 +437,83 @@ function App(): React.JSX.Element {
     };
   }, [checkAuth]);
 
+  // deepLinkService owns the custom-scheme (hevolve://, nunba://,
+  // hevolveai://) parsing/routing that the OAuth PKCE flow, share
+  // links, referral links, and campaign links all depend on — see
+  // CommunityView.js's identical call on Android. iOS's App.tsx
+  // never mounts CommunityView (it builds its own navigator+screens
+  // directly), so without this, deepLinkService.init() was never
+  // called at all: no Linking.addEventListener('url', ...) listener
+  // ever got registered, and every incoming deep link went nowhere
+  // once it reached JS. React Navigation's own `linking` prop above
+  // (a separate, simpler path->screen mechanism) is unaffected by
+  // this and keeps working as before.
+  useEffect(() => {
+    deepLinkService.init(navigationRef, isAuthed);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- register once; auth-state changes are propagated via setAuthenticated below, not by re-calling init (which would leak a duplicate Linking listener per call).
+  }, []);
+
+  useEffect(() => {
+    deepLinkService.setAuthenticated(isAuthed);
+  }, [isAuthed]);
+
+  // Global session-expiry handler. socialApi.js emits 'SessionExpired' the
+  // first time any authenticated call gets the backend's 401 "Invalid or
+  // expired token" (the Keychain access_token aged out).
+  //
+  // 2026-07-13 — the actual Hevolve-refresh + HARTOS-relink dance now lives
+  // in socialApi.js's ensureFreshHartosToken(), shared with _authedFetch's
+  // own retry-after-401 path (every /api/social/*, /api/coding/*, etc. call
+  // silently retries once through the SAME refresh before this handler even
+  // fires for most cases). This listener stays as the fallback for the
+  // rarer case that needs full user interaction — a stale account with no
+  // refreshable Hevolve token — where a fresh OTP is unavoidable.
+  //
+  // Note: previously this handler treated a successful Hevolve-token
+  // refresh as "silent success" even if the followup HARTOS re-link failed,
+  // which could leave a stale HARTOS token in place while suppressing the
+  // OTP fallback. ensureFreshHartosToken() requires BOTH steps to actually
+  // succeed before reporting success, closing that gap.
+  useEffect(() => {
+    let handling = false;
+    const sub = DeviceEventEmitter.addListener('SessionExpired', async () => {
+      if (handling) return;
+      handling = true;
+      try {
+        const fresh = await ensureFreshHartosToken();
+        if (fresh) return; // silent success — no OTP, no navigation
+
+        const m = NativeModules.OnboardingModule;
+        const [, email, phone] =
+          typeof m?.getStudentNameAndEmail === 'function'
+            ? await new Promise<[string | null, string | null, string | null]>(
+                resolve => {
+                  m.getStudentNameAndEmail((nm: any, em: any, ph: any) =>
+                    resolve([nm, em, ph]),
+                  );
+                },
+              )
+            : [null, null, null];
+
+        const identifier = phone || email;
+        if (!identifier) return; // no saved contact to re-auth with
+        await sendLoginOtp(identifier);
+        if (navigationRef.isReady()) {
+          navigationRef.navigate('SessionRelogin', {
+            identifier,
+            mode: 'relogin',
+          });
+        }
+      } catch (_) {
+        // Best-effort — the same 401 will just fire 'SessionExpired' again
+        // on the user's next action.
+      } finally {
+        handling = false;
+      }
+    });
+    return () => sub.remove();
+  }, []);
+
   if (!authReady) {
     return (
       <SafeAreaView style={styles.root}>
@@ -429,7 +526,7 @@ function App(): React.JSX.Element {
   }
 
   return (
-    <NavigationContainer linking={linking}>
+    <NavigationContainer ref={navigationRef} linking={linking}>
       {/* Stable accessibility marker for the smoke test.  Decouples
           XCUITests from splash-hold timing: SmokeUITests.swift can
           wait for app.staticTexts["root-loaded"] / the
@@ -456,6 +553,11 @@ function App(): React.JSX.Element {
           component={withGuards(SignUpCombined, 'SignUpCombined')}
           options={{title: 'Welcome'}}
         />
+        <Stack.Screen
+          name="SessionRelogin"
+          component={withGuards(OtpVerification, 'SessionRelogin')}
+          options={{presentation: 'modal', headerShown: true, title: 'Verify to continue', gestureEnabled: false}}
+        />
 
         {/* Main */}
         <Stack.Screen name="MainScreen" component={withGuards(MainScreen, 'MainScreen')} options={{title: 'Nunba Companion'}} />
@@ -467,6 +569,7 @@ function App(): React.JSX.Element {
         <Stack.Screen name="Report" component={withGuards(ReportModal, 'Report')} />
         <Stack.Screen name="ReportComment" component={withGuards(ReportModalComment, 'ReportComment')} />
 
+        <Stack.Screen name="PrivacySettings" component={withGuards(PrivacySettingsScreen, "PrivacySettings")} options={{headerShown: true, title: "Privacy"}} />
         {/* Encounters */}
         <Stack.Screen name="Encounters" component={withGuards(EncountersScreen, 'Encounters')} options={{animation: 'fade'}} />
         <Stack.Screen name="CreateMissedConnection" component={withGuards(CreateMissedConnectionScreen, 'CreateMissedConnection')} />
@@ -530,6 +633,7 @@ function App(): React.JSX.Element {
         <Stack.Screen name="ChannelSetup" component={withGuards(ChannelSetupScreen, 'ChannelSetup')} />
         <Stack.Screen name="QRScanner" component={withGuards(QRScannerScreen, 'QRScanner')} />
         <Stack.Screen name="ConversationHistory" component={withGuards(ConversationHistoryScreen, 'ConversationHistory')} />
+        <Stack.Screen name="DirectChat" component={withGuards(DirectChatScreen, 'DirectChat')} options={{headerShown: false}} />
 
         {/* Admin */}
         <Stack.Screen name="ProviderManagement" component={withGuards(ProviderManagementScreen, 'ProviderManagement')} />
