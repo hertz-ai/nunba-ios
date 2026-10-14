@@ -329,3 +329,22 @@ describe('IcebreakerDraftSheet — Break the ice on a GPS match', () => {
     expect(bleEncounterApi.declineIcebreaker).toHaveBeenCalledWith('pm-1', 'Not feeling it', 'proximity');
   });
 });
+
+describe('server error envelopes', () => {
+  test('draft reports the server error instead of an empty draft', async () => {
+    bleEncounterApi.draftIcebreaker.mockResolvedValue({success: false, error: 'match not found'});
+    let tree;
+    await act(async () => { tree = create(React.createElement(IcebreakerDraftSheet, {open: true, match: sampleMatch, onClose: jest.fn()})); });
+    expect(JSON.stringify(tree.toJSON())).toContain('match not found');
+    expect(JSON.stringify(tree.toJSON())).not.toContain('No draft returned.');
+  });
+  test('a rejected approve never reports sent', async () => {
+    bleEncounterApi.approveIcebreaker.mockResolvedValue({success: false, error: 'conversations feature flag is off'});
+    const onSent = jest.fn();
+    let tree;
+    await act(async () => { tree = create(React.createElement(IcebreakerDraftSheet, {open: true, match: sampleMatch, onClose: jest.fn(), onSent})); });
+    await act(async () => { await tree.root.findByProps({testID: 'icebreaker-send'}).props.onPress(); });
+    expect(onSent).not.toHaveBeenCalled();
+    expect(JSON.stringify(tree.toJSON())).toContain('conversations feature flag is off');
+  });
+});

@@ -63,6 +63,7 @@ const AddPost                     = lazy(() => import('./js/shared/components/Co
 const ReportModal                 = lazy(() => import('./js/shared/components/CommunityView/components/Post/components/Header/ReportModal'));
 const ReportModalComment          = lazy(() => import('./js/shared/components/CommunityView/components/Post/components/Footer/ReportModalComment'));
 
+const PrivacySettingsScreen = lazy(() => import('./js/shared/components/CommunityView/screens/PrivacySettingsScreen'));
 const EncountersScreen            = lazy(() => import('./js/shared/components/CommunityView/screens/EncountersScreen'));
 // Screens that import react-native-maps — placeholder until Phase 5 (tier-2 native).
 // CreateMissedConnection + MissedConnectionDetail now probe react-native-maps
@@ -218,6 +219,7 @@ type RootStackParamList = {
   Mindstory: undefined;
   AllFeatures: undefined;
   // Channels
+  PrivacySettings: undefined;
   ChannelBindings: undefined;
   ChannelSetup: undefined;
   QRScanner: undefined;                  // ← placeholder
@@ -246,6 +248,7 @@ const linking: LinkingOptions<RootStackParamList> = {
   config: {
     screens: {
       MainScreen: '',
+      SessionRelogin: {path: 'login', parse: {mode: () => 'relogin'}},
       ShareLanding: 's/:token',
       PostDetail: 'p/:postId',
       Profile: 'profile/:userId?',
@@ -271,6 +274,7 @@ const linking: LinkingOptions<RootStackParamList> = {
       AgentHive: 'hive',
       AgentDashboard: 'agent/:agentId',
       Mindstory: 'mindstory',
+      PrivacySettings: 'privacy',
       ChannelBindings: 'channels',
     },
   },
@@ -565,6 +569,7 @@ function App(): React.JSX.Element {
         <Stack.Screen name="Report" component={withGuards(ReportModal, 'Report')} />
         <Stack.Screen name="ReportComment" component={withGuards(ReportModalComment, 'ReportComment')} />
 
+        <Stack.Screen name="PrivacySettings" component={withGuards(PrivacySettingsScreen, "PrivacySettings")} options={{headerShown: true, title: "Privacy"}} />
         {/* Encounters */}
         <Stack.Screen name="Encounters" component={withGuards(EncountersScreen, 'Encounters')} options={{animation: 'fade'}} />
         <Stack.Screen name="CreateMissedConnection" component={withGuards(CreateMissedConnectionScreen, 'CreateMissedConnection')} />

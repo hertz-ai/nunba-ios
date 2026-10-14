@@ -29,7 +29,7 @@ const OtpVerification = ({ navigation, route, rootNavigation }) => {
   const params = route?.params || {};
   // The verify identifier: phone, or the email when the server said the OTP
   // went by email (verification_method === 'email').
-  const identifier =
+  const routeIdentifier =
     params.verificationMethod === 'email' && params.email
       ? String(params.email).trim()
       : params.identifier;
@@ -41,6 +41,16 @@ const OtpVerification = ({ navigation, route, rootNavigation }) => {
   // same screen as a plain top-level route — no rootNavigation prop, no
   // signup account to create. Verifying just refreshes the token in place.
   const isRelogin = params.mode === 'relogin';
+  const [savedIdentifier, setSavedIdentifier] = useState(null);
+  const identifier = routeIdentifier || savedIdentifier;
+  useEffect(() => {
+    if (!isRelogin || routeIdentifier) return;
+    let active = true;
+    OnboardingModule.getStudentNameAndEmail((_name, email, phone) => {
+      if (active) setSavedIdentifier(phone || email || null);
+    });
+    return () => { active = false; };
+  }, [isRelogin, routeIdentifier]);
 
   const [resendSeconds, setResendSeconds] = useState(0);
   useEffect(() => {

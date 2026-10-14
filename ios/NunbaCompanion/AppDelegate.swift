@@ -22,6 +22,14 @@ class AppDelegate: RCTAppDelegate {
     _ application: UIApplication,
     didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]? = nil
   ) -> Bool {
+    #if DEBUG
+    // Explicit local testing action: reset only this app's login tokens.
+    if ProcessInfo.processInfo.arguments.contains("--reset-login") {
+      OnboardingModule.writeToken(nil)
+      OnboardingModule.writeHartosToken(nil)
+    }
+    #endif
+
     // Disable RN dev mode at the RCTBundleURLProvider level BEFORE
     // super.application is invoked. Without this, Debug builds set
     // RCT_enableDev=1 in NSUserDefaults, which makes RN ignore our

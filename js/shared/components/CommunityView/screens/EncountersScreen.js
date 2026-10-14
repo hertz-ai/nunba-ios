@@ -594,7 +594,7 @@ const EncountersScreen = () => {
           <Ionicons name="arrow-back" size={24} color="#FFF" />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Encounters</Text>
-        <View style={styles.headerSpacer} />
+        <TouchableOpacity accessibilityRole="button" accessibilityLabel="Privacy settings" testID="encounters-privacy" onPress={() => navigation.navigate("PrivacySettings")}><Text style={{color: "#FFF"}}>Privacy</Text></TouchableOpacity>
       </View>
       {/* BLE consent panel — RN parity for the web SPA's
           DiscoverableTogglePanel (commit 5a705452 / F1 GREENLIT).

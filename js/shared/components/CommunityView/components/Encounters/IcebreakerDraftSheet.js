@@ -91,6 +91,15 @@ const DECLINE_REASONS = ['Not feeling it', 'Already met', 'Too late', 'Other'];
 const AUTO_CLOSE_SENT_MS = 1200;
 const AUTO_CLOSE_DECLINE_MS = 2000;
 
+// socialApi returns server error envelopes instead of throwing.
+const confirmIcebreakerResponse = (result) => {
+  if (!result || result.success === false || result.error) {
+    throw new Error(typeof result?.error === 'string'
+      ? result.error : 'The server could not complete this request. Please retry.');
+  }
+  return result.data || {};
+};
+
 const IcebreakerDraftSheet = ({ open, match, viewer, onClose, onSent, onOpenChat }) => {
   const [state, setState] = useState(STATE.LOADING);
   const [drafts, setDrafts] = useState([]); // [primary, alt1, alt2]
@@ -130,7 +139,7 @@ const IcebreakerDraftSheet = ({ open, match, viewer, onClose, onSent, onOpenChat
       try {
         const result = await bleEncounterApi.draftIcebreaker(match.id, match.kind);
         if (cancelled || !mounted.current) return;
-        const data = result?.data || {};
+        const data = confirmIcebreakerResponse(result);
         // Already broke the ice with them: the chat is the next step,
         // not a second opener.
         if (data.conversation_id && typeof onOpenChatRef.current === 'function') {
@@ -207,6 +216,7 @@ const IcebreakerDraftSheet = ({ open, match, viewer, onClose, onSent, onOpenChat
     try {
       const result = await bleEncounterApi.approveIcebreaker(match.id, editedText, match.kind);
       if (!mounted.current) return;
+      confirmIcebreakerResponse(result);
       setState(STATE.SENT);
       // conversation_id: the DM the approved text landed in (null when
       // the server has DMs off).
@@ -230,7 +240,8 @@ const IcebreakerDraftSheet = ({ open, match, viewer, onClose, onSent, onOpenChat
       setState(STATE.SENDING);
       setError(null);
       try {
-        await bleEncounterApi.declineIcebreaker(match.id, reason, match.kind);
+        const result = await bleEncounterApi.declineIcebreaker(match.id, reason, match.kind);
+        confirmIcebreakerResponse(result);
         if (!mounted.current) return;
         setState(STATE.SENT_DECLINE);
         scheduleAutoClose(AUTO_CLOSE_DECLINE_MS);
@@ -257,7 +268,7 @@ const IcebreakerDraftSheet = ({ open, match, viewer, onClose, onSent, onOpenChat
       .draftIcebreaker(match.id, match.kind)
       .then((result) => {
         if (!mounted.current) return;
-        const data = result?.data || {};
+        const data = confirmIcebreakerResponse(result);
         if (data.conversation_id && typeof onOpenChatRef.current === 'function') {
           onOpenChatRef.current(data.conversation_id);
           return;
