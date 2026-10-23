@@ -90,7 +90,8 @@ const ExperimentDiscoveryScreen = () => {
     encountersApi
       .nearbyCount()
       .then((r) => {
-        if (r?.data?.count) setNearbyCount(r.data.count);
+        // HARTOS answers {success, data: {nearby_count}}.
+        if (typeof r?.data?.nearby_count === 'number') setNearbyCount(r.data.nearby_count);
       })
       .catch(() => {});
   }, []);

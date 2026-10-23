@@ -50,6 +50,18 @@ target 'NunbaCompanion' do
     installer.pods_project.targets.each do |target|
       target.build_configurations.each do |config|
         config.build_settings['IPHONEOS_DEPLOYMENT_TARGET'] = '15.1'
+
+        # glog vendors an older fmt whose FMT_COMPILE_STRING format-string
+        # checks are compile-time `consteval` calls; Xcode 26.6's stricter
+        # C++20 Clang rejects them ("not a constant expression"). fmt's own
+        # base.h defines FMT_CONSTEVAL from the __cpp_consteval feature
+        # macro (gated on C++20), overriding any command-line -D, so the
+        # only real fix is compiling this target below C++20 so consteval
+        # is never in play.
+        if target.name == 'fmt'
+          config.build_settings['CLANG_CXX_LANGUAGE_STANDARD'] = 'gnu++17'
+        end
+
         if target.name.start_with?('React') ||
            target.name == 'RCTRequired' ||
            target.name == 'RCTTypeSafety' ||

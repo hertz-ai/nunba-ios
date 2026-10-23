@@ -26,7 +26,7 @@ let _resolving = null;  // dedup concurrent calls
 export async function getApiBase() {
   // Return cache if fresh
   if (_cached && (Date.now() - _cached.resolvedAt) < CACHE_TTL_MS) {
-    return { url: _cached.url, source: _cached.source };
+    return _fromCache();
   }
 
   // Dedup: if already resolving, wait for the same promise
@@ -39,6 +39,11 @@ export async function getApiBase() {
   } finally {
     _resolving = null;
   }
+}
+
+function _fromCache() {
+  const {url, source, credential} = _cached;
+  return credential ? {url, source, credential} : {url, source};
 }
 
 async function _doResolve() {
@@ -56,8 +61,8 @@ async function _doResolve() {
   try {
     const peer = await NativeModules.PeerLinkModule.getApiBase();
     if (peer && peer.url) {
-      _cached = { url: peer.url, source: peer.source || 'lan', resolvedAt: Date.now() };
-      return { url: peer.url, source: peer.source || 'lan' };
+      _cached = { url: peer.url, source: peer.source || 'lan', credential: peer.credential, resolvedAt: Date.now() };
+      return _fromCache();
     }
   } catch (_) {
     // PeerLink not started yet or native module unavailable

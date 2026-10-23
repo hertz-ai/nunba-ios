@@ -39,7 +39,7 @@
 //    getStatus()                            → connection state dict
 //    getDiscoveredPeers()                  → array of peer dicts
 //    isReady()                              → bool — handshake complete
-//    getApiBase()                           → string URL of best peer
+//    getApiBase()                           → {url, source, credential?}
 //
 
 import Foundation
@@ -54,6 +54,7 @@ final class PeerLinkModule: NSObject {
   /// Default HARTOS cloud endpoint — used both as the discovery
   /// fallback peer and as the default getApiBase() value.
   static let cloudFallbackURL = URL(string: "https://azurekong.hertzai.com")!
+  static let preferredDesktopKey = "com.hertzai.nunbacompanion.desktopEndpoint"
   static let cloudFallbackWS = URL(string: "wss://azurekong.hertzai.com:8445/ws")!
 
   // MARK: — State
@@ -95,6 +96,7 @@ final class PeerLinkModule: NSObject {
   /// 2026-06-04; see PeerLinkDiscovery.swift + HARTOS/docs/architecture/
   /// peer_discovery_spec.md.
   private var discoveredPeers: [Peer] = []
+  private let discoveryLock = NSLock()
 
   /// LAN discovery instance.  Lazily created so the UDP socket isn't
   /// bound until JS calls start().  Lifetime tied to PeerLinkModule.shared.
@@ -102,6 +104,8 @@ final class PeerLinkModule: NSObject {
 
   struct Peer {
     let address: String
+    let backendUrl: String
+    let seenAt: Date
     let wsPort: Int
     let wsUrl: String
     let method: String  // "UDP_BEACON" | "MDNS" | "GOSSIP" | "CLOUD"
@@ -131,9 +135,12 @@ final class PeerLinkModule: NSObject {
 
     // Cloud peer is always available; populate it so getDiscoveredPeers
     // returns at least one option even if local discovery is silent.
+    discoveryLock.lock()
     if !discoveredPeers.contains(where: { $0.method == "CLOUD" }) {
       discoveredPeers.append(Peer(
         address: Self.cloudFallbackURL.host ?? "azurekong.hertzai.com",
+        backendUrl: Self.cloudFallbackURL.absoluteString,
+        seenAt: Date(),
         wsPort: 8445,
         wsUrl: Self.cloudFallbackWS.absoluteString,
         method: "CLOUD",
@@ -141,6 +148,7 @@ final class PeerLinkModule: NSObject {
       ))
     }
 
+    discoveryLock.unlock()
     state = .connecting
 
     // 2026-06-04: real LAN discovery (was Phase-2 TODO).  Listens on
@@ -154,17 +162,14 @@ final class PeerLinkModule: NSObject {
       let d = PeerLinkDiscovery(ownNodeId: nodeId)
       d.onPeerDiscovered = { [weak self] peer in
         guard let self = self else { return }
-        let wsUrl = peer.wsUrl
-        let already = self.discoveredPeers.contains { $0.address == peer.address }
-        if !already {
-          self.discoveredPeers.insert(Peer(
-            address: peer.address,
-            wsPort: peer.wsPort,
-            wsUrl: wsUrl,
-            method: "UDP_BEACON",
-            trustLevel: "SAME_USER"
-          ), at: 0)
-        }
+        self.discoveryLock.lock()
+        self.discoveredPeers.removeAll { $0.address == peer.address && $0.method != "CLOUD" }
+        self.discoveredPeers.insert(Peer(
+          address: peer.address, backendUrl: peer.backendUrl, seenAt: Date(),
+          wsPort: peer.wsPort, wsUrl: peer.wsUrl,
+          method: "UDP_BEACON", trustLevel: "PEER"
+        ), at: 0)
+        self.discoveryLock.unlock()
       }
       d.start()
       discovery = d
@@ -538,9 +543,13 @@ final class PeerLinkModule: NSObject {
     _ resolve: @escaping RCTPromiseResolveBlock,
     rejecter reject: @escaping RCTPromiseRejectBlock
   ) {
-    let arr = discoveredPeers.map { p in
+    discoveryLock.lock()
+    let peers = discoveredPeers
+    discoveryLock.unlock()
+    let arr = peers.map { p in
       [
         "address": p.address,
+        "backendUrl": p.backendUrl,
         "wsPort": p.wsPort,
         "wsUrl": p.wsUrl,
         "method": p.method,
@@ -558,19 +567,100 @@ final class PeerLinkModule: NSObject {
     resolve(state == .ready)
   }
 
+  /// An explicit desktop address for networks that block UDP discovery.
+  /// This selects a transport only; the desktop still requires device consent.
+  @objc(setDesktopEndpoint:resolver:rejecter:)
+  func setDesktopEndpoint(_ address: String,
+                          resolver resolve: @escaping RCTPromiseResolveBlock,
+                          rejecter reject: @escaping RCTPromiseRejectBlock) {
+    let trimmed = address.trimmingCharacters(in: .whitespacesAndNewlines)
+    if trimmed.isEmpty {
+      UserDefaults.standard.removeObject(forKey: Self.preferredDesktopKey)
+      resolve(true)
+      return
+    }
+    guard let url = Self.validDesktopEndpoint(trimmed) else {
+      reject("DESKTOP_BAD_ADDRESS", "Enter a local desktop HTTP address, without a path or login details.", nil)
+      return
+    }
+    Self.checkDesktopHTTP(url) { reachable in
+      guard reachable else {
+        reject("DESKTOP_UNREACHABLE", "Cannot reach Nunba at this address. Keep both devices on the same network.", nil)
+        return
+      }
+      UserDefaults.standard.set(url, forKey: Self.preferredDesktopKey)
+      resolve(true)
+    }
+  }
+
+  static func validDesktopEndpoint(_ address: String) -> String? {
+    guard let parts = URLComponents(string: address),
+          ["http", "https"].contains(parts.scheme ?? ""), let host = parts.host,
+          parts.user == nil, parts.password == nil, parts.query == nil, parts.fragment == nil,
+          parts.path.isEmpty || parts.path == "/",
+          parts.port == nil || (1...65535).contains(parts.port!) else { return nil }
+    let pieces = host.split(separator: ".", omittingEmptySubsequences: false)
+    let octets = pieces.compactMap { Int($0) }
+    let privateV4 = pieces.count == 4 && octets.count == 4 && octets.allSatisfy { (0...255).contains($0) } &&
+      (octets[0] == 10 || (octets[0] == 172 && (16...31).contains(octets[1])) ||
+       (octets[0] == 192 && octets[1] == 168))
+    guard privateV4 || host.lowercased().hasSuffix(".local") else { return nil }
+    guard let url = parts.url?.absoluteString else { return nil }
+    return url.hasSuffix("/") ? String(url.dropLast()) : url
+  }
+
+  private static func checkDesktopHTTP(_ base: String, completion: @escaping (Bool) -> Void) {
+    guard let url = URL(string: base + "/health") else { completion(false); return }
+    let request = URLRequest(url: url, cachePolicy: .reloadIgnoringLocalCacheData, timeoutInterval: 3)
+    URLSession.shared.dataTask(with: request) { data, response, _ in
+      let body = data.flatMap { try? JSONSerialization.jsonObject(with: $0) as? [String: Any] }
+      completion((response as? HTTPURLResponse)?.statusCode == 200 && (body?["status"] as? String).map { ["ok", "alive"].contains($0) } == true)
+    }.resume()
+  }
+
   @objc(getApiBase:rejecter:)
   func getApiBase(
     _ resolve: @escaping RCTPromiseResolveBlock,
     rejecter reject: @escaping RCTPromiseRejectBlock
   ) {
-    // Prefer the connected peer; fall back to cloud.
-    if let url = ws?.originalRequest?.url?.absoluteString, !url.isEmpty {
-      let httpUrl = url.replacingOccurrences(of: "ws://", with: "http://")
-                       .replacingOccurrences(of: "wss://", with: "https://")
-      resolve(httpUrl)
-    } else {
-      resolve(Self.cloudFallbackURL.absoluteString)
+    // Start discovery even when JS has not opened a WebSocket session.
+    if state == .idle { start({ _ in }, rejecter: { _, _, _ in }) }
+    discoveryLock.lock()
+    let peers = Array(discoveredPeers.filter {
+      $0.method != "CLOUD" && Date().timeIntervalSince($0.seenAt) < 90
+    }.prefix(3))
+    discoveryLock.unlock()
+    guard let userId = OnboardingModule.persistedUserId(), !userId.isEmpty,
+          let key = PeerLinkCrypto.loadOrCreateIdentity(),
+          let token = try? PeerLinkCrypto.deviceToken(userId: userId,
+            username: UserDefaults.standard.string(forKey: OnboardingModule.studentNameDefaultsKey) ?? "",
+            identity: key) else {
+      resolve(["url": Self.cloudFallbackURL.absoluteString, "source": "cloud"])
+      return
     }
+    if let saved = UserDefaults.standard.string(forKey: Self.preferredDesktopKey),
+       let url = Self.validDesktopEndpoint(saved) {
+      NSLog("[PeerLink] API source=lan endpoint=%@ (selected desktop)", url)
+      resolve(["url": url, "source": "lan", "credential": token])
+      return
+    }
+    // A beacon can come from another phone or a stopped backend. Probe the
+    // advertised HTTP service without credentials before selecting it.
+    func probe(_ index: Int) {
+      guard index < peers.count else {
+        NSLog("[PeerLink] API source=cloud; no reachable discovered HTTP backend")
+        resolve(["url": Self.cloudFallbackURL.absoluteString, "source": "cloud"])
+        return
+      }
+      let peer = peers[index]
+      Self.checkDesktopHTTP(peer.backendUrl) { reachable in
+        if reachable {
+          NSLog("[PeerLink] API source=lan endpoint=%@", peer.backendUrl)
+          resolve(["url": peer.backendUrl, "source": "lan", "credential": token])
+        } else { probe(index + 1) }
+      }
+    }
+    probe(0)
   }
 
   // MARK: — Test affordances (DEBUG-only — Release builds skip these)
