@@ -73,6 +73,13 @@ export function isVerifySuccess(otpResponse) {
   return !!otpResponse && otpResponse.user_id != null;
 }
 
+// Keychain tokens can survive uninstall while UserDefaults account IDs do
+// not. Such a partial restore must request login, not open the Home screen.
+export function isCompleteSession(token, userId) {
+  return typeof token === 'string' && token.trim().length > 0 &&
+    typeof userId === 'string' && userId.trim().length > 0;
+}
+
 // Silently mint a fresh access_token for an already-verified user, no OTP
 // needed. There is no `refresh_token` STRING to redeem (client_credentials
 // grants never issue one — see get_access_token in Hevolve's sql/otp.py),

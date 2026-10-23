@@ -42,6 +42,8 @@ const OtpVerification = ({ navigation, route, rootNavigation }) => {
   // signup account to create. Verifying just refreshes the token in place.
   const isRelogin = params.mode === 'relogin';
   const [savedIdentifier, setSavedIdentifier] = useState(null);
+  const [loginIdentifier, setLoginIdentifier] = useState('');
+  const [loginError, setLoginError] = useState('');
   const identifier = routeIdentifier || savedIdentifier;
   useEffect(() => {
     if (!isRelogin || routeIdentifier) return;
@@ -189,6 +191,32 @@ const OtpVerification = ({ navigation, route, rootNavigation }) => {
       setBusy(false);
     }
   };
+
+  if (isRelogin && !identifier) {
+    const requestCode = async () => {
+      if (busy || !loginIdentifier.trim()) return;
+      setBusy(true);
+      setLoginError('');
+      try {
+        await sendLoginOtp(loginIdentifier.trim());
+        setSavedIdentifier(loginIdentifier.trim());
+        setResendSeconds(30);
+      } catch (_) { setLoginError('Could not send a code. Check your connection and try again.'); }
+      finally { setBusy(false); }
+    };
+    return (
+      <View style={styles.container}>
+        <Text style={styles.title}>Sign in again</Text>
+        <Text style={styles.subtitle}>Enter the email or phone number you use on Nunba desktop.</Text>
+        <TextInput accessibilityLabel="Login email or phone" value={loginIdentifier} onChangeText={setLoginIdentifier}
+          autoCapitalize="none" autoCorrect={false} keyboardType="email-address" style={styles.otpInput} />
+        {!!loginError && <Text accessibilityRole="alert">{loginError}</Text>}
+        <TouchableOpacity accessibilityRole="button" accessibilityLabel="Send login code" style={styles.btn} onPress={requestCode} disabled={busy || !loginIdentifier.trim()}>
+          <Text style={styles.btnText}>{busy ? 'Sending…' : 'Send code'}</Text>
+        </TouchableOpacity>
+      </View>
+    );
+  }
 
   return (
     <View style={styles.container}>

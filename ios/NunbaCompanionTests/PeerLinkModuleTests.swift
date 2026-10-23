@@ -112,7 +112,10 @@ final class PeerLinkModuleTests: XCTestCase {
   func test_getApiBase_returnsCloudFallbackWhenNotConnected() {
     let exp = expectation(description: "")
     module.getApiBase({ result in
-      let url = result as? String ?? ""
+      let resolution = result as? [String: Any] ?? [:]
+      let url = resolution["url"] as? String ?? ""
+      XCTAssertEqual(resolution["source"] as? String, "cloud")
+      XCTAssertNil(resolution["credential"])
       XCTAssertTrue(url.contains("azurekong.hertzai.com"),
                     "Should fall back to cloud URL when no peer is connected")
       exp.fulfill()
@@ -218,4 +221,12 @@ final class PeerLinkModuleTests: XCTestCase {
   func test_requiresMainQueueSetup_isFalse() {
     XCTAssertFalse(PeerLinkModule.requiresMainQueueSetup())
   }
+  func test_manualDesktopAddressIsLocalAndContainsNoCredentials() {
+    XCTAssertEqual(PeerLinkModule.validDesktopEndpoint("http://172.20.10.13:5000/"), "http://172.20.10.13:5000")
+    XCTAssertEqual(PeerLinkModule.validDesktopEndpoint("http://my-desktop.local:5000"), "http://my-desktop.local:5000")
+    for bad in ["https://azurekong.hertzai.com", "http://example.com", "http://user:pass@192.168.0.1:5000", "http://192.168.0.1:5000/api", "file:///tmp/test"] {
+      XCTAssertNil(PeerLinkModule.validDesktopEndpoint(bad))
+    }
+  }
+
 }

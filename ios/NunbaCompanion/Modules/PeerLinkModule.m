@@ -54,4 +54,8 @@ RCT_EXTERN_METHOD(isReady:(RCTPromiseResolveBlock)resolve
 RCT_EXTERN_METHOD(getApiBase:(RCTPromiseResolveBlock)resolve
                   rejecter:(RCTPromiseRejectBlock)reject)
 
+RCT_EXTERN_METHOD(setDesktopEndpoint:(NSString *)address
+                  resolver:(RCTPromiseResolveBlock)resolve
+                  rejecter:(RCTPromiseRejectBlock)reject)
+
 @end

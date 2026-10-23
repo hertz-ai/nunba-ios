@@ -104,3 +104,13 @@ test('only confirmed server state turns Discoverable on without overwriting inte
   expect(toggle().props.value).toBe(true);
   expect(bleEncounterApi.setDiscoverable).toHaveBeenCalledWith({enabled: true, age_claim_18: true});
 });
+
+test('a desktop device-approval request tells the user where to allow the phone', async () => {
+  bleEncounterApi.setDiscoverable.mockResolvedValue({success: false, error: 'consent_pending'});
+  await mount();
+  await act(async () => root.root.findByType('TouchableOpacity').props.onPress());
+  await act(async () => toggle().props.onValueChange(true));
+  expect(toggle().props.value).toBe(false);
+  expect(JSON.stringify(root.toJSON())).toContain('Privacy settings');
+  expect(JSON.stringify(root.toJSON())).not.toContain('server rejected your login');
+});

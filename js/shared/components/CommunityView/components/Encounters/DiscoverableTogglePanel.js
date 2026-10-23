@@ -203,7 +203,11 @@ const DiscoverableTogglePanel = () => {
           msg.includes('JSON Parse error') ||
           msg.includes('Unexpected token') ||
           msg.includes('Unexpected character');
-        if (authRejected(msg)) {
+        if (msg === 'consent_pending') {
+          setError('Allow this iPhone in Nunba desktop’s Privacy settings, then try again.');
+        } else if (msg === 'consent_denied') {
+          setError('This iPhone is blocked in Nunba desktop’s Privacy settings. Allow it there before retrying.');
+        } else if (authRejected(msg)) {
           setError(AUTH_ERROR);
         } else if (msg.includes('429') || msg.includes('toggle limit')) {
           setRateLimited(true);

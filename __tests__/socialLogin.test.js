@@ -2,6 +2,7 @@ jest.mock('react-native', () => ({
   NativeModules: {OnboardingModule: {
     getAccessToken: jest.fn(cb => cb('hevolve-test-token')),
     getUser_id: jest.fn(cb => cb('123')),
+    getHartosToken: jest.fn(cb => cb('cloud-social-token')),
     getStudentNameAndEmail: jest.fn(cb => cb('Demo', 'demo@example.test', '')),
     setHartosToken: jest.fn(async () => {}),
   }},
@@ -9,17 +10,18 @@ jest.mock('react-native', () => ({
 }));
 jest.mock('axios', () => ({create: () => ({post: jest.fn()})}));
 jest.mock('../js/shared/services/endpointResolver', () => ({
-  __esModule: true, default: {getApiBaseUrl: jest.fn(async () => 'https://azurekong.hertzai.com')},
+  __esModule: true, default: {getApiBaseUrl: jest.fn(async () => 'https://azurekong.hertzai.com'), getApiBase: jest.fn(async () => ({url: 'https://azurekong.hertzai.com', source: 'cloud'}))},
 }));
-jest.mock('../js/shared/services/apiCache', () => ({wrap: jest.fn(), bust: jest.fn()}));
+jest.mock('../js/shared/services/apiCache', () => ({wrap: jest.fn((key, value, ttl, fn) => fn()), bust: jest.fn()}));
 const {NativeModules} = require('react-native');
 const resolver = require('../js/shared/services/endpointResolver').default;
 const {linkHevolveAccount} = require('../js/shared/services/signupApi');
-const {ensureFreshHartosToken} = require('../js/shared/services/socialApi');
+const {ensureFreshHartosToken, bleEncounterApi} = require('../js/shared/services/socialApi');
 const account = {email: 'demo@example.test', hevolveUserId: 123};
 beforeEach(() => {
   jest.clearAllMocks();
   resolver.getApiBaseUrl.mockResolvedValue('https://azurekong.hertzai.com');
+  resolver.getApiBase.mockResolvedValue({url: 'https://azurekong.hertzai.com', source: 'cloud'});
   NativeModules.OnboardingModule.getAccessToken.mockImplementation(cb => cb('hevolve-test-token'));
   global.fetch = jest.fn(async () => ({ok: true, status: 200, json: async () => ({success: true, data: {token: 'social-test-token'}})}));
 });
@@ -52,4 +54,22 @@ test('account switch during exchange cannot install stale social token', async (
   NativeModules.OnboardingModule.getAccessToken.mockImplementationOnce(cb => cb('old')).mockImplementation(cb => cb('new'));
   expect(await ensureFreshHartosToken()).toBeNull();
   expect(NativeModules.OnboardingModule.setHartosToken).not.toHaveBeenCalled();
+});
+
+test('LAN encounters use only the credential paired with that endpoint', async () => {
+ resolver.getApiBaseUrl.mockResolvedValue('http://192.168.1.5:5000');
+ resolver.getApiBase.mockResolvedValue({url: 'http://192.168.1.5:5000', source: 'lan', credential: 'device-proof'});
+ await bleEncounterApi.getDiscoverable();
+ expect(fetch).toHaveBeenCalledWith('http://192.168.1.5:5000/api/social/encounter/discoverable', expect.objectContaining({headers: expect.objectContaining({Authorization: 'Bearer device-proof'})}));
+ expect(NativeModules.OnboardingModule.getHartosToken).not.toHaveBeenCalled();
+});
+test('a LAN URL without a device credential cannot receive a cloud token', async () => {
+ resolver.getApiBaseUrl.mockResolvedValue('http://192.168.1.5:5000');
+ resolver.getApiBase.mockResolvedValue({url: 'http://192.168.1.5:5000', source: 'lan'});
+ await expect(bleEncounterApi.getDiscoverable()).rejects.toThrow();
+ expect(fetch).not.toHaveBeenCalled();
+});
+
+test.each([["retained-token", null, false], ["retained-token", "", false], ["", "123", false], ["valid-token", "123", true]])('a complete restored session requires token and account ID', (token, id, expected) => {
+ expect(require('../js/shared/services/signupApi').isCompleteSession(token, id)).toBe(expected);
 });

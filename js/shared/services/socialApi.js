@@ -23,6 +23,8 @@ let _sessionExpiredEmittedAt = 0;
 const SESSION_EXPIRED_DEBOUNCE_MS = 10000;
 DeviceEventEmitter.addListener('authChanged', () => {
   _sessionExpiredEmittedAt = 0;
+  endpointResolver.invalidateCache?.();
+  apiCache.bustAll?.();
 });
 
 const _emitApiError = (path, status, method) => {
@@ -154,8 +156,17 @@ const getHartosToken = () =>
     }
   });
 
-const getHeaders = async () => {
-  const token = await getHartosToken();
+const getHeaders = async (url) => {
+  const endpoint = await endpointResolver.getApiBase();
+  const base = endpoint.url.replace(/\/+$/, '');
+  let token;
+  if (endpoint.source === 'lan' && url.startsWith(base + '/') && endpoint.credential) {
+    token = endpoint.credential;
+  } else if (url.startsWith('https://azurekong.hertzai.com/')) {
+    token = await getHartosToken();
+  } else {
+    throw new Error('No device credential for this desktop. Open Nunba on the same network and sign in with the desktop account.');
+  }
   return {
     'Content-Type': 'application/json',
     Authorization: `Bearer ${token}`,
@@ -204,7 +215,7 @@ export const ensureFreshHartosToken = () => {
 // so a burst of parallel calls costs one refresh round-trip, not N.
 const _authedFetch = async (url, { method = 'GET', body, extraHeaders } = {}) => {
   const doFetch = async () => {
-    const headers = await getHeaders();
+    const headers = await getHeaders(url);
     if (extraHeaders) Object.assign(headers, await extraHeaders());
     return fetch(url, {
       method,
@@ -236,9 +247,9 @@ const get = async (path, params) => {
   // (Feed → Notifications → back to Feed) doesn't re-fetch the same
   // list.  Mutations bust the cache for the affected path tree, so
   // freshness is preserved when the user actually changes state.
-  const cacheKey = `GET:${path}:${params ? JSON.stringify(params) : ''}`;
+  const base = await _resolveSocialBase();
+  const cacheKey = `GET:${path}:${base}:${params ? JSON.stringify(params) : ''}`;
   return apiCache.wrap(cacheKey, null, 30000, async () => {
-    const base = await _resolveSocialBase();
     const url = buildUrl(path, params, base);
     const response = await _authedFetch(url, { method: 'GET' });
     if (!response.ok) _emitApiError(path, response.status, 'GET');

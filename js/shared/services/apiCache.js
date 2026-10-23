@@ -51,7 +51,9 @@ export const wrap = async (key, _body, ttlMs, fetcher) => {
     return hit.value;
   }
   const value = await fetcher();
-  store.set(key, { at: now, ttl: ttlMs, value });
+  if (value != null && value.success !== false && !value.error) {
+    store.set(key, { at: now, ttl: ttlMs, value });
+  }
   evictIfNeeded();
   return value;
 };

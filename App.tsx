@@ -43,7 +43,7 @@ import {
   createNavigationContainerRef,
 } from '@react-navigation/native';
 import {createNativeStackNavigator} from '@react-navigation/native-stack';
-import {sendLoginOtp} from './js/shared/services/signupApi';
+import {sendLoginOtp, isCompleteSession} from './js/shared/services/signupApi';
 import {ensureFreshHartosToken} from './js/shared/services/socialApi';
 import deepLinkService from './js/shared/services/deepLinkService';
 
@@ -381,6 +381,7 @@ function App(): React.JSX.Element {
   // Flag is set on app launch from OnboardingModule.getAccessToken.
   const [authReady, setAuthReady] = useState(false);
   const [isAuthed, setIsAuthed] = useState(false);
+  const [needsRelogin, setNeedsRelogin] = useState(false);
 
   const checkAuth = useCallback(() => {
     const m = NativeModules.OnboardingModule;
@@ -399,10 +400,11 @@ function App(): React.JSX.Element {
     // we assume "no token" and proceed to SignUp screen — the user
     // can always sign in from there.
     let called = false;
-    const finish = (token: string | null) => {
+    const finish = (token: string | null, userId: string | null = null) => {
       if (called) return;
       called = true;
-      setIsAuthed(!!(token && token.length > 0));
+      setIsAuthed(isCompleteSession(token, userId));
+      setNeedsRelogin(!!token && !isCompleteSession(token, userId));
       setTimeout(() => setAuthReady(true), 1500);
     };
     if (!m || typeof m.getAccessToken !== 'function') {
@@ -410,7 +412,10 @@ function App(): React.JSX.Element {
       return;
     }
     setTimeout(() => finish(null), 5000); // hard upper bound
-    m.getAccessToken((token: string | null) => finish(token));
+    m.getAccessToken((token: string | null) => {
+      if (!token || typeof m.getUser_id !== 'function') return finish(token);
+      m.getUser_id((userId: string | null) => finish(token, userId));
+    });
   }, []);
 
   useEffect(() => {
@@ -496,7 +501,10 @@ function App(): React.JSX.Element {
             : [null, null, null];
 
         const identifier = phone || email;
-        if (!identifier) return; // no saved contact to re-auth with
+        if (!identifier) {
+          if (navigationRef.isReady()) navigationRef.navigate('SessionRelogin', {mode: 'relogin'});
+          return;
+        }
         await sendLoginOtp(identifier);
         if (navigationRef.isReady()) {
           navigationRef.navigate('SessionRelogin', {
@@ -539,7 +547,7 @@ function App(): React.JSX.Element {
         NunbaCompanionReady
       </Text>
       <Stack.Navigator
-        initialRouteName={isAuthed ? 'MainScreen' : 'SignUpCombined'}
+        initialRouteName={isAuthed ? 'MainScreen' : needsRelogin ? 'SessionRelogin' : 'SignUpCombined'}
         screenOptions={{
           headerStyle: {backgroundColor: '#0F0E17'},
           headerTintColor: '#FFFFFE',
@@ -555,6 +563,7 @@ function App(): React.JSX.Element {
         />
         <Stack.Screen
           name="SessionRelogin"
+          initialParams={{mode: 'relogin'}}
           component={withGuards(OtpVerification, 'SessionRelogin')}
           options={{presentation: 'modal', headerShown: true, title: 'Verify to continue', gestureEnabled: false}}
         />
