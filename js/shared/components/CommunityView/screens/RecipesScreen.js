@@ -1,8 +1,16 @@
 import React, { useState, useCallback, useEffect } from 'react';
 import {
-  View, Text, StyleSheet, FlatList, TouchableOpacity,
-  SafeAreaView, StatusBar, RefreshControl, ActivityIndicator, Alert,
+  View,
+  Text,
+  StyleSheet,
+  FlatList,
+  TouchableOpacity,
+  StatusBar,
+  RefreshControl,
+  ActivityIndicator,
+  Alert,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import {
   widthPercentageToDP as wp,
   heightPercentageToDP as hp,
@@ -48,6 +56,22 @@ const RecipesScreen = () => {
       Alert.alert('Error', err.error || 'Failed to fork recipe');
     }
   };
+
+  // recipes-fab gap (2026-06-20): RecipesScreen had no Create/Share CTA.
+  // ShareRecipeScreen calls back with the newly created recipe so we
+  // prepend it locally instead of forcing a network round-trip.
+  const openShare = useCallback(() => {
+    navigation.navigate('ShareRecipe', {
+      onShared: (created) => {
+        if (created && created.id) {
+          setRecipes((prev) => [created, ...prev.filter((r) => r.id !== created.id)]);
+        } else {
+          // Fallback: refetch if the server response shape was unexpected.
+          fetchRecipes();
+        }
+      },
+    });
+  }, [navigation, fetchRecipes]);
 
   const renderItem = ({ item, index }) => (
     <Animatable.View animation="fadeInUp" delay={index * 50}>
@@ -96,20 +120,39 @@ const RecipesScreen = () => {
           <Ionicons name="arrow-back" size={24} color="#FFF" />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Recipes</Text>
-        <View style={styles.headerSpacer} />
+        {/* recipes-fab gap (2026-06-20): Share CTA in the header
+            mirrors the post-#418 CommunitiesScreen pattern so the
+            create affordance is discoverable even with an empty list. */}
+        <TouchableOpacity
+          onPress={openShare}
+          style={styles.headerAction}
+          hitSlop={{top: 14, bottom: 14, left: 14, right: 14}}
+          accessibilityRole="button"
+          accessibilityLabel="Share a recipe">
+          <Ionicons name="add" size={24} color="#FFF" />
+        </TouchableOpacity>
       </View>
 
       {loading ? (
         <View style={styles.centerContainer}>
           <ActivityIndicator size="large" color="#6C63FF" />
         </View>
+      ) : recipes.length === 0 ? (
+        // Sibling EmptyState (not ListEmptyComponent) so FlatList's
+        // pan responder doesn't swallow the CTA tap — same gotcha as
+        // #418 v3 fix in CommunitiesScreen.
+        <View style={styles.centerContainer}>
+          <EmptyState
+            {...emptyStatePreset('no-recipes')}
+            ctaLabel="Share a recipe"
+            onCta={openShare}
+          />
+        </View>
       ) : (
         <FlatList
           data={recipes}
           keyExtractor={(item) => String(item.id)}
           renderItem={renderItem}
-          // UX-AUDIT 2026-05-19: P7 preset migration (DRY).
-          ListEmptyComponent={<EmptyState {...emptyStatePreset('no-recipes')} />}
           contentContainerStyle={styles.listContent}
           showsVerticalScrollIndicator={false}
           refreshControl={
@@ -117,6 +160,19 @@ const RecipesScreen = () => {
           }
         />
       )}
+
+      {/* Floating Share button — primary CTA matching the recipe
+          card accent (#0078ff).  Sibling to the FlatList so it floats
+          over both populated + empty states. */}
+      <TouchableOpacity
+        style={styles.fab}
+        onPress={openShare}
+        activeOpacity={0.85}
+        hitSlop={{top: 8, bottom: 8, left: 8, right: 8}}
+        accessibilityRole="button"
+        accessibilityLabel="Share a recipe">
+        <MaterialCommunityIcons name="share-variant" size={24} color="#FFF" />
+      </TouchableOpacity>
     </SafeAreaView>
   );
 };
@@ -127,6 +183,7 @@ const styles = StyleSheet.create({
   backButton: { padding: 4 },
   headerTitle: { flex: 1, color: '#FFF', fontSize: wp('5%'), fontWeight: '700', textAlign: 'center' },
   headerSpacer: { width: 32 },
+  headerAction: { padding: 6, width: 32, alignItems: 'center' },
   centerContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', paddingVertical: hp('15%') },
   emptyText: { color: '#888', fontSize: wp('3.5%'), marginTop: hp('2%') },
   listContent: { paddingHorizontal: wp('4%'), paddingBottom: hp('10%') },
@@ -145,6 +202,25 @@ const styles = StyleSheet.create({
   tagText: { color: '#888', fontSize: wp('2.5%') },
   forkBtn: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   forkText: { color: '#0078ff', fontWeight: '600', fontSize: wp('3%') },
+  // recipes-fab gap (2026-06-20) — bumped bottom 28→130 so the FAB
+  // clears the bottom nav (~96-120dp) instead of being half-occluded
+  // by it.  Verified on Xiaomi tablet.
+  fab: {
+    position: 'absolute',
+    right: 20,
+    bottom: 130,
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: '#0078ff',
+    alignItems: 'center',
+    justifyContent: 'center',
+    elevation: 6,
+    shadowColor: '#000',
+    shadowOpacity: 0.4,
+    shadowRadius: 6,
+    shadowOffset: { width: 0, height: 3 },
+  },
 });
 
 export default RecipesScreen;

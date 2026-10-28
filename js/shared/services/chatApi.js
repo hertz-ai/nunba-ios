@@ -1,4 +1,5 @@
 import { NativeModules } from 'react-native';
+import { getAuthHeaders, getUserId } from './apiHelpers';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import endpointResolver from './endpointResolver';
 
@@ -28,17 +29,6 @@ export const setBaseUrl = (custom) => {
   if (custom) CHAT_BASE_URL = custom;
 };
 
-const getUserId = () =>
-  new Promise((resolve, reject) => {
-    try {
-      NativeModules.OnboardingModule.getUser_id((userId) => {
-        resolve(userId);
-      });
-    } catch (err) {
-      reject(err);
-    }
-  });
-
 const buildUrl = (path, params, base) => {
   let url = `${base}${path}`;
   if (params && Object.keys(params).length > 0) {
@@ -53,24 +43,9 @@ const buildUrl = (path, params, base) => {
   return url;
 };
 
-const getAccessToken = () =>
-  new Promise((resolve, reject) => {
-    try {
-      NativeModules.OnboardingModule.getAccessToken((token) => {
-        resolve(token);
-      });
-    } catch (err) {
-      reject(err);
-    }
-  });
-
-const getHeaders = async () => {
-  const token = await getAccessToken();
-  return {
-    'Content-Type': 'application/json',
-    Authorization: `Bearer ${token}`,
-  };
-};
+// Auth lives in services/apiHelpers.js — see the note in socialApi.js.
+// getAuthHeaders carries the credential the resolved node can verify (#111).
+const getHeaders = getAuthHeaders;
 
 const get = async (path, params) => {
   const [headers, base] = await Promise.all([

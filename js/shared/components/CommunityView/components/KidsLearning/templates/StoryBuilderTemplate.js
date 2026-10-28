@@ -1,4 +1,4 @@
-import React, {useState, useEffect, useRef, useCallback, useMemo} from 'react';
+import React, {useState, useEffect, useRef, useCallback} from 'react';
 import {
   View,
   Text,
@@ -20,15 +20,17 @@ import OptionButton from '../shared/OptionButton';
 import ProgressDots from '../shared/ProgressDots';
 import FeedbackOverlay from '../shared/FeedbackOverlay';
 import TimerBar from '../shared/TimerBar';
-import TTSManager from '../shared/TTSManager';
 import {SPRINGS} from '../shared/gameThemes';
+import {STEP, LEVEL, storyBuilder as guide} from '../shared/gameGuide';
+import holdUntilSpoken from '../shared/holdUntilSpoken';
 
 /**
  * StoryBuilderTemplate - Choose-your-own-adventure branching story.
  *
  * Shows story text with scene illustration. Choices as large buttons.
  * Tracks "good" vs "bad" choices. Path-dependent scoring.
- * At end shows moral/lesson. Adapts with encouragement after bad choices.
+ * At end shows moral/lesson. Adapts with encouragement at the shell's lowest
+ * level.  Each scene is read aloud through the shell (onStep).
  *
  * Props:
  * - config: { content: { story: { start, scenes } } }
@@ -56,7 +58,7 @@ const CHOICE_COLORS = [
   kidsColors.palette[7],
 ];
 
-const StoryBuilderTemplate = ({config, onAnswer, onComplete}) => {
+const StoryBuilderTemplate = ({config, onAnswer, onComplete, onStep, level = LEVEL.START}) => {
   const content = config?.content || {};
   const story = content.story || {};
   const scenes = story.scenes || {};
@@ -64,38 +66,36 @@ const StoryBuilderTemplate = ({config, onAnswer, onComplete}) => {
 
   // Game state
   const [currentSceneId, setCurrentSceneId] = useState(startId);
+
+  // useState seeds from the FIRST render only, and `config` arrives from a
+  // fetch after mount — so startId is '' on that first render and
+  // currentSceneId would stay '' for the life of the component. scenes[''] is
+  // undefined, currentScene is null, and the story renders nothing at all:
+  // seven story games were blank on device for exactly this reason. Fall back
+  // to the start scene whenever the stored id is not a real scene, so the
+  // story opens as soon as the config is known while player navigation
+  // (setCurrentSceneId) still wins once it points somewhere valid.
+  const activeSceneId = scenes[currentSceneId] ? currentSceneId : startId;
   const [choiceHistory, setChoiceHistory] = useState([]); // { sceneId, choiceIndex, isGood, timeMs }
   const [goodChoices, setGoodChoices] = useState(0);
   const [badChoices, setBadChoices] = useState(0);
   const [isEnded, setIsEnded] = useState(false);
-  const [showEncouragement, setShowEncouragement] = useState(false);
+  // The shell's one ladder (shared/gameGuide): at LEVEL.MIN the kind choice
+  // is marked.  This template's own three-misses rule is gone.
+  const showEncouragement = level <= LEVEL.MIN;
   const [showFeedback, setShowFeedback] = useState(false);
   const [lastChoiceGood, setLastChoiceGood] = useState(true);
 
-  // Adaptive state
-  const consecutiveBad = useRef(0);
   const sceneStartTime = useRef(Date.now());
   const sceneCount = useRef(0);
   const mountedRef = useRef(true);
-  const ttsCleanupRef = useRef(null);
+  // What the shell is saying for the scene on screen; the ending's line is
+  // what a guided story waits on before it moves to the completion screen.
+  const endSpokenRef = useRef(undefined);
 
   useEffect(() => () => {
     mountedRef.current = false;
-    TTSManager.stop();
   }, []);
-
-  // Pre-cache all scene texts for TTS on mount
-  const allSceneTexts = useMemo(() => {
-    return Object.values(scenes)
-      .map(s => s.text)
-      .filter(Boolean);
-  }, [scenes]);
-
-  useEffect(() => {
-    if (allSceneTexts.length > 0) {
-      TTSManager.preCache(allSceneTexts, {voice: 'kids_narrator'}).catch(() => {});
-    }
-  }, [allSceneTexts]);
 
   // Animations
   const textAnim = useRef(new Animated.Value(1)).current;
@@ -108,7 +108,7 @@ const StoryBuilderTemplate = ({config, onAnswer, onComplete}) => {
   const iconAnim = useRef(new Animated.Value(1)).current;
   const feedbackAnim = useRef(new Animated.Value(1)).current;
 
-  const currentScene = scenes[currentSceneId] || null;
+  const currentScene = scenes[activeSceneId] || null;
 
   // Animate scene entrance
   useEffect(() => {
@@ -147,28 +147,19 @@ const StoryBuilderTemplate = ({config, onAnswer, onComplete}) => {
       });
     }
 
-    // Speak scene text via TTS (non-blocking, silent on failure)
-    if (currentScene.text) {
-      TTSManager.stop();
-      // Delay slightly so animations start first
-      const ttsTimeout = setTimeout(() => {
-        if (mountedRef.current) {
-          TTSManager.speak(currentScene.text, {voice: 'kids_narrator'}).catch(() => {});
-        }
-      }, 600);
-
-      // Cleanup TTS timeout on scene change
-      const cleanup = () => clearTimeout(ttsTimeout);
-      // Store cleanup ref for next run
-      if (ttsCleanupRef.current) ttsCleanupRef.current();
-      ttsCleanupRef.current = cleanup;
+    // The scene, and what the child can do, read aloud by the shell.
+    if (onStep && currentScene.text) {
+      endSpokenRef.current = onStep({kind: STEP.ASKED, itemId: `story:${activeSceneId}`, say: guide.ask(currentScene),
+        // every scene synthesized ahead, once, so the next one starts at once
+        prepare: sceneCount.current === 1 ? Object.values(scenes).map(guide.ask).filter(Boolean) : undefined});
     }
 
-    // Check if end scene
-    if (currentScene.isEnd) {
+    // A scene with nowhere to go is the ending (no catalogue story sets
+    // isEnd: each ends on a scene without choices).
+    if (currentScene.isEnd || !(currentScene.choices || []).length) {
       setIsEnded(true);
     }
-  }, [currentSceneId]);
+  }, [activeSceneId]);
 
   // Handle choice
   const handleChoice = useCallback(
@@ -184,7 +175,7 @@ const StoryBuilderTemplate = ({config, onAnswer, onComplete}) => {
       setChoiceHistory(prev => [
         ...prev,
         {
-          sceneId: currentSceneId,
+          sceneId: activeSceneId,
           choiceIndex,
           isGood,
           timeMs: responseTimeMs,
@@ -194,16 +185,13 @@ const StoryBuilderTemplate = ({config, onAnswer, onComplete}) => {
       // Update counts
       if (isGood) {
         setGoodChoices(prev => prev + 1);
-        consecutiveBad.current = 0;
-        setShowEncouragement(false);
       } else {
         setBadChoices(prev => prev + 1);
-        consecutiveBad.current += 1;
-
-        // Adapt: show encouragement after 3 bad choices
-        if (consecutiveBad.current >= 3) {
-          setShowEncouragement(true);
-        }
+      }
+      // The cue and the ladder; the next scene says why.
+      if (onStep) {
+        onStep({kind: isGood ? STEP.RIGHT : STEP.WRONG, itemId: `story:${activeSceneId}`,
+          chosen: choice.text, concept: choice.concept || currentScene.concept});
       }
 
       // Show brief feedback
@@ -212,33 +200,44 @@ const StoryBuilderTemplate = ({config, onAnswer, onComplete}) => {
 
       // Report answer
       if (onAnswer) {
-        onAnswer(isGood, currentScene.concept || `story:${currentSceneId}`, responseTimeMs);
+        onAnswer(isGood, currentScene.concept || `story:${activeSceneId}`, responseTimeMs);
       }
-
-      // Stop any ongoing narration before navigating
-      TTSManager.stop();
 
       // Navigate to next scene after feedback
       setTimeout(() => {
         if (!mountedRef.current) return;
         setShowFeedback(false);
-        if (choice.next && scenes[choice.next]) {
-          setCurrentSceneId(choice.next);
+        // `nextScene` is the catalogue's name for the link (all 7 stories);
+        // reading only `next` ended every story at its first choice.
+        const nextId = choice.nextScene || choice.next;
+        if (nextId && scenes[nextId]) {
+          setCurrentSceneId(nextId);
         } else {
           // No next scene = implicit end
           setIsEnded(true);
         }
       }, 800);
     },
-    [currentScene, currentSceneId, scenes, onAnswer],
+    [currentScene, activeSceneId, scenes, onAnswer, onStep],
   );
 
   // Finish
+  const completedRef = useRef(false);
   const handleFinish = useCallback(() => {
+    // the guided hold and a Continue tap must not complete the game twice
+    if (completedRef.current) return;
+    completedRef.current = true;
     if (onComplete) {
       onComplete();
     }
   }, [onComplete]);
+
+  // Guided, the ending is read out, then the shell's completion screen takes
+  // over; no "Continue" tap is needed (it stays).
+  useEffect(() => {
+    if (!isEnded || !onStep) return;
+    holdUntilSpoken(endSpokenRef.current, handleFinish, () => mountedRef.current);
+  }, [isEnded]);   // eslint-disable-line react-hooks/exhaustive-deps
 
   // Get scene icon based on scene ID or index
   const getSceneIcon = useCallback((sceneId) => {
@@ -255,7 +254,8 @@ const StoryBuilderTemplate = ({config, onAnswer, onComplete}) => {
     const totalChoices = goodChoices + badChoices;
     const goodPercent =
       totalChoices > 0 ? Math.round((goodChoices / totalChoices) * 100) : 0;
-    const endMessage = currentScene?.message || 'Every choice matters!';
+    // The last scene's own words are the story's ending.
+    const endMessage = currentScene?.message || currentScene?.text || 'Every choice matters!';
 
     let rating = 'Great Job!';
     let ratingIcon = 'star';
@@ -425,7 +425,7 @@ const StoryBuilderTemplate = ({config, onAnswer, onComplete}) => {
           ]}>
           <View style={styles.sceneIconCircle}>
             <Icon
-              name={getSceneIcon(currentSceneId)}
+              name={getSceneIcon(activeSceneId)}
               size={60}
               color={kidsColors.textOnDark}
             />
@@ -490,7 +490,8 @@ const StoryBuilderTemplate = ({config, onAnswer, onComplete}) => {
                       size={24}
                       color={kidsColors.textOnDark}
                     />
-                    <Text style={styles.choiceLabel}>{choice.label}</Text>
+                    {/* the catalogue's choices carry `text`; none has `label` */}
+                    <Text style={styles.choiceLabel}>{choice.label || choice.text}</Text>
                     {/* Subtle hint for good choice when encouragement is on */}
                     {showEncouragement && choice.isGood && (
                       <Icon

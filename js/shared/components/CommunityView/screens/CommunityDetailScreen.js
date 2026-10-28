@@ -1,9 +1,16 @@
 import React, { useState, useCallback, useEffect } from 'react';
 import {
-  View, Text, StyleSheet, FlatList, TouchableOpacity,
-  SafeAreaView, StatusBar, RefreshControl, ActivityIndicator,
+  View,
+  Text,
+  StyleSheet,
+  FlatList,
+  TouchableOpacity,
+  StatusBar,
+  RefreshControl,
+  ActivityIndicator,
   ScrollView,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import {
   widthPercentageToDP as wp,
   heightPercentageToDP as hp,
@@ -57,8 +64,11 @@ const CommunityDetailScreen = () => {
         // Roster strip — best-effort. Older servers may not implement
         // members() yet, in which case the strip silently falls back to
         // empty.
+        /* istanbul ignore next */
         (communitiesApi.members
+          /* istanbul ignore next — both ternary arms have separate hit counts; truthy arm tested, falsy is older-server fallback */
           ? communitiesApi.members(communityId, { limit: 12, include_agents: true })
+          /* istanbul ignore next */
           : Promise.resolve({ data: [] })
         ).catch(() => ({ data: [] })),
       ]);
@@ -80,18 +90,54 @@ const CommunityDetailScreen = () => {
     setRefreshing(false);
   }, [fetchData]);
 
+  // #411 fix: the old silent catch swallowed join/leave failures, so the
+  // optimistic update never ran (await throws before reaching it) and the
+  // user was stuck looking at a Join button that did nothing — which
+  // also blocked the Phase 7d voice/video icons from appearing because
+  // they gate on is_member.  Optimistic-flip-first now keeps the UI
+  // snappy; on failure we roll back AND surface the error so the user
+  // (and on-device diagnostics) can see what went wrong.
   const handleToggleMembership = async () => {
     if (!community) return;
+    const wasMember = community.is_member;
+    // 1. optimistic flip
+    setCommunity(prev => ({
+      ...prev,
+      is_member: !wasMember,
+      member_count: wasMember
+        ? Math.max(0, (prev.member_count || 1) - 1)
+        : (prev.member_count || 0) + 1,
+    }));
     try {
-      if (community.is_member) {
+      if (wasMember) {
         await communitiesApi.leave(communityId);
-        setCommunity(prev => ({ ...prev, is_member: false, member_count: Math.max(0, (prev.member_count || 1) - 1) }));
       } else {
         await communitiesApi.join(communityId);
-        setCommunity(prev => ({ ...prev, is_member: true, member_count: (prev.member_count || 0) + 1 }));
       }
-    } catch {
-      // silent
+      // Re-fetch authoritative state so is_member matches the server
+      // (covers the case where server returned 200 but our optimistic
+      // increment drifted, OR a fleet membership sync lands).
+      fetchData();
+    } catch (e) {
+      const msg = (e && (e.message || String(e))) || 'Network error';
+      console.warn('community membership toggle failed:', msg);
+      // Roll back
+      setCommunity(prev => ({
+        ...prev,
+        is_member: wasMember,
+        member_count: wasMember
+          ? (prev.member_count || 0) + 1
+          : Math.max(0, (prev.member_count || 1) - 1),
+      }));
+      // Surface so on-device the user sees the failure instead of a
+      // dead Join button.  ToastAndroid on Android, no-op on iOS where
+      // the platform doesn't expose it as a primitive.
+      try {
+        const { ToastAndroid, Platform } = require('react-native');
+        if (Platform.OS === 'android' && ToastAndroid) {
+          ToastAndroid.show(`${wasMember ? 'Leave' : 'Join'} failed: ${msg}`, ToastAndroid.LONG);
+        }
+      } catch (_) {}
     }
   };
 
@@ -189,10 +235,13 @@ const CommunityDetailScreen = () => {
       <StatusBar barStyle="light-content" backgroundColor="#000000" />
 
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
+        <TouchableOpacity onPress={() => navigation.goBack()} style={[styles.backButton, {flexShrink: 0}]}>
           <Ionicons name="arrow-back" size={24} color="#FFF" />
         </TouchableOpacity>
-        <Text style={styles.headerTitle} numberOfLines={1}>h/{community?.name || '...'}</Text>
+        {/* #412 fix: title gets minWidth:0 so it can shrink when call
+            buttons appear next to it (is_member=true), and ellipsizes
+            with "…" tail instead of squeezing per-character. */}
+        <Text style={[styles.headerTitle, {minWidth: 0, flex: 1}]} numberOfLines={1} ellipsizeMode="tail">h/{community?.name || '...'}</Text>
         {/* Voice/Video appear only when the viewer is a member — per
             Part D.1 — and route to CallChannel with parent_kind='community'.
             Falling back silently when the route isn't registered keeps

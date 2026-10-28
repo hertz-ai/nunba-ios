@@ -28,6 +28,13 @@ const ttsChannel = {
   volume: 0.7,
   isPlaying: false,
   bgmWasPaused: false,
+  // Each playTTS takes the next line number; stopTTS moves it on too.  A
+  // line only becomes `sound` once it has loaded, so a line still loading
+  // when the next one starts, or when the game closes, is recognised by its
+  // stale number and released instead of played (seen on a tablet: players
+  // left "started" that nothing could stop).
+  line: 0,
+  finish: null, // resolves the current line's promise when it is stopped
 };
 
 // Max concurrent SFX to avoid resource exhaustion
@@ -213,12 +220,28 @@ const AudioChannelManager = {
       const isPath = typeof source === 'string' && (source.startsWith('/') || source.startsWith('file'));
       const basePath = isPath ? '' : Sound.MAIN_BUNDLE;
 
+      const line = ++ttsChannel.line;
+      let settled = false;
+      const settle = (value) => {
+        if (settled) return;
+        settled = true;
+        if (ttsChannel.finish === settle) ttsChannel.finish = null;
+        resolve(value);
+      };
+      ttsChannel.finish = settle;
+
       let sound;
       try {
         sound = new Sound(source, basePath, (error) => {
+        if (line !== ttsChannel.line) {
+          // superseded or stopped while loading: never play it
+          if (!error) sound.release();
+          settle(false);
+          return;
+        }
         if (error) {
           if (ttsChannel.bgmWasPaused) AudioChannelManager.resumeBGM();
-          resolve(false);
+          settle(false);
           return;
         }
 
@@ -229,6 +252,11 @@ const AudioChannelManager = {
         if (onStart) onStart();
 
         sound.play((success) => {
+          if (ttsChannel.sound !== sound) {
+            // already stopped (and released) by stopTTS
+            settle(false);
+            return;
+          }
           sound.release();
           ttsChannel.sound = null;
           ttsChannel.isPlaying = false;
@@ -239,29 +267,34 @@ const AudioChannelManager = {
           }
 
           if (onEnd) onEnd();
-          resolve(success);
+          settle(success);
         });
       });
       } catch (_e) {
         if (ttsChannel.bgmWasPaused) AudioChannelManager.resumeBGM();
-        resolve(false);
+        settle(false);
       }
     });
   },
 
-  // Stop TTS
+  // Stop TTS (also cancels a line that is still loading)
   stopTTS: () => {
+    ttsChannel.line++;
+    const finish = ttsChannel.finish;
+    ttsChannel.finish = null;
     if (ttsChannel.sound) {
       ttsChannel.sound.stop();
       ttsChannel.sound.release();
       ttsChannel.sound = null;
       ttsChannel.isPlaying = false;
-
-      if (ttsChannel.bgmWasPaused) {
-        AudioChannelManager.resumeBGM();
-        ttsChannel.bgmWasPaused = false;
-      }
     }
+    // music paused for a line comes back whether that line was playing or
+    // still loading
+    if (ttsChannel.bgmWasPaused) {
+      AudioChannelManager.resumeBGM();
+      ttsChannel.bgmWasPaused = false;
+    }
+    if (finish) finish(false);
   },
 
   // Stop all audio

@@ -1,8 +1,19 @@
 import React, { useState, useCallback, useEffect, useRef } from 'react';
 import {
-  View, Text, StyleSheet, FlatList, TouchableOpacity, TextInput,
-  SafeAreaView, StatusBar, RefreshControl, ActivityIndicator, Alert, Animated,
+  View,
+  Text,
+  StyleSheet,
+  FlatList,
+  TouchableOpacity,
+  TextInput,
+  StatusBar,
+  RefreshControl,
+  ActivityIndicator,
+  Alert,
+  Animated,
+  DeviceEventEmitter,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import ParallaxHero from '../../shared/ParallaxHero';
 import OpenStatusDot from '../../shared/OpenStatusDot';
 import FilterChips from '../../shared/FilterChips';
@@ -69,8 +80,16 @@ const ProfileScreen = () => {
       ]);
       setUser(userRes.data || null);
       setPosts(postsRes.data || []);
-    } catch {
-      // silent
+    } catch (err) {
+      // #417 fix: emit ApiError so the global banner surfaces the
+      // failure; the pre-fix silent catch left users staring at an
+      // empty profile with no signal whether the load failed.
+      console.warn('[ProfileScreen] fetchData error:', err);
+      try {
+        DeviceEventEmitter.emit('ApiError', {
+          path: '/users/:id', status: err?.status || 0, method: 'GET',
+        });
+      } catch (_) {}
     } finally {
       setLoading(false);
     }
@@ -102,16 +121,30 @@ const ProfileScreen = () => {
   };
 
   const handleFollow = async () => {
+    // #417 fix: optimistic-first + rollback + surface error.
+    const wasFollowing = user.is_following;
+    setUser(prev => ({
+      ...prev,
+      is_following: !wasFollowing,
+      follower_count: wasFollowing
+        ? Math.max(0, (prev.follower_count || 1) - 1)
+        : (prev.follower_count || 0) + 1,
+    }));
     try {
-      if (user.is_following) {
+      if (wasFollowing) {
         await usersApi.unfollow(userId);
-        setUser(prev => ({ ...prev, is_following: false, follower_count: Math.max(0, (prev.follower_count || 1) - 1) }));
       } else {
         await usersApi.follow(userId);
-        setUser(prev => ({ ...prev, is_following: true, follower_count: (prev.follower_count || 0) + 1 }));
       }
-    } catch {
-      // silent
+    } catch (err) {
+      setUser(prev => ({
+        ...prev,
+        is_following: wasFollowing,
+        follower_count: wasFollowing
+          ? (prev.follower_count || 0) + 1
+          : Math.max(0, (prev.follower_count || 1) - 1),
+      }));
+      Alert.alert('Follow failed', err?.error || err?.message || 'Try again later.');
     }
   };
 
@@ -194,9 +227,9 @@ const ProfileScreen = () => {
             </View>
           ) : (
             <>
-              <Text style={styles.displayName}>{user.display_name || user.username}</Text>
+              <Text style={styles.displayName} numberOfLines={1}>{user.display_name || user.username}</Text>
               <Text style={styles.username}>@{user.username}</Text>
-              {user.bio ? <Text style={styles.bio}>{user.bio}</Text> : null}
+              {user.bio ? <Text style={styles.bio} numberOfLines={2}>{user.bio}</Text> : null}
 
               <View style={styles.statsRow}>
                 <View style={styles.statItem}>
@@ -350,7 +383,7 @@ const ProfileScreen = () => {
               coverUri={user?.cover_url || user?.avatar_url}
               avatarUri={user?.avatar_url}
               name={user?.display_name || user?.username || 'Unknown'}
-              subtitle={user?.handle ? `@${user.handle}` : (user?.bio || '')}
+              subtitle={user?.username ? `@${user.username}` : (user?.bio || '')}
               height={200}
             />
             {/* REDESIGN-R4: identity ribbon — presence dot + agent

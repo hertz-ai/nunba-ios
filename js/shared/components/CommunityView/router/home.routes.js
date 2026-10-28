@@ -12,6 +12,7 @@ import ReportModal from '../components/Post/components/Header/ReportModal';
 import ReportModalComment from '../components/Post/components/Footer/ReportModalComment';
 // Encounters (Geolocation)
 import EncountersScreen from '../screens/EncountersScreen';
+import PrivacySettingsScreen from '../screens/PrivacySettingsScreen';
 import MissedConnectionDetailScreen from '../screens/MissedConnectionDetailScreen';
 import CreateMissedConnectionScreen from '../screens/CreateMissedConnectionScreen';
 import MissedConnectionsMapScreen from '../screens/MissedConnectionsMapScreen';
@@ -35,6 +36,7 @@ import PostDetailScreen from '../screens/PostDetailScreen';
 import SearchScreen from '../screens/SearchScreen';
 import NotificationsScreen from '../screens/NotificationsScreen';
 import CommunitiesScreen from '../screens/CommunitiesScreen';
+import CreateCommunityScreen from '../screens/CreateCommunityScreen';
 import CommunityDetailScreen from '../screens/CommunityDetailScreen';
 import FriendsScreen from '../screens/FriendsScreen';
 import InvitesScreen from '../screens/InvitesScreen';
@@ -51,8 +53,10 @@ import InstitutionSignupScreen from '../screens/InstitutionSignupScreen';
 import ProfileScreen from '../screens/ProfileScreen';
 import RecipesScreen from '../screens/RecipesScreen';
 import RecipeDetailScreen from '../screens/RecipeDetailScreen';
+import ShareRecipeScreen from '../screens/ShareRecipeScreen';
 import TasksScreen from '../screens/TasksScreen';
 import CodingAgentScreen from '../screens/CodingAgentScreen';
+import CreateCodingGoalScreen from '../screens/CreateCodingGoalScreen';
 import AgentDashboardScreen from '../screens/AgentDashboardScreen';
 // Adult Games
 import GameHubScreen from '../screens/GameHubScreen';
@@ -65,6 +69,7 @@ import GameCreatorScreen from '../screens/GameCreatorScreen';
 import CustomGamesScreen from '../screens/CustomGamesScreen';
 // Experiments
 import ExperimentDiscoveryScreen from '../screens/ExperimentDiscoveryScreen';
+import ProposeExperimentScreen from '../screens/ProposeExperimentScreen';
 // Agent Hive
 import AgentHiveScreen from '../screens/AgentHiveScreen';
 import AgentHiveDetailScreen from '../screens/AgentHiveDetailScreen';
@@ -156,6 +161,7 @@ const HomeRoutes = () => {
           headerShown: false,
         }}
       />
+      <Stack.Screen name="PrivacySettings" component={PrivacySettingsScreen} options={{title: "Privacy"}} />
       {/* Encounters (Geolocation) */}
       <Stack.Screen name="Encounters" component={EncountersScreen} options={{headerShown: false, animation: 'fade'}} />
       <Stack.Screen name="MissedConnectionDetail" component={MissedConnectionDetailScreen} options={{headerShown: false}} />
@@ -185,7 +191,18 @@ const HomeRoutes = () => {
           chrome under the incoming NotificationsScreen for ~150ms. */}
       <Stack.Screen name="Notifications" component={NotificationsScreen} options={{headerShown: false, animation: 'none'}} />
       <Stack.Screen name="Communities" component={CommunitiesScreen} options={{headerShown: false}} />
+      {/* #457 (2026-06-21): dropped presentation:'modal' — live-verified
+          on Samsung S23 Ultra the "+" header CTA registered onPress but
+          no modal mounted; same silent-fail as the original #419 inline
+          Modal regression.  Default card push works and matches sibling
+          create screens (CreateMissedConnection, AddPost). */}
+      <Stack.Screen name="CreateCommunity" component={CreateCommunityScreen} options={{headerShown: false}} />
       <Stack.Screen name="CommunityDetail" component={CommunityDetailScreen} options={{headerShown: false}} />
+      {/* inbox-compose-fab gap: Friends doubles as the DM peer-picker
+          when launched with `route.params.pickMode = 'dm'` (from
+          InboxScreen's compose FAB).  Tapping a friend creates (or
+          reuses) a DM via conversationsApi.create and replaces() into
+          ConversationHistory, so back-press returns to Inbox. */}
       <Stack.Screen name="Friends" component={FriendsScreen} options={{headerShown: false}} />
       <Stack.Screen name="Invites" component={InvitesScreen} options={{headerShown: false, presentation: 'modal'}} />
       <Stack.Screen name="Inbox" component={InboxScreen} options={{headerShown: false}} />
@@ -201,8 +218,10 @@ const HomeRoutes = () => {
       <Stack.Screen name="Profile" component={ProfileScreen} options={{headerShown: false, animation: 'slide_from_bottom'}} />
       <Stack.Screen name="Recipes" component={RecipesScreen} options={{headerShown: false}} />
       <Stack.Screen name="RecipeDetail" component={RecipeDetailScreen} options={{headerShown: false}} />
+      <Stack.Screen name="ShareRecipe" component={ShareRecipeScreen} options={{headerShown: false, presentation: 'modal'}} />
       <Stack.Screen name="Tasks" component={TasksScreen} options={{headerShown: false}} />
       <Stack.Screen name="CodingAgent" component={CodingAgentScreen} options={{headerShown: false}} />
+      <Stack.Screen name="CreateCodingGoal" component={CreateCodingGoalScreen} options={{headerShown: false, presentation: 'modal'}} />
       <Stack.Screen name="AgentDashboard" component={AgentDashboardScreen} options={{headerShown: false}} />
 
       {/* Adult Games */}
@@ -218,6 +237,7 @@ const HomeRoutes = () => {
 
       {/* Experiments */}
       <Stack.Screen name="ExperimentDiscovery" component={ExperimentDiscoveryScreen} options={{headerShown: false}} />
+      <Stack.Screen name="ProposeExperiment" component={ProposeExperimentScreen} options={{headerShown: false, presentation: 'modal'}} />
 
       {/* Federation (P2P Feed) */}
       <Stack.Screen name="FederatedFeed" component={FederatedFeedScreen} options={{headerShown: false, animation: 'fade'}} />

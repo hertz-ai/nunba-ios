@@ -9,9 +9,9 @@ import {
   Image,
   TextInput,
   RefreshControl,
-  SafeAreaView,
   StatusBar,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import {
   widthPercentageToDP as wp,
   heightPercentageToDP as hp,
@@ -251,6 +251,7 @@ const RegionDetailScreen = () => {
       case 2: return renderProposalsTab();
       case 3: return renderCouncilTab();
       case 4: return renderMembersTab();
+      /* istanbul ignore next — defensive default; activeTab is constrained to 0-4 by the TAB_LABELS array, branch unreachable via UI. */
       default: return null;
     }
   };

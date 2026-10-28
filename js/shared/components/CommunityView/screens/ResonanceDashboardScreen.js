@@ -7,10 +7,11 @@ import {
   TouchableOpacity,
   FlatList,
   RefreshControl,
-  SafeAreaView,
   StatusBar,
   Image,
+  DeviceEventEmitter,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import {
   widthPercentageToDP as wp,
   heightPercentageToDP as hp,
@@ -156,12 +157,27 @@ const ResonanceDashboardScreen = () => {
   }, []);
 
   const handleDailyCheckin = async () => {
-    if (!hasCheckedIn) {
+    if (hasCheckedIn) return;
+    // Optimistic flip so the user sees the button respond immediately;
+    // revert on failure so the action stays retryable.
+    setHasCheckedIn(true);
+    try {
+      await resonanceApi.dailyCheckin();
+      fetchData();
+    } catch (e) {
+      setHasCheckedIn(false);
+      // Surface the failure via the global ApiErrorBanner subscriber
+      // instead of silently swallowing — Daily Check-in was reported as
+      // a no-op live drive 2026-06-04 because the prior catch swallowed
+      // 401/network errors with no UI feedback.
+      const status = e && e.response && e.response.status ? Number(e.response.status) : 0;
       try {
-        await resonanceApi.dailyCheckin();
-        setHasCheckedIn(true);
-        fetchData();
-      } catch (e) { /* ignore */ }
+        DeviceEventEmitter.emit('ApiError', {
+          path: '/api/social/resonance/daily-checkin',
+          status,
+          method: 'POST',
+        });
+      } catch (_) {}
     }
   };
 
@@ -216,6 +232,8 @@ const ResonanceDashboardScreen = () => {
         onPress={handleDailyCheckin}
         disabled={hasCheckedIn}
         activeOpacity={0.8}
+        accessibilityRole="button"
+        accessibilityLabel={hasCheckedIn ? 'Checked In Today' : 'Daily Check-in, plus 50 Sparks'}
       >
         <MaterialCommunityIcons
           name={hasCheckedIn ? 'check-circle' : 'calendar-check'}
@@ -300,6 +318,7 @@ const ResonanceDashboardScreen = () => {
       case 0: return renderOverviewTab();
       case 1: return renderHistoryTab();
       case 2: return renderLeaderboardTab();
+      /* istanbul ignore next — defensive default; activeTab constrained to 0-2 by the 3-tab strip, branch unreachable via UI. */
       default: return null;
     }
   };
@@ -310,7 +329,12 @@ const ResonanceDashboardScreen = () => {
 
       {/* Header */}
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
+        <TouchableOpacity
+          onPress={() => navigation.goBack()}
+          style={styles.backButton}
+          accessibilityRole="button"
+          accessibilityLabel="Back"
+        >
           <Ionicons name="arrow-back" size={24} color="#FFF" />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Resonance</Text>
@@ -353,6 +377,8 @@ const ResonanceDashboardScreen = () => {
               key={tab}
               style={[styles.tab, activeTab === index && styles.tabActive]}
               onPress={() => setActiveTab(index)}
+              accessibilityRole="button"
+              accessibilityLabel={`${tab} tab`}
             >
               <Text style={[styles.tabText, activeTab === index && styles.tabTextActive]}>
                 {tab}

@@ -81,7 +81,8 @@ beforeEach(() => {
 });
 afterEach(async () => { if (root) await act(async () => root.unmount()); });
 const mount = async () => { await act(async () => { root = create(React.createElement(DiscoverableTogglePanel)); }); };
-const toggle = () => root.root.findByType('Switch');
+// The Discoverable switch comes first; the second one shares interests.
+const toggle = () => root.root.findAllByType('Switch')[0];
 test('age confirmation is required before enabling', async () => {
   await mount();
   expect(toggle().props.disabled).toBe(true);

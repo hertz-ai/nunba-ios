@@ -14,7 +14,10 @@ import {
   kidsFontWeight,
   kidsShadows,
 } from '../../../../../theme/kidsColors';
-import useMicAmplitude from '../../../../../hooks/useMicAmplitude';
+import useMicAmplitude, {MIC_STATUS} from '../../../../../hooks/useMicAmplitude';
+import MicStatusOverlay from '../shared/MicStatusOverlay';
+import {STEP, balloonPop as guide} from '../shared/gameGuide';
+import useHeardLine from '../shared/useHeardLine';
 
 const {width: SCREEN_WIDTH, height: SCREEN_HEIGHT} = Dimensions.get('window');
 
@@ -117,7 +120,7 @@ const Balloon = ({letter, color, index, isPopped, totalBalloons}) => {
   );
 };
 
-const BalloonPopTemplate = ({config, onComplete, onAnswer}) => {
+const BalloonPopTemplate = ({config, onComplete, onAnswer, onStep}) => {
   const questions = config?.content?.questions || config?.questions || [];
   const questionIndexRef = useRef(0);
   const [questionIndex, setQuestionIndex] = useState(0);
@@ -136,11 +139,28 @@ const BalloonPopTemplate = ({config, onComplete, onAnswer}) => {
   const lastPopTimeRef = useRef(0);
   const streakRef = useRef(0);
 
-  const {amplitude, isListening, startListening, stopListening} =
-    useMicAmplitude(1.0);
+  const {amplitude, isListening, status, error, startListening, stopListening} =
+    // 2026-06-18: sensitivity bumped from 1.0 to 4.0 — at 1.0, normal
+    // phone-distance child speech produces raw AudioRecord amplitude
+    // ~0.10-0.20 which never crosses AMP_THRESHOLD=0.3, so balloons
+    // never pop and the game appears broken.  4× boost puts normal
+    // speech at 0.4-0.8 (clamped to 1.0), letting balloons pop on
+    // ordinary "CAT" / "DOG" speech rather than requiring a shout.
+    useMicAmplitude(4.0);
 
   const currentQuestion = questions[questionIndex] || {word: 'HELLO', hint: 'A greeting'};
   const letters = currentQuestion.word.toUpperCase().split('');
+
+  // Balloons pop only once the word's line has been heard: any voice over
+  // the threshold pops them, the agent's from the speaker included.
+  const {heard, sayThenListen, hush} = useHeardLine(onStep);
+  useEffect(() => {
+    if (!gameStarted) return;
+    sayThenListen({kind: STEP.ASKED, itemId: `balloon:${currentQuestion.word}`, say: questionIndex === 0
+      ? guide.ask(currentQuestion, true)
+      : `${guide.right(questions[questionIndex - 1] || {})} ${guide.ask(currentQuestion, false)}`});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [gameStarted, questionIndex]);
 
   // Celebration scale animation
   const celebrationScale = useRef(new Animated.Value(1)).current;
@@ -176,7 +196,7 @@ const BalloonPopTemplate = ({config, onComplete, onAnswer}) => {
 
   // Pop chain logic based on amplitude
   useEffect(() => {
-    if (!gameStarted || showCelebration) return;
+    if (!gameStarted || showCelebration || !heard) return;
 
     if (amplitude > AMP_THRESHOLD && poppedCount < letters.length) {
       // Calculate pop interval: lerp from 800ms at 0.3 to 200ms at 1.0
@@ -200,7 +220,7 @@ const BalloonPopTemplate = ({config, onComplete, onAnswer}) => {
       // Voice dropped, pause chain
       streakRef.current = 0;
     }
-  }, [amplitude, gameStarted, showCelebration, poppedCount, letters.length]);
+  }, [amplitude, gameStarted, showCelebration, heard, poppedCount, letters.length]);
 
   // Check if all balloons popped
   useEffect(() => {
@@ -216,6 +236,14 @@ const BalloonPopTemplate = ({config, onComplete, onAnswer}) => {
       setTotalCorrect(prev => prev + 1);
       setShowCelebration(true);
       onAnswer(true);
+      hush();
+      if (onStep) {
+        onStep({kind: STEP.RIGHT, itemId: `balloon:${currentQuestion.word}`});
+        // The last word is said back here; the others with the next word.
+        if (questionIndexRef.current + 1 >= questions.length) {
+          onStep({kind: STEP.ASKED, itemId: `balloon:${currentQuestion.word}:done`, say: guide.right(currentQuestion)});
+        }
+      }
 
       // Celebration animation
       Animated.sequence([
@@ -337,9 +365,18 @@ const BalloonPopTemplate = ({config, onComplete, onAnswer}) => {
             ? amplitude > AMP_THRESHOLD
               ? 'Popping!'
               : 'Speak up!'
-            : 'Starting mic...'}
+            : 'Get ready…'}
         </Text>
       </View>
+
+      {/* Mic-status overlay covers the gameplay when permission is
+          missing/denied/unsupported, so the player has a clear retry
+          path instead of seeing "Starting mic..." forever (#408). */}
+      <MicStatusOverlay
+        status={status}
+        error={error}
+        onRetry={startListening}
+      />
 
       {/* Speech streak indicator */}
       {speechStreak > 5 && (
