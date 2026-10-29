@@ -1,8 +1,17 @@
 import React, { useState, useCallback, useEffect } from 'react';
 import {
-  View, Text, StyleSheet, FlatList, TouchableOpacity, Switch,
-  SafeAreaView, StatusBar, RefreshControl, ActivityIndicator, Alert,
+  View,
+  Text,
+  StyleSheet,
+  FlatList,
+  TouchableOpacity,
+  Switch,
+  StatusBar,
+  RefreshControl,
+  ActivityIndicator,
+  Alert,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import {
   widthPercentageToDP as wp,
   heightPercentageToDP as hp,
@@ -105,7 +114,17 @@ const CodingAgentScreen = () => {
         </View>
       </View>
 
-      <Text style={styles.sectionTitle}>Active Goals</Text>
+      <View style={styles.sectionHeaderRow}>
+        <Text style={styles.sectionTitle}>Active Goals</Text>
+        <TouchableOpacity
+          style={styles.newGoalBtn}
+          onPress={() => navigation.navigate('CreateCodingGoal')}
+          activeOpacity={0.7}
+        >
+          <Ionicons name="add-circle" size={wp('6%')} color="#6C63FF" />
+          <Text style={styles.newGoalText}>New Goal</Text>
+        </TouchableOpacity>
+      </View>
     </Animatable.View>
   );
 
@@ -165,6 +184,12 @@ const styles = StyleSheet.create({
   optInTitle: { color: '#FFF', fontSize: wp('3.8%'), fontWeight: '700', marginBottom: 2 },
   optInDesc: { color: '#888', fontSize: wp('3%') },
   sectionTitle: { color: '#FFF', fontSize: wp('4%'), fontWeight: '700', marginBottom: hp('1%') },
+  sectionHeaderRow: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    marginBottom: hp('1%'),
+  },
+  newGoalBtn: { flexDirection: 'row', alignItems: 'center', paddingVertical: 4, paddingHorizontal: 6 },
+  newGoalText: { color: '#6C63FF', fontSize: wp('3.4%'), fontWeight: '700', marginLeft: 4 },
   card: {
     backgroundColor: '#141225', borderRadius: 12, padding: wp('4%'),
     marginBottom: hp('1%'), borderWidth: 1, borderColor: '#2A2A2A',

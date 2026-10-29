@@ -21,6 +21,8 @@ import ProgressDots from '../shared/ProgressDots';
 import FeedbackOverlay from '../shared/FeedbackOverlay';
 import TimerBar from '../shared/TimerBar';
 import {SPRINGS} from '../shared/gameThemes';
+import {STEP, LEVEL, simulation as guide} from '../shared/gameGuide';
+import holdUntilSpoken from '../shared/holdUntilSpoken';
 
 /**
  * SimulationTemplate - Interactive cause-and-effect scenario.
@@ -46,7 +48,7 @@ const ITEM_BG_COLORS = [
   '#EFEBE9',
 ];
 
-const SimulationTemplate = ({config, onAnswer, onComplete}) => {
+const SimulationTemplate = ({config, onAnswer, onComplete, onStep, level = LEVEL.START}) => {
   const content = config?.content || {};
   const scenario = content.scenario || {};
   const title = scenario.title || 'Shopping Trip';
@@ -62,11 +64,11 @@ const SimulationTemplate = ({config, onAnswer, onComplete}) => {
   const [showFeedback, setShowFeedback] = useState(false);
   const [feedbackCorrect, setFeedbackCorrect] = useState(true);
   const [feedbackMessage, setFeedbackMessage] = useState('');
-  const [showHint, setShowHint] = useState(false);
+  // The shell's one ladder (shared/gameGuide): at LEVEL.MIN the good
+  // choices are marked.  This template's own three-misses rule is gone.
+  const showHint = level <= LEVEL.MIN;
   const [cantAffordItem, setCantAffordItem] = useState(null);
 
-  // Adaptive state
-  const consecutiveBad = useRef(0);
   const purchaseStartTime = useRef(Date.now());
   const totalGoodPurchases = useRef(0);
   const totalBadPurchases = useRef(0);
@@ -84,6 +86,7 @@ const SimulationTemplate = ({config, onAnswer, onComplete}) => {
   // Entrance animations
   useEffect(() => {
     purchaseStartTime.current = Date.now();
+    if (onStep) onStep({kind: STEP.ASKED, itemId: concept, say: guide.ask(scenario, startingMoney)});
 
     // Stagger item card entrance
     items.forEach((_, i) => {
@@ -142,6 +145,7 @@ const SimulationTemplate = ({config, onAnswer, onComplete}) => {
       // Check if can afford
       if (item.price > money) {
         setCantAffordItem(item.name);
+        if (onStep) onStep({kind: STEP.ASKED, itemId: item.name, say: guide.cantAfford(item, money)});
         setTimeout(() => {
           if (mountedRef.current) setCantAffordItem(null);
         }, 1500);
@@ -161,18 +165,15 @@ const SimulationTemplate = ({config, onAnswer, onComplete}) => {
       // Track good/bad
       if (isGood) {
         totalGoodPurchases.current += 1;
-        consecutiveBad.current = 0;
-        setShowHint(false);
         setFeedbackMessage('Nice choice!');
       } else {
         totalBadPurchases.current += 1;
-        consecutiveBad.current += 1;
         setFeedbackMessage('Hmm, is that the best choice?');
-
-        // Adapt: show hints after consecutive bad purchases
-        if (consecutiveBad.current >= 3) {
-          setShowHint(true);
-        }
+      }
+      if (onStep) {
+        onStep(isGood
+          ? {kind: STEP.RIGHT, itemId: item.name, concept, say: guide.right(item)}
+          : {kind: STEP.WRONG, itemId: item.name, chosen: item.name, say: guide.explainMiss(item)});
       }
 
       setFeedbackCorrect(isGood);
@@ -188,7 +189,7 @@ const SimulationTemplate = ({config, onAnswer, onComplete}) => {
         if (mountedRef.current) setShowFeedback(false);
       }, 800);
     },
-    [money, isFinished, concept, onAnswer, animateWallet, animateCart],
+    [money, isFinished, concept, onAnswer, onStep, animateWallet, animateCart],
   );
 
   // Finish shopping
@@ -233,6 +234,16 @@ const SimulationTemplate = ({config, onAnswer, onComplete}) => {
 
     return {moneyLeft, goodCount, badCount, totalPurchased, totalSpent, stars, message};
   }, [money, purchasedItems, startingMoney]);
+
+  // The teaching moment: how the trip went, and why, read out at the end.
+  // Guided, the shell's completion screen follows once it has been said; no
+  // "Continue" tap is needed (it stays).
+  useEffect(() => {
+    if (!isFinished || !onStep) return;
+    const spoken = onStep({kind: STEP.ASKED, itemId: `${concept}:done`, say: getEvaluation().message});
+    holdUntilSpoken(spoken, handleFinish, () => mountedRef.current);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isFinished]);
 
   // Render finished screen
   if (isFinished) {

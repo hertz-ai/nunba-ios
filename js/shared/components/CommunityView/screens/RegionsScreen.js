@@ -8,10 +8,10 @@ import {
   TextInput,
   ScrollView,
   RefreshControl,
-  SafeAreaView,
   StatusBar,
   Switch,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import {
   widthPercentageToDP as wp,
   heightPercentageToDP as hp,
@@ -114,6 +114,9 @@ const RegionsScreen = () => {
             key={filter.key}
             style={[styles.filterChip, selectedType === filter.key && styles.filterChipActive]}
             onPress={() => setSelectedType(filter.key)}
+            accessibilityRole="button"
+            accessibilityLabel={`Filter by ${filter.label}`}
+            accessibilityState={{ selected: selectedType === filter.key }}
           >
             <MaterialCommunityIcons
               name={filter.icon}

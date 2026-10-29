@@ -39,18 +39,18 @@ import StarReward from './StarReward';
 import StreakFire from './StreakFire';
 import GameSounds from './shared/SoundManager';
 import MediaCacheManager from './shared/MediaCacheManager';
+import {resolveGameMusic} from './shared/gameMusic';
 import {getGameTheme, resolveTemplateType, SPRINGS} from './shared/gameThemes';
+import useGuidedSteps from './shared/useGuidedSteps';
 
 const {width: SCREEN_WIDTH, height: SCREEN_HEIGHT} = Dimensions.get('window');
 
 // ── Game Shell Context ─────────────────────────────────────────────
-export const GameShellContext = createContext(null);
+// Defined in its own module so widgets and other hosts can use it without
+// importing this shell; re-exported here for the existing importers.
+import {GameShellContext, useGameShell} from './shared/gameShellContext';
 
-export const useGameShell = () => {
-  const ctx = useContext(GameShellContext);
-  if (!ctx) throw new Error('useGameShell must be used inside GameShell');
-  return ctx;
-};
+export {GameShellContext, useGameShell};
 
 // ── Haptic Patterns ────────────────────────────────────────────────
 const HAPTIC = {
@@ -290,6 +290,36 @@ const GameShell = ({
     };
   }, [phase]);
 
+  // ── Background music ───────────────────────────────────────────────
+  //
+  // The node composes a game's music through the one media capability its
+  // agents hold (routes/kids_media_routes.py -> generate_media), so the
+  // music a game plays here and the music its agent composes in CREATE are
+  // the same asset.  A cache hit plays at once; a miss asks the node,
+  // which answers 202 and starts composing, and the next launch of this
+  // game finds it cached.  Silence is an acceptable outcome, an exception
+  // is not: this is decoration, never a reason for a game not to start.
+  const startGameMusic = useCallback(() => {
+    let cancelled = false;
+    resolveGameMusic({
+      category: gameTheme?.bgmCategory || config?.category,
+      mood: gameTheme?.bgmMood,
+      promptId: config?.promptId || config?.prompt_id,
+      gameId: config?.id,
+    }).then((path) => {
+      if (!cancelled && path) {
+        GameSounds.startBackgroundMusic(path, {
+          loop: true,
+          fadeInMs: 2000,
+          volume: 0.2,
+        });
+      }
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [gameTheme, config]);
+
   // ── Phase Transitions (themed per game type) ──
   useEffect(() => {
     if (phase === 'loading') {
@@ -299,17 +329,19 @@ const GameShell = ({
     if (phase === 'intro') {
       // Animate intro card — uses SPRINGS.smooth instead of hardcoded friction/tension
       Animated.spring(introAnim, {toValue: 1, ...SPRINGS.smooth}).start();
-      // Start background music — use theme-specific bgm category, fall back to generic.
-      // MediaCacheManager.get is SYNCHRONOUS (returns the cached path string
-      // or null), not a Promise — calling .then() on it crashed the entire
-      // kids-game render with "Cannot read property 'then' of null" the
-      // moment we entered the intro phase.  Verified via on-device logcat
-      // 2026-06-01 (eng-spell-animals-01 → APP_CRASH on intro).
-      try {
-        const bgmKey = `bgm_${gameTheme.bgmCategory || config?.category || 'general'}_happy`;
-        const bgmPath = MediaCacheManager.get(bgmKey);
-        if (bgmPath) GameSounds.startBackgroundMusic(bgmPath, {fadeInMs: 2000, volume: 0.2});
-      } catch (_e) { /* bgm is best-effort */ }
+      // The game's music, composed by the node's media capability.
+      //
+      // Until 2026-09-21 this asked MediaCacheManager.get for a single
+      // string key, while get takes (mediaType, params) — so the key never
+      // matched, and nothing in the app ever downloaded a game's music
+      // either.  Every game played silence, quietly, because the whole
+      // block is best-effort.
+      //
+      // MediaCacheManager.get is SYNCHRONOUS (the cached path or null), not
+      // a Promise — calling .then() on it once crashed the kids-game render
+      // with "Cannot read property 'then' of null" on entering the intro
+      // (on-device logcat 2026-06-01, eng-spell-animals-01).
+      startGameMusic();
       // Auto-transition to playing
       const t = setTimeout(() => {
         Animated.timing(introAnim, {
@@ -341,6 +373,13 @@ const GameShell = ({
     else if (type === 'tap') GameSounds.tap();
   }, [isReducedMotion, streak, correctCount, totalAnswered]);
 
+  // ── Guided steps: one utterance + one cue per step, and the one ladder ──
+  // (shared/useGuidedSteps -- the same hook DynamicTemplateEngine uses).
+  // Templates not yet converted never call onStep and keep their feedback.
+  const {onStep: handleStep, level, guided, guidedRef} = useGuidedSteps({
+    config, gameTheme, isReducedMotion,
+  });
+
   // ── Answer Handler (called by template) ──
   const handleAnswer = useCallback((isCorrect, concept, responseTimeMs) => {
     setTotalAnswered(prev => prev + 1);
@@ -368,14 +407,14 @@ const GameShell = ({
 
         // Streak milestone celebrations
         if (newStreak === 3 || newStreak === 5 || newStreak === 10) {
-          triggerHaptic('streak');
+          if (!guidedRef.current) triggerHaptic('streak');
           if (!isReducedMotion) {
             setShowStarBurst(true);
             setTimeout(() => {
               if (mountedRef.current) setShowStarBurst(false);
             }, 600);
           }
-        } else {
+        } else if (!guidedRef.current) {
           triggerHaptic('correct');
         }
 
@@ -383,7 +422,7 @@ const GameShell = ({
       });
     } else {
       setStreak(0);
-      triggerHaptic('wrong');
+      if (!guidedRef.current) triggerHaptic('wrong');
     }
 
     // Report to 3R intelligence
@@ -442,14 +481,18 @@ const GameShell = ({
     templateType,
     gameTheme,
     feedbackStyle: gameTheme.feedbackStyle,
-  }), [config, phase, score, streak, bestStreak, starsEarned, correctCount, totalAnswered, elapsedTime, isReducedMotion, triggerHaptic, templateType, gameTheme]);
+    guided,
+    level,
+  }), [config, phase, score, streak, bestStreak, starsEarned, correctCount, totalAnswered, elapsedTime, isReducedMotion, triggerHaptic, templateType, gameTheme, guided, level]);
 
   // ── Template props (passed to children render function) ──
   const templateProps = useMemo(() => ({
     config,
     onAnswer: handleAnswer,
     onComplete: handleComplete,
-  }), [config, handleAnswer, handleComplete]);
+    onStep: handleStep,
+    level,
+  }), [config, handleAnswer, handleComplete, handleStep, level]);
 
   // ── Render ──
   return (

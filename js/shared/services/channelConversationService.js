@@ -482,6 +482,13 @@ class ChannelConversationService {
         sender_name: data?.sender_name,
         is_group: data?.is_group,
         chat_id: data?.chat_id,
+        // #399 channel routing gap closure — forward mentions[] + reactions[]
+        // from the server payload so downstream consumers (PostDetail
+        // ReactionsStrip, MentionInput parser, agentic dispatch) can
+        // surface them without re-fetching.  Arrays are forwarded as-is
+        // (server is source of truth for emoji/user_id normalization).
+        mentions: Array.isArray(data?.mentions) ? data.mentions : [],
+        reactions: Array.isArray(data?.reactions) ? data.reactions : [],
       },
     }));
 

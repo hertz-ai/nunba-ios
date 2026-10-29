@@ -9,10 +9,10 @@ import {
   Modal,
   ScrollView,
   RefreshControl,
-  SafeAreaView,
   StatusBar,
   Animated,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import {
   widthPercentageToDP as wp,
   heightPercentageToDP as hp,
@@ -169,7 +169,12 @@ const AchievementsScreen = () => {
                   onPress={async () => {
                     try {
                       await achievementsApi.showcase(selectedAchievement.id, {});
-                    } catch (e) { /* ignore */ }
+                    } catch (e) {
+                      // #417 fix: pre-fix silent /* ignore */ swallowed
+                      // every error.  Keep the UI quiet but at least log
+                      // so on-device diagnostics surface the failure.
+                      console.warn('[AchievementsScreen] showcase failed:', e);
+                    }
                   }}
                 >
                   <MaterialCommunityIcons name="ribbon" size={20} color="#FFD700" />
@@ -205,18 +210,33 @@ const AchievementsScreen = () => {
       {/* Achievement Count */}
       {/* UX-AUDIT 2026-05-19 (BROKEN-B-pattern): primary-content
           Animatable.View → plain View. */}
+      {/* #412 batch fix: countInfo (flex:1 between icon + percent badge)
+          was rendering "Achie/vem/ents/Unloc/ked" per-syllable because
+          Android RN doesn't apply minWidth:0 to flex children.  Lock
+          countText to one line with adjustsFontSizeToFit so "5 / 100"
+          shrinks gracefully on narrow widths; same for countLabel. */}
       <View style={styles.countCard}>
-        <View style={styles.countIcon}>
+        <View style={[styles.countIcon, {flexShrink: 0}]}>
           <MaterialCommunityIcons name="trophy" size={32} color="#FFD700" />
         </View>
-        <View style={styles.countInfo}>
-          <Text style={styles.countText}>
+        <View style={[styles.countInfo, {minWidth: 0}]}>
+          <Text
+            style={styles.countText}
+            numberOfLines={1}
+            adjustsFontSizeToFit
+            minimumFontScale={0.75}>
             <Text style={styles.countHighlight}>{unlockedCount}</Text> / {totalCount}
           </Text>
-          <Text style={styles.countLabel}>Achievements Unlocked</Text>
+          <Text
+            style={styles.countLabel}
+            numberOfLines={1}
+            adjustsFontSizeToFit
+            minimumFontScale={0.75}>
+            Achievements Unlocked
+          </Text>
         </View>
-        <View style={styles.countProgress}>
-          <Text style={styles.countPercent}>{totalCount > 0 ? Math.round((unlockedCount / totalCount) * 100) : 0}%</Text>
+        <View style={[styles.countProgress, {flexShrink: 0}]}>
+          <Text style={styles.countPercent} numberOfLines={1}>{totalCount > 0 ? Math.round((unlockedCount / totalCount) * 100) : 0}%</Text>
         </View>
       </View>
 

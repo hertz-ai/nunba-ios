@@ -126,7 +126,12 @@ const SeasonBanner = ({
                     <Text
                       style={[
                         styles.tierName,
-                        { color: isActive ? config.color : '#444' },
+                        // 2026-06-20: '#444' on '#141225' was ~1.4:1 contrast
+                        // — Gold and Platinum tier labels were essentially
+                        // invisible on tablet, looking like missing content.
+                        // '#7A7A92' lifts inactive tiers to legible while
+                        // still visually subordinate to the active tier.
+                        { color: isActive ? config.color : '#7A7A92' },
                       ]}
                     >
                       {config.label}
@@ -290,18 +295,25 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   tierDot: {
-    width: wp('6%'),
-    height: wp('6%'),
-    borderRadius: wp('3%'),
+    // 2026-06-20: capped at max() so dots don't blow up on tablets.
+    // wp('6%') on a 1600px tablet ≈ 43dp, which combined with the
+    // glow (wp 10%) looked like a UI glitch — a giant grey orb
+    // between Bronze and Silver labels.  Cap dot at 28dp.
+    width: Math.min(wp('6%'), 28),
+    height: Math.min(wp('6%'), 28),
+    borderRadius: Math.min(wp('3%'), 14),
     borderWidth: 2,
     justifyContent: 'center',
     alignItems: 'center',
   },
   tierGlow: {
+    // 2026-06-20: capped — glow at wp('10%') ≈ 71dp on tablets
+    // visually swallowed adjacent tier labels.  Tighter cap aligns
+    // glow visually with the dot it surrounds.
     position: 'absolute',
-    width: wp('10%'),
-    height: wp('10%'),
-    borderRadius: wp('5%'),
+    width: Math.min(wp('10%'), 44),
+    height: Math.min(wp('10%'), 44),
+    borderRadius: Math.min(wp('5%'), 22),
   },
   tierName: {
     fontSize: wp('2.5%'),

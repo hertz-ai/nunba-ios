@@ -1,5 +1,14 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { NativeModules, FlatList, DeviceEventEmitter, Animated, StyleSheet, View, TouchableOpacity, Text } from 'react-native';
+import { NativeModules, FlatList, DeviceEventEmitter, Animated, StyleSheet, View, TouchableOpacity, Text, InteractionManager, RefreshControl } from 'react-native';
+
+// #413 root-cause fix (2026-06-16): pull OnboardingModule out of the render
+// scope.  Previously `const { OnboardingModule } = NativeModules;` ran on
+// EVERY render, producing a new module reference each time, which caused
+// `fetchPosts` + `getTheme` useCallbacks to invalidate, which re-fired the
+// useEffect at line 139, which re-queued a native `getAllPosts` bridge
+// call.  Stacking native bridge work blocked the JS thread for ~4s after
+// any tap.  NativeModules.OnboardingModule is a singleton — capture once.
+const OnboardingModule_singleton = NativeModules.OnboardingModule;
 import Post from '../Post';
 import FeedHeader from '../FeedHeader';
 import useThemeStore from '../../../../colorThemeZustand';
@@ -55,7 +64,9 @@ const Feed = () => {
   const initialMap = new Map(initialState.map(item => [item.id, item]));
   const [postsMap, setPostsMap] = useState(initialMap);
   const [pageNumber, setPageNumber] = useState(1);
-  const { OnboardingModule } = NativeModules;
+  // #413: use the stable singleton captured at module load, not a fresh
+  // destructure on every render.
+  const OnboardingModule = OnboardingModule_singleton;
   const { theme, setTheme } = useThemeStore();
   const [isBottomSheetOpen, setIsBottomSheetOpen] = useState(false);
   const [userId, setUserId] = useState(null);
@@ -67,7 +78,14 @@ const Feed = () => {
   const insets = useSafeAreaInsets();
   const translateY = useRef(new Animated.Value(500)).current;
   const [postUserID, setPostUserId] = useState();
-  
+  // #462 (2026-06-22): pull-to-refresh state.  The Feed FlatList shipped
+  // without any onRefresh/RefreshControl, so the standard swipe-down
+  // gesture silently no-op'd — users expected the feed to reload but it
+  // just over-scrolled and snapped back.  Now: tug → spinner → re-fetch
+  // page 1 → fresh posts arrive via the AddPostKey native broadcast.
+  const [refreshing, setRefreshing] = useState(false);
+  const refreshTimerRef = useRef(null);
+
 
   // iOS port of Android's native getAllPosts: hit the same get-posts backend
   // over HTTP (shared JS service) and merge the page into postsMap. Android
@@ -92,11 +110,42 @@ const Feed = () => {
     }
   }, [userId]);
 
+  // #462: triggered by the FlatList swipe-down gesture.  Clears the
+  // post cache, re-requests page 1 from the native bridge, and shows
+  // a spinner for up to 1.5s while the AddPostKey emits stream new
+  // entries back into postsMap.  Auto-clears if the native call hangs.
+  const handleRefresh = useCallback(() => {
+    if (refreshing) return;
+    setRefreshing(true);
+    setPostsMap(new Map());
+    setPageNumber(1);
+    fetchPostsRef.current(1);
+    if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current);
+    refreshTimerRef.current = setTimeout(() => {
+      setRefreshing(false);
+      refreshTimerRef.current = null;
+    }, 1500);
+  }, [refreshing]);
+
+  useEffect(() => () => {
+    if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current);
+  }, []);
+
+  // #413: previously this depended on [postsMap, fetchPosts] — every new
+  // post arriving rebuilt the postsMap (new Map identity), tearing down
+  // + re-registering BOTH DeviceEventEmitter listeners on every receive.
+  // Use a ref for the latest postsMap so the listener identity stays
+  // stable for the lifetime of the screen.  Mount-time only.
+  const postsMapRef = useRef(postsMap);
+  useEffect(() => { postsMapRef.current = postsMap; }, [postsMap]);
+  const fetchPostsRef = useRef(fetchPosts);
+  useEffect(() => { fetchPostsRef.current = fetchPosts; }, [fetchPosts]);
+
   useEffect(() => {
     const broadcastReceiver = (intent) => {
       try {
         const parsedIntentData = JSON.parse(intent.AddPostKey);
-        if (!postsMap.has(parsedIntentData.id)) {
+        if (!postsMapRef.current.has(parsedIntentData.id)) {
           setPostsMap((prevPostsMap) => {
             const updatedPostsMap = new Map(prevPostsMap);
             updatedPostsMap.set(parsedIntentData.id, parsedIntentData);
@@ -116,14 +165,15 @@ const Feed = () => {
     const addPostSub = DeviceEventEmitter.addListener('AddPostKey', broadcastReceiver);
     const postAddedSub = DeviceEventEmitter.addListener('PostAdded', () => {
       setPageNumber(1);
-      fetchPosts(1);
+      fetchPostsRef.current(1);
     });
 
     return () => {
       addPostSub?.remove?.();
       postAddedSub?.remove?.();
     };
-  }, [postsMap, fetchPosts]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   useEffect(() => {
     const fetchUserData = async () => {
@@ -169,10 +219,20 @@ const Feed = () => {
     });
   };
 
+  // #413: mount-time only.  Previously [fetchPosts, getTheme] deps caused
+  // the native getAllPosts + getTheme bridge calls to refire on every
+  // tap-induced render of the parent — the heart of the 4s nav stall.
+  // Mount once; later pages are driven by the pageNumber effect below.
+  // Defer the boot work past the interaction so the first paint + any
+  // pending tap gesture gets the JS thread first.
   useEffect(() => {
-    getTheme();
-    fetchPosts(pageNumber);
-  }, [fetchPosts, getTheme]);
+    const handle = InteractionManager.runAfterInteractions(() => {
+      getTheme();
+      fetchPosts(pageNumber);
+    });
+    return () => { try { handle?.cancel?.(); } catch (_) {} };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   useEffect(() => {
     if (pageNumber > 1) {
@@ -278,6 +338,15 @@ const Feed = () => {
         showsVerticalScrollIndicator={false}
         onEndReached={loadMorePosts}
         onEndReachedThreshold={0.7}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={handleRefresh}
+            tintColor={colors.accent}
+            colors={[colors.accent]}
+            progressBackgroundColor={colors.surfaceBase}
+          />
+        }
       />
       <NunbaFab onPress={openNunba} />
       {isBottomSheetOpen && <Animated.View style={[styles.bottomSheet]}>

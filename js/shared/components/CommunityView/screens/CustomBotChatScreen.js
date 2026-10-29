@@ -1,9 +1,19 @@
 import React, { useState, useCallback, useEffect, useRef } from 'react';
 import {
-  View, Text, StyleSheet, FlatList, TouchableOpacity, TextInput,
-  SafeAreaView, StatusBar, KeyboardAvoidingView, Platform,
-  ActivityIndicator, Image, Animated,
+  View,
+  Text,
+  StyleSheet,
+  FlatList,
+  TouchableOpacity,
+  TextInput,
+  StatusBar,
+  KeyboardAvoidingView,
+  Platform,
+  ActivityIndicator,
+  Image,
+  Animated,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import {
   widthPercentageToDP as wp,
   heightPercentageToDP as hp,

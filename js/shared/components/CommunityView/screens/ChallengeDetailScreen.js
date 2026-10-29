@@ -7,10 +7,10 @@ import {
   TouchableOpacity,
   Image,
   FlatList,
-  SafeAreaView,
   StatusBar,
   Share,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import {
   widthPercentageToDP as wp,
   heightPercentageToDP as hp,
@@ -85,12 +85,21 @@ const ChallengeDetailScreen = () => {
   };
 
   const handleShare = async () => {
+    // #417 fix: pre-fix flow had handleShare crash if the outer
+    // Share.share rejected — the catch block then called Share.share
+    // again without its own try/catch.  Now every Share.share is
+    // wrapped so a user-cancel or share-sheet error never crashes.
+    const fallback = `https://hevolve.ai/social/challenges/${challengeId}`;
     try {
       const res = await shareApi.createLink('challenge', challengeId);
-      const url = res?.data?.url ? `https://hevolve.ai${res.data.url}` : `https://hevolve.ai/social/challenges/${challengeId}`;
-      await Share.share({ message: `Check out this challenge on Hevolve: ${url}`, url });
-    } catch (e) {
-      await Share.share({ message: `https://hevolve.ai/social/challenges/${challengeId}` });
+      const url = res?.data?.url ? `https://hevolve.ai${res.data.url}` : fallback;
+      try {
+        await Share.share({ message: `Check out this challenge on Hevolve: ${url}`, url });
+      } catch (_) {
+        await Share.share({ message: fallback }).catch(() => {});
+      }
+    } catch (_) {
+      await Share.share({ message: fallback }).catch(() => {});
     }
   };
 

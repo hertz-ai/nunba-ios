@@ -28,7 +28,7 @@
  *      vibe_tags}}
  *   POST /api/social/encounter/discoverable  →
  *     body: {enabled, age_claim_18, ttl_sec, face_visible,
- *            avatar_style, vibe_tags}
+ *            avatar_style}  (no vibe_tags: display-only here)
  *     server returns 403 if `enable && !age_claim_18`
  *     server returns 429 if `>= MAX_TOGGLES_24H` within 24h
  *
@@ -120,6 +120,11 @@ const DiscoverableTogglePanel = () => {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState(null);
   const [rateLimited, setRateLimited] = useState(false);
+  // "Share my interests with people nearby" = persona.interests_discoverable.
+  // Default OFF; shown as saved on the card, never assumed.
+  const [shareInterests, setShareInterests] = useState(false);
+  const [shareLoading, setShareLoading] = useState(true);
+  const [shareSaving, setShareSaving] = useState(false);
   const mounted = useRef(true);
 
   useEffect(
@@ -169,6 +174,38 @@ const DiscoverableTogglePanel = () => {
     fetchState();
   }, [fetchState]);
 
+  useEffect(() => {
+    (async () => {
+      try {
+        const result = await bleEncounterApi.getPersona();
+        const card = result?.data || {};
+        if (mounted.current) {
+          setShareInterests(card.interests_discoverable === true);
+        }
+      } catch (_) {
+        // stays OFF: a card we could not read is not a yes
+      } finally {
+        if (mounted.current) setShareLoading(false);
+      }
+    })();
+  }, []);
+
+  const handleShareInterests = useCallback(async (next) => {
+    setShareInterests(next);
+    setShareSaving(true);
+    try {
+      const result = await bleEncounterApi.setPersona({ interests_discoverable: next });
+      requireSavedResponse(result);
+    } catch (_) {
+      if (mounted.current) {
+        setShareInterests(!next);
+        setError("Couldn't save your sharing choice. Please try again.");
+      }
+    } finally {
+      if (mounted.current) setShareSaving(false);
+    }
+  }, []);
+
   const handleToggle = useCallback(
     async (next) => {
       setError(null);
@@ -179,6 +216,10 @@ const DiscoverableTogglePanel = () => {
       }
       setSubmitting(true);
       try {
+        // No vibe_tags: this panel only displays them (the persona card
+        // edits them), and the server keeps the saved tags when a toggle
+        // omits them.  Sending the loaded copy would wipe them after a
+        // failed load ([]) or overwrite a newer card edit.
         const result = await bleEncounterApi.setDiscoverable({
           enabled: next,
           age_claim_18: ageClaim,
@@ -218,7 +259,7 @@ const DiscoverableTogglePanel = () => {
         } else if (msg.includes('403') || msg.includes('age_claim')) {
           setError('Confirm 18+ to enable discoverable.');
         } else if (isParseError) {
-          setError("Couldn't reach the server — try again in a moment.");
+          setError("Couldn't reach the server. Try again in a moment.");
         } else {
           setError(`Failed: ${msg}`);
         }
@@ -226,7 +267,7 @@ const DiscoverableTogglePanel = () => {
         if (mounted.current) setSubmitting(false);
       }
     },
-    [ageClaim, vibeTags],
+    [ageClaim],
   );
 
   const switchDisabled =
@@ -274,7 +315,7 @@ const DiscoverableTogglePanel = () => {
       {expiresAt && enabled && <TTLCountdown expiresAtIso={expiresAt} />}
 
       <Text style={styles.privacyText}>
-        When on, people physically near you can opt in to see your avatar —
+        When on, people physically near you can opt in to see your avatar,
         never your photo. Drafts run locally without it.
       </Text>
 
@@ -297,6 +338,27 @@ const DiscoverableTogglePanel = () => {
           ))}
         </View>
       )}
+
+      <View style={styles.shareRow}>
+        <Text style={styles.shareLabel}>
+          Share my interests with people nearby
+        </Text>
+        <Switch
+          value={shareInterests}
+          onValueChange={handleShareInterests}
+          disabled={shareLoading || shareSaving}
+          trackColor={{ false: '#3a3a4e', true: '#6C63FF55' }}
+          thumbColor={shareInterests ? ACCENT : '#888'}
+          accessibilityLabel="Share my interests with people nearby"
+          accessibilityState={{
+            checked: shareInterests,
+            disabled: shareLoading || shareSaving,
+          }}
+        />
+      </View>
+      <Text style={styles.privacyText}>
+        Off: people nearby see your avatar but not your vibe tags.
+      </Text>
     </View>
   );
 };
@@ -362,6 +424,16 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(108, 99, 255, 0.12)',
     marginRight: wp('1.5%'),
     marginBottom: hp('0.5%'),
+  },
+  shareRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: hp('1%'),
+  },
+  shareLabel: {
+    color: '#BBB',
+    fontSize: rfp(3.4),
+    flex: 1,
   },
   tagChipText: {
     color: '#FFF',

@@ -9,17 +9,18 @@ import {
   TextInput,
   ActivityIndicator,
   RefreshControl,
-  SafeAreaView,
   StatusBar,
   ToastAndroid,
   Platform,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import { useNavigation } from '@react-navigation/native';
 
 import { gamesApi } from '../../../services/socialApi';
 import { GAME_CONFIGS } from '../components/KidsLearning/data/gameConfigs';
+import { sortAwesomeFirst, makeSurpriseTile, isAwesomeGame, SURPRISE_TILE_ID } from '../../../services/awesomeGames';
 import {
   colors,
   spacing,
@@ -139,23 +140,45 @@ const GameHubScreen = () => {
       if (tab !== 'all') params.category = tab;
       if (search.trim()) params.search = search.trim();
       const res = await gamesApi.catalog(params);
-      const catalog = res.data || res.games || [];
+      const catalog = (res && Array.isArray(res.data || res.games)) ? (res.data || res.games) : [];
 
       // Merge server + local (deduped by id)
       const serverIds = new Set(catalog.map(g => g.id));
       merged = [...catalog, ...GAME_CONFIGS.filter(g => !serverIds.has(g.id))];
-    } catch (_) {
-      // Server unreachable — local only
+    } catch (e) {
+      // 2026-06-18: previously `catch (_) {}` swallowed every server
+      // failure silently — user saw a stale local-only list with no
+      // hint that the server roundtrip failed.  Log to console for
+      // dev debugging; toast the user once when this happens.
+      const msg = (e && e.message) || 'Game catalog unreachable';
+      try {
+        // eslint-disable-next-line no-console
+        console.warn('[GameHub] catalog fetch failed, using local fallback:', msg);
+      } catch (_) {}
+      if (Platform.OS === 'android') {
+        try { ToastAndroid.show('Game catalog offline — showing local games', ToastAndroid.SHORT); } catch (_) {}
+      }
       merged = [...GAME_CONFIGS];
     }
 
     const filtered = applyFilters(merged);
-    setGames(filtered);
+    // Awesome-first: brief-backed games sort to the top, and a synthetic
+    // Surprise tile is pinned at position 0 to give the unique-brief
+    // path a visible entry point even before HARTOS authors per-subject
+    // briefs.  Skip the pinned tile when the user is typing (search
+    // should only show real matches) or browsing a tab whose audience
+    // is incompatible with the kids brief composer.
+    const sorted = sortAwesomeFirst(filtered);
+    const withSurprise = (!search.trim() && (tab === 'all' || tab === 'kids'))
+      ? [makeSurpriseTile({ audience: tab === 'kids' ? 'kids' : 'all' }), ...sorted.filter(g => g.id !== SURPRISE_TILE_ID)]
+      : sorted;
+    setGames(withSurprise);
     // Featured row reflects whatever the user is currently filtered to —
     // previously the row was only updated on the All tab and stayed
     // stale (showing English games even on Life Skills / Science /
-    // Creative).  Now always update with the first 5 filtered games.
-    if (!search.trim()) setFeaturedGames(filtered.slice(0, 5));
+    // Creative).  Now always update with the first 5 filtered games,
+    // awesome-first so the visual hero is a brief-backed game.
+    if (!search.trim()) setFeaturedGames(withSurprise.slice(0, 5));
   }, [tab, search, applyFilters]);
 
   const fetchLobbies = useCallback(async () => {
@@ -203,8 +226,10 @@ const GameHubScreen = () => {
           return;
         }
         // Server returned no match — fall through to the no-match path.
-      } catch (_) {
-        // Network / server failure — same UX as no-match.
+      } catch (e) {
+        // #417 fix: log network/server failures (still show graceful
+        // no-match UX to the user).
+        console.warn('QuickMatch failed for category', category, e);
       }
       // Don't switch the category tab — the Quick Match labels
       // (Trivia / Board / Arcade / Word) are game STYLES not config
@@ -228,7 +253,16 @@ const GameHubScreen = () => {
       // Without this split, kids configs hit GameScreen's default branch
       // and render "<engine> coming soon", which is the live bug the user
       // hit when tapping a kids game tile.
-      if (game.template) {
+      // Brief-backed games (the pinned "Surprise me!" tile, and any
+      // unique-brief config) carry NO `template` — they are composed at launch
+      // by UniqueGameRenderer.  KidsGameScreen already runs them:
+      // `useUniqueBrief = isAwesomeGame(gameConfig)`.  Routing on `template`
+      // alone sent them to GameScreen, which cannot resolve a synthetic id,
+      // falls back to {title:'Game', engine:'unknown'} and renders "unknown
+      // coming soon".  Measured on a Redmi Pad 2 2026-09-06: the featured
+      // "Surprise me!" tile opened a lobby titled "Game" and Play Solo from
+      // there produced exactly that dead screen.
+      if (game.template || isAwesomeGame(game)) {
         // KidsGameScreen reads `route.params.gameConfig` (NOT `config`) —
         // see KidsGameScreen.js:42.  Name mismatch crashes the screen
         // with "Cannot read property 'template' of undefined", verified
@@ -246,8 +280,15 @@ const GameHubScreen = () => {
       try {
         await gamesApi.join(lobby.id);
         navigation.navigate('GameScreen', { gameId: lobby.id });
-      } catch (_) {
-        navigation.navigate('GameScreen', { gameId: lobby.id });
+      } catch (e) {
+        // 2026-06-18: previous code navigated anyway after failure,
+        // dropping the user into GameScreen with no joined lobby
+        // state — manifested as a "stuck loading" screen.  Surface
+        // the failure so the user knows to retry.
+        const msg = (e && e.message) || 'Could not join the lobby';
+        if (Platform.OS === 'android') {
+          try { ToastAndroid.show(`Join failed: ${msg}`, ToastAndroid.SHORT); } catch (_) {}
+        }
       }
     },
     [navigation],

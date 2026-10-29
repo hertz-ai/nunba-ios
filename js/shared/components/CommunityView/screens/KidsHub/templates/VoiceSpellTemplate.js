@@ -160,7 +160,11 @@ const VoiceSpellTemplate = ({config, onComplete, onAnswer}) => {
         }, delay);
       }
     } else if (amplitude < 0.1 && revealedCount < totalLetters) {
-      // Silence tracking - reset progress if quiet too long
+      // Silence tracking - reset progress if quiet too long.
+      /* istanbul ignore next — unreachable from JS: the effect cleanup
+         function (return ()=>{}) already clears revealTimerRef on every
+         re-render, so by the time the silence branch evaluates,
+         revealTimerRef.current is always null. */
       if (revealTimerRef.current) {
         clearTimeout(revealTimerRef.current);
         revealTimerRef.current = null;

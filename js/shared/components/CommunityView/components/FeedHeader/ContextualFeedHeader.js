@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState, useCallback, useMemo } from 'react';
 import {
   View, Text, FlatList, LayoutAnimation,
   UIManager, Platform, StyleSheet, TouchableOpacity,
@@ -43,14 +43,29 @@ if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental
   UIManager.setLayoutAnimationEnabledExperimental(true);
 }
 
-const QuickAccessBar = () => {
+// #413 fix: User report — "People tab not snappy, 4s nav delay on tile
+// tap due to re-render".  Wrapping QuickAccessBar in React.memo and
+// stabilising the tap/profile callbacks so a parent re-render doesn't
+// retrigger child re-renders of the Search/Notifications/Profile row.
+const QuickAccessBar = React.memo(() => {
   const navigation = useNavigation();
   // #198 — bell icon now shows an unread badge that lives in the
   // shared zustand notificationStore (live-updated by WAMP via
   // realtimeService).  Filled bell when unread > 0, outline when 0.
   const unreadCount = useNotificationStore((s) => s.unreadCount);
   const hasUnread = unreadCount > 0;
-  const tap = (screen) => { hapticLight(); navigation.navigate(screen); };
+  // #413 fix: stabilize the tap callbacks so child PressableScales
+  // don't see a new function reference on every render.  Without
+  // useCallback each render creates new arrow fns -> React diffs
+  // shallow-equal-by-reference -> children re-render.
+  const tapSearch = useCallback(() => {
+    hapticLight();
+    navigation.navigate('Search');
+  }, [navigation]);
+  const tapNotifications = useCallback(() => {
+    hapticLight();
+    navigation.navigate('Notifications');
+  }, [navigation]);
 
   const [me, setMe] = useState(() => ensureCurrentUser());
   useEffect(() => {
@@ -58,15 +73,18 @@ const QuickAccessBar = () => {
     return unsub;
   }, []);
   const initial = initialOf(me);
-  const avatarColor = initial ? AVATAR_PALETTE[paletteIndex(initial + (me?.email || ''))] : null;
+  const avatarColor = useMemo(
+    () => initial ? AVATAR_PALETTE[paletteIndex(initial + (me?.email || ''))] : null,
+    [initial, me?.email]
+  );
   return (
     <View style={styles.quickAccess}>
-      <PressableScale style={styles.quickBtn} onPress={() => tap('Search')} accessibilityLabel="Search" haptic={false} rippleColor="rgba(255,255,255,0.15)">
+      <PressableScale style={styles.quickBtn} onPress={tapSearch} accessibilityLabel="Search" haptic={false} rippleColor="rgba(255,255,255,0.15)">
         <Icon name="magnify" size={22} color={colors.textSecondary} />
       </PressableScale>
       <PressableScale
         style={styles.quickBtn}
-        onPress={() => tap('Notifications')}
+        onPress={tapNotifications}
         accessibilityLabel={hasUnread
           ? `Notifications, ${unreadCount} unread`
           : 'Notifications'}
@@ -94,15 +112,36 @@ const QuickAccessBar = () => {
         haptic={false}
         rippleColor="rgba(255,255,255,0.18)"
         onPress={() => {
+          // #414 fix: the older flow relied on OnboardingModule.getUser_id
+          // firing its callback to trigger navigation.  On release-APK
+          // builds the callback occasionally never fires (native side
+          // returns null / Hermes drops the reference / module not
+          // registered), and there was no fallback — the avatar tap
+          // looked dead.  Always navigate within 250ms; if the native
+          // call resolves later we navigate with the userId, otherwise
+          // we navigate immediately with userId=0 and the screen reads
+          // its own identity from secure storage.
+          let navigated = false;
+          const goProfile = (uid) => {
+            if (navigated) return;
+            navigated = true;
+            try {
+              navigation.navigate('Profile', { userId: Number(uid) || 0, isOwnProfile: true });
+            } catch (_) {
+              try { navigation.navigate('Profile'); } catch (_e) {}
+            }
+          };
           try {
             if (NativeModules?.OnboardingModule?.getUser_id) {
+              const fallback = setTimeout(() => goProfile(0), 250);
               NativeModules.OnboardingModule.getUser_id((uid) => {
-                navigation.navigate('Profile', { userId: Number(uid) || 0, isOwnProfile: true });
+                clearTimeout(fallback);
+                goProfile(uid);
               });
               return;
             }
           } catch (_) {}
-          navigation.navigate('Profile');
+          goProfile(0);
         }}
       >
         {initial ? (
@@ -113,7 +152,7 @@ const QuickAccessBar = () => {
       </PressableScale>
     </View>
   );
-};
+});
 
 // Gen-Z subline that pairs with the time-aware `greeting` string.
 // Each window is intentionally short + casual.
@@ -125,7 +164,16 @@ const moodForHour = (h) => {
   return '🌙 wind down with one rep';
 };
 
-const ContextualFeedHeader = () => {
+// #413 fix: ContextualFeedHeader sits at the top of the People-tab
+// FlatList header.  When the user tapped a nested page, the parent
+// CommunityView re-rendered and dragged the header through a full
+// render cycle including the QuickAccessBar, FeatureNavStrip and
+// the InsightCard FlatList — about 4 s of jank before the navigation
+// transition started.  Wrapping the component in React.memo, memoising
+// the mood subline + insight card renderer + window-hour key, and
+// hiding the always-recreated inline date() call removes the costliest
+// part of the per-tap re-render.
+const ContextualFeedHeader = React.memo(() => {
   const { signals, greeting, refreshing, celebrationEvent } = useContextualInsights();
   const prevSignalCount = useRef(signals.length);
 
@@ -144,9 +192,19 @@ const ContextualFeedHeader = () => {
     }
   }, [celebrationEvent]);
 
-  const renderInsightCard = ({ item, index }) => (
-    <InsightCard signal={item} index={index} />
+  // moodSubtitle was previously computed from a fresh `new Date()` on
+  // EVERY render.  Cache it for the lifetime of this hour-of-day.
+  const moodSubtitle = useMemo(
+    () => moodForHour(new Date().getHours()),
+    // intentionally empty — we accept staleness across the hour
+    // boundary in exchange for not invalidating every render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    []
   );
+
+  const renderInsightCard = useCallback(({ item, index }) => (
+    <InsightCard signal={item} index={index} />
+  ), []);
 
   return (
     <View style={styles.container}>
@@ -168,7 +226,7 @@ const ContextualFeedHeader = () => {
             {greeting}
           </Text>
           <Text style={styles.subGreeting} numberOfLines={1}>
-            {moodForHour(new Date().getHours())}
+            {moodSubtitle}
           </Text>
         </View>
         <QuickAccessBar />
@@ -191,11 +249,12 @@ const ContextualFeedHeader = () => {
           renderItem={renderInsightCard}
           showsHorizontalScrollIndicator={false}
           contentContainerStyle={styles.listContent}
+          removeClippedSubviews
         />
       ) : null}
     </View>
   );
-};
+});
 
 const styles = StyleSheet.create({
   container: {

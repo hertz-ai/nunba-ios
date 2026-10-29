@@ -136,6 +136,14 @@ const playAudio = (soundEvent, templateType) => {
  * Call these from templates and GameShell for multimodal feedback.
  */
 export const GameSounds = {
+  /** The vibration alone, for a step whose SOUND is played elsewhere (the
+   * agent's memoized sound for a game state). */
+  haptic: (event) => {
+    const pattern = HapticPatterns[event] || (event === 'streak' ? HapticPatterns.streak3
+      : event === 'starEarned' ? HapticPatterns.correct : null);
+    if (pattern) vibrate(pattern);
+  },
+
   /** Light tap feedback for button press */
   tap: () => {
     vibrate(HapticPatterns.tap);

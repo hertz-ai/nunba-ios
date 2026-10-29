@@ -13,6 +13,8 @@ import {SPRINGS} from '../shared/gameThemes';
 import ProgressDots from '../shared/ProgressDots';
 import FeedbackOverlay from '../shared/FeedbackOverlay';
 import TimerBar from '../shared/TimerBar';
+import {STEP, LEVEL, trueFalse as guide} from '../shared/gameGuide';
+import holdUntilSpoken from '../shared/holdUntilSpoken';
 
 /**
  * TrueFalseTemplate - True or False statement game.
@@ -27,16 +29,24 @@ import TimerBar from '../shared/TimerBar';
  * - onAnswer: (isCorrect, concept, responseTimeMs) => void
  * - onComplete: () => void
  */
-const TrueFalseTemplate = ({config, onAnswer, onComplete}) => {
+// How many answers in a row were right.
+const trailingRight = (results) => {
+  let n = 0;
+  for (let i = results.length - 1; i >= 0 && results[i]; i--) n++;
+  return n;
+};
+
+const TrueFalseTemplate = ({config, onAnswer, onComplete, onStep, level = LEVEL.START}) => {
   const statements = config?.content?.statements || [];
   const [currentIndex, setCurrentIndex] = useState(0);
   const [answered, setAnswered] = useState(false);
   const [selectedAnswer, setSelectedAnswer] = useState(null);
   const [results, setResults] = useState([]);
-  const [consecutiveWrong, setConsecutiveWrong] = useState(0);
-  const [consecutiveRight, setConsecutiveRight] = useState(0);
-  const [fastStreak, setFastStreak] = useState(0);
-  const [showTimer, setShowTimer] = useState(false);
+  // The shell's one ladder (shared/gameGuide): at LEVEL.MIN a hint and no
+  // timer, at LEVEL.MAX a countdown for the challenge.  This template's own
+  // ladder (3 misses / 4 fast answers) is gone.
+  const struggling = level <= LEVEL.MIN;
+  const showTimer = level >= LEVEL.MAX;
   const [timerRunning, setTimerRunning] = useState(false);
 
   // Animations
@@ -92,6 +102,15 @@ const TrueFalseTemplate = ({config, onAnswer, onComplete}) => {
     questionStartTime.current = Date.now();
     setAnswered(false);
     setSelectedAnswer(null);
+    const st = statements[currentIndex];
+    if (onStep && st && st.text) {
+      // Every line an answer can need is prepared while the child thinks.
+      const nextSt = statements[currentIndex + 1];
+      const prepare = [guide.right(st), guide.explainMiss(!st.answer, st)]
+        .concat(showTimer ? [guide.explainMiss(null, st)] : [])
+        .concat(nextSt && nextSt.text ? [guide.ask(nextSt)] : []);
+      onStep({kind: STEP.ASKED, itemId: st.concept || `tf-${currentIndex}`, say: guide.ask(st), prepare});
+    }
 
     // Start timer if in challenge mode
     if (showTimer) {
@@ -103,26 +122,17 @@ const TrueFalseTemplate = ({config, onAnswer, onComplete}) => {
     };
   }, [currentIndex]);
 
-  // Adaptive: enable timer when child is fast-streaking
+  // At the easiest level: show the hint, and no timer pressure
   useEffect(() => {
-    if (fastStreak >= 4 && !showTimer) {
-      setShowTimer(true);
-    }
-  }, [fastStreak]);
-
-  // Adaptive: show hint when struggling
-  useEffect(() => {
-    if (consecutiveWrong >= 3 && !answered) {
+    if (struggling && !answered) {
       Animated.timing(hintAnim, {
         toValue: 1,
         duration: 400,
         useNativeDriver: true,
       }).start();
-      // Disable timer pressure if active
-      setShowTimer(false);
       setTimerRunning(false);
     }
-  }, [consecutiveWrong, currentIndex]);
+  }, [struggling, currentIndex]);
 
   const getHintText = useCallback(() => {
     if (!currentStatement.text) return '';
@@ -159,26 +169,22 @@ const TrueFalseTemplate = ({config, onAnswer, onComplete}) => {
         }),
       ]).start();
 
-      // Track adaptive state
-      if (isCorrect) {
-        setConsecutiveWrong(0);
-        setConsecutiveRight(prev => prev + 1);
-        if (responseTimeMs < 3000) {
-          setFastStreak(prev => prev + 1);
-        } else {
-          setFastStreak(0);
-        }
-      } else {
-        setConsecutiveRight(0);
-        setFastStreak(0);
-        setConsecutiveWrong(prev => prev + 1);
+      let spoken;
+      if (onStep) {
+        const itemId = currentStatement.concept || `tf-${currentIndex}`;
+        spoken = onStep(isCorrect
+          ? {kind: STEP.RIGHT, itemId, concept: currentStatement.concept, say: guide.right(currentStatement)}
+          : {kind: STEP.WRONG, itemId, chosen: userAnswer, wanted: currentStatement.answer,
+             say: guide.explainMiss(userAnswer, currentStatement)});
       }
 
       setResults(prev => [...prev, isCorrect]);
 
-      // Show feedback
+      // Show feedback.  Guided, the answer and its explanation stay on screen
+      // until the voice has said why; the overlay and the fixed 2.2s advance
+      // cut an explained miss off mid-sentence.  Unguided keeps both.
       setFeedbackCorrect(isCorrect);
-      setFeedbackVisible(true);
+      if (!onStep) setFeedbackVisible(true);
 
       // Report
       onAnswer(isCorrect, currentStatement.concept, responseTimeMs);
@@ -195,8 +201,7 @@ const TrueFalseTemplate = ({config, onAnswer, onComplete}) => {
       // never freezes Q1. Idempotent against handleFeedbackDismiss (whichever
       // fires first wins via advancedForIndexRef).
       const indexAtAnswer = currentIndex;
-      if (advanceTimerRef.current) clearTimeout(advanceTimerRef.current);
-      advanceTimerRef.current = setTimeout(() => {
+      const advance = () => {
         if (!mountedRef.current) return;
         if (advancedForIndexRef.current >= indexAtAnswer) return;
         advancedForIndexRef.current = indexAtAnswer;
@@ -208,9 +213,15 @@ const TrueFalseTemplate = ({config, onAnswer, onComplete}) => {
           completedRef.current = true;
           onComplete();
         }
-      }, 2200);
+      };
+      if (advanceTimerRef.current) clearTimeout(advanceTimerRef.current);
+      if (onStep) {
+        holdUntilSpoken(spoken, advance, () => mountedRef.current);
+      } else {
+        advanceTimerRef.current = setTimeout(advance, 2200);
+      }
     },
-    [answered, currentStatement, currentIndex, statements.length, onAnswer, onComplete],
+    [answered, currentStatement, currentIndex, statements.length, onAnswer, onComplete, onStep],
   );
 
   const handleTimerUp = useCallback(() => {
@@ -330,7 +341,7 @@ const TrueFalseTemplate = ({config, onAnswer, onComplete}) => {
         </Animated.View>
 
         {/* Hint (adaptive - shows when struggling) */}
-        {consecutiveWrong >= 3 && !answered && (
+        {struggling && !answered && (
           <Animated.View
             style={[
               styles.hintCard,
@@ -371,6 +382,7 @@ const TrueFalseTemplate = ({config, onAnswer, onComplete}) => {
                 getButtonStyle(true) === 'incorrect' && styles.tfButtonIncorrect,
                 getButtonStyle(true) === 'dimmed' && styles.tfButtonDimmed,
               ]}
+              testID="tf-true"
               onPress={() => handleAnswer(true)}
               disabled={answered}
               activeOpacity={0.7}>
@@ -416,6 +428,7 @@ const TrueFalseTemplate = ({config, onAnswer, onComplete}) => {
                 getButtonStyle(false) === 'incorrect' && styles.tfButtonIncorrect,
                 getButtonStyle(false) === 'dimmed' && styles.tfButtonDimmed,
               ]}
+              testID="tf-false"
               onPress={() => handleAnswer(false)}
               disabled={answered}
               activeOpacity={0.7}>
@@ -481,11 +494,11 @@ const TrueFalseTemplate = ({config, onAnswer, onComplete}) => {
         )}
 
         {/* Streak indicator */}
-        {consecutiveRight >= 3 && (
+        {trailingRight(results) >= 3 && (
           <View style={styles.streakBadge}>
             <Icon name="fire" size={20} color={kidsColors.streakFire} />
             <Text style={styles.streakText}>
-              {consecutiveRight} in a row!
+              {trailingRight(results)} in a row!
             </Text>
           </View>
         )}

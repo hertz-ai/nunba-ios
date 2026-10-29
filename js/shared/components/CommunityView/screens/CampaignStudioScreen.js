@@ -6,9 +6,9 @@ import {
   ScrollView,
   TouchableOpacity,
   TextInput,
-  SafeAreaView,
   StatusBar,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import {
   widthPercentageToDP as wp,
   heightPercentageToDP as hp,
@@ -61,6 +61,7 @@ const CampaignStudioScreen = () => {
       case 2: return true;
       case 3: return sparkBudget >= 100;
       case 4: return campaignName.length > 0;
+      /* istanbul ignore next — defensive default; STEPS.length-1 caps currentStep at 4, unreachable via public UI */
       default: return true;
     }
   };
@@ -379,6 +380,7 @@ const CampaignStudioScreen = () => {
       case 2: return renderStep3();
       case 3: return renderStep4();
       case 4: return renderStep5();
+      /* istanbul ignore next — defensive default; STEPS.length-1 caps currentStep at 4, unreachable via public UI */
       default: return null;
     }
   };

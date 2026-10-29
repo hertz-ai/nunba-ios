@@ -1,57 +1,20 @@
 import React, { useCallback } from 'react';
-import { View, Text, Switch, StyleSheet, PermissionsAndroid, Platform } from 'react-native';
+import { View, Text, Switch, StyleSheet } from 'react-native';
 import {
   widthPercentageToDP as wp,
   heightPercentageToDP as hp,
 } from 'react-native-responsive-screen';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 import useEncounterStore from '../../../../encounterStore';
-import { encountersApi } from '../../../../services/socialApi';
+import { enableTracking, disableTracking } from '../../../../services/encounterTracker';
 
+// The switch drives the real tracker.  It used to only flip isTracking in the
+// store: switching off hid the screen's state while the GPS watch and the
+// pings kept running, and switching on showed "on" with no watch at all.
 const LocationSettingsToggle = () => {
   const isTracking = useEncounterStore((s) => s.isTracking);
-  const setTracking = useEncounterStore((s) => s.setTracking);
 
-  const handleToggle = useCallback(
-    async (value) => {
-      if (value) {
-        if (Platform.OS === 'android') {
-          const granted = await PermissionsAndroid.request(
-            PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION,
-            {
-              title: 'Location Permission',
-              message:
-                'This app needs access to your location to find people nearby.',
-              buttonNeutral: 'Ask Me Later',
-              buttonNegative: 'Cancel',
-              buttonPositive: 'OK',
-            },
-          );
-          if (granted !== PermissionsAndroid.RESULTS.GRANTED) {
-            return;
-          }
-        }
-        setTracking(true);
-        try {
-          await encountersApi.updateLocationSettings({
-            location_sharing_enabled: true,
-          });
-        } catch (e) {
-          console.warn('Failed to update location settings:', e.message);
-        }
-      } else {
-        setTracking(false);
-        try {
-          await encountersApi.updateLocationSettings({
-            location_sharing_enabled: false,
-          });
-        } catch (e) {
-          console.warn('Failed to update location settings:', e.message);
-        }
-      }
-    },
-    [setTracking],
-  );
+  const handleToggle = useCallback((value) => (value ? enableTracking() : disableTracking()), []);
 
   return (
     <View style={styles.container}>

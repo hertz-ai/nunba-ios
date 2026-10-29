@@ -1,4 +1,4 @@
-import React, {useState, useEffect, useRef, useCallback} from 'react';
+import React, {useState, useEffect, useRef, useCallback, useMemo} from 'react';
 import {View, Text, Animated, StyleSheet, ScrollView} from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import {
@@ -15,6 +15,8 @@ import GameLivesBar from '../shared/GameLivesBar';
 import KidsCharacter from '../shared/KidsCharacter';
 import VisualHint from '../shared/VisualHint';
 import {getEmojiForText} from '../shared/emojiMap';
+import {STEP, LEVEL, fillBlank as guide} from '../shared/gameGuide';
+import holdUntilSpoken from '../shared/holdUntilSpoken';
 
 /**
  * FillBlankTemplate - Fill in the blank game.
@@ -28,13 +30,15 @@ import {getEmojiForText} from '../shared/emojiMap';
  * - onAnswer: (isCorrect, concept, responseTimeMs) => void
  * - onComplete: () => void
  */
-const FillBlankTemplate = ({config, onAnswer, onComplete}) => {
+const FillBlankTemplate = ({config, onAnswer, onComplete, onStep, level = LEVEL.START}) => {
   const questions = config?.content?.questions || [];
   const [currentIndex, setCurrentIndex] = useState(0);
   const [selectedAnswer, setSelectedAnswer] = useState(null);
   const [answered, setAnswered] = useState(false);
   const [results, setResults] = useState([]);
-  const [consecutiveWrong, setConsecutiveWrong] = useState(0);
+  // The shell's one ladder (shared/gameGuide): at LEVEL.MIN the hint shows and
+  // there are two options.  This template's own "3 misses" ladder is gone.
+  const struggling = level <= LEVEL.MIN;
   const [showHint, setShowHint] = useState(false);
   const [optionStates, setOptionStates] = useState({});
   const [lives, setLives] = useState(3);
@@ -92,13 +96,22 @@ const FillBlankTemplate = ({config, onAnswer, onComplete}) => {
     setOptionStates({});
     setShowHint(false);
     hintAnim.setValue(1);
+    const q = questions[currentIndex];
+    if (onStep && q && q.text) {
+      // Every line an answer can need is prepared while the child thinks.
+      const nextQ = questions[currentIndex + 1];
+      const prepare = [guide.right(q)]
+        .concat((q.options || []).filter((o) => o !== q.blank).map((o) => guide.explainMiss(o, q)))
+        .concat(nextQ && nextQ.text ? [guide.ask(nextQ)] : []);
+      onStep({kind: STEP.ASKED, itemId: q.concept || `blank-${currentIndex}`, say: guide.ask(q), prepare});
+    }
 
     return () => pulse.stop();
   }, [currentIndex]);
 
-  // Show hint if adaptive difficulty triggers
+  // Show the hint at the easiest level
   useEffect(() => {
-    if (consecutiveWrong >= 3 && !showHint && currentQuestion.hint) {
+    if (struggling && !showHint && currentQuestion.hint) {
       setShowHint(true);
       Animated.timing(hintAnim, {
         toValue: 1,
@@ -106,12 +119,12 @@ const FillBlankTemplate = ({config, onAnswer, onComplete}) => {
         useNativeDriver: true,
       }).start();
     }
-  }, [consecutiveWrong, currentIndex]);
+  }, [struggling, currentIndex]);
 
   // Get display options -- if child is struggling, reduce to 2 options
   const getDisplayOptions = useCallback(() => {
     const opts = currentQuestion.options || [];
-    if (consecutiveWrong >= 3 && opts.length > 2) {
+    if (struggling && opts.length > 2) {
       // Keep the correct answer and one distractor
       const correct = currentQuestion.blank;
       const distractors = opts.filter(o => o !== correct);
@@ -121,13 +134,23 @@ const FillBlankTemplate = ({config, onAnswer, onComplete}) => {
       return reduced;
     }
     return opts;
-  }, [currentQuestion, consecutiveWrong]);
+  }, [currentQuestion, struggling]);
 
-  const [displayOptions, setDisplayOptions] = useState([]);
-
-  useEffect(() => {
-    setDisplayOptions(getDisplayOptions());
-  }, [currentIndex, consecutiveWrong]);
+  // Derived, not stored.
+  //
+  // This used to be state filled by an effect keyed on
+  // [currentIndex, <the old ladder>], which could never recover from the first
+  // render. `config` arrives asynchronously, so on mount the effect ran against
+  // an empty question, produced [], and then never re-ran — neither dependency
+  // changes when the config finally lands. The question text still appeared
+  // (it is read straight from props at render time) while the answer buttons
+  // stayed missing, leaving fill-blank games such as Number Sequences and
+  // Color Patterns permanently unplayable on device.
+  //
+  // getDisplayOptions is already a useCallback over [currentQuestion,
+  // the level], so memoising on it recomputes on exactly the events the
+  // effect intended to cover, plus the one it missed.
+  const displayOptions = useMemo(() => getDisplayOptions(), [getDisplayOptions]);
 
   const handleSelect = useCallback(
     option => {
@@ -152,28 +175,41 @@ const FillBlankTemplate = ({config, onAnswer, onComplete}) => {
       });
       setOptionStates(newStates);
 
+      let spoken;
+      if (onStep) {
+        const itemId = currentQuestion.concept || `blank-${currentIndex}`;
+        spoken = onStep(isCorrect
+          ? {kind: STEP.RIGHT, itemId, concept: currentQuestion.concept, say: guide.right(currentQuestion)}
+          : {kind: STEP.WRONG, itemId, chosen: option, wanted: currentQuestion.blank,
+             say: guide.explainMiss(option, currentQuestion)});
+      }
+
       // Animate character
       if (isCorrect) {
         setCharState('celebrate');
         setTimeout(() => {
           if (mountedRef.current) setCharState('idle');
         }, 1500);
-        setConsecutiveWrong(0);
       } else {
         setCharState('encourage');
         setTimeout(() => {
           if (mountedRef.current) setCharState('idle');
         }, 1500);
         setLives(prev => Math.max(0, prev - 1));
-        setConsecutiveWrong(prev => prev + 1);
       }
 
       // Record result
       setResults(prev => [...prev, isCorrect]);
 
-      // Show feedback
+      // Show feedback.  Guided, the finished sentence stays on screen until
+      // the voice has read it (or said why the word does not fit); the overlay
+      // covered it and moved on first.  Unguided keeps the overlay.
       setFeedbackCorrect(isCorrect);
-      setFeedbackVisible(true);
+      if (onStep) {
+        holdUntilSpoken(spoken, () => advanceRef.current(), () => mountedRef.current);
+      } else {
+        setFeedbackVisible(true);
+      }
 
       // Report answer
       onAnswer(isCorrect, currentQuestion.concept, responseTimeMs);
@@ -186,9 +222,10 @@ const FillBlankTemplate = ({config, onAnswer, onComplete}) => {
         useNativeDriver: true,
       }).start();
     },
-    [answered, currentQuestion, displayOptions, onAnswer],
+    [answered, currentQuestion, displayOptions, onAnswer, onStep, currentIndex],
   );
 
+  const advanceRef = useRef(null);
   const handleFeedbackDismiss = useCallback(() => {
     setFeedbackVisible(false);
 
@@ -202,6 +239,7 @@ const FillBlankTemplate = ({config, onAnswer, onComplete}) => {
       }
     }, 400);
   }, [currentIndex, questions.length, onComplete]);
+  advanceRef.current = handleFeedbackDismiss;
 
   // Render the sentence with the blank highlighted
   const renderSentence = () => {
@@ -400,7 +438,7 @@ const FillBlankTemplate = ({config, onAnswer, onComplete}) => {
         )}
 
         {/* Difficulty indicator */}
-        {consecutiveWrong >= 3 && (
+        {struggling && (
           <View style={styles.difficultyNote}>
             <Icon name="heart" size={16} color={kidsColors.correct} />
             <Text style={styles.difficultyNoteText}>
