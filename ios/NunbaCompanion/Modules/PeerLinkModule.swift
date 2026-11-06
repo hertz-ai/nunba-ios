@@ -609,13 +609,40 @@ final class PeerLinkModule: NSObject {
     return url.hasSuffix("/") ? String(url.dropLast()) : url
   }
 
-  private static func checkDesktopHTTP(_ base: String, completion: @escaping (Bool) -> Void) {
+  /// Hard cap on one desktop health check. URLRequest.timeoutInterval is an
+  /// idle timeout: with Wi-Fi off, a private LAN address over mobile data can
+  /// sit in connect far longer, and every social call waits on this check.
+  static let desktopCheckDeadline: TimeInterval = 4
+
+  private static let desktopCheckSession: URLSession = {
+    let config = URLSessionConfiguration.ephemeral
+    config.timeoutIntervalForRequest = 3
+    config.timeoutIntervalForResource = desktopCheckDeadline
+    config.waitsForConnectivity = false
+    config.requestCachePolicy = .reloadIgnoringLocalCacheData
+    return URLSession(configuration: config)
+  }()
+
+  static func checkDesktopHTTP(_ base: String, completion: @escaping (Bool) -> Void) {
     guard let url = URL(string: base + "/health") else { completion(false); return }
-    let request = URLRequest(url: url, cachePolicy: .reloadIgnoringLocalCacheData, timeoutInterval: 3)
-    URLSession.shared.dataTask(with: request) { data, response, _ in
+    // Answer exactly once: the response, or "not reachable" at the deadline.
+    let lock = NSLock()
+    var answered = false
+    let answer: (Bool) -> Void = { reachable in
+      lock.lock(); defer { lock.unlock() }
+      guard !answered else { return }
+      answered = true
+      completion(reachable)
+    }
+    let task = desktopCheckSession.dataTask(with: url) { data, response, _ in
       let body = data.flatMap { try? JSONSerialization.jsonObject(with: $0) as? [String: Any] }
-      completion((response as? HTTPURLResponse)?.statusCode == 200 && (body?["status"] as? String).map { ["ok", "alive"].contains($0) } == true)
-    }.resume()
+      answer((response as? HTTPURLResponse)?.statusCode == 200 && (body?["status"] as? String).map { ["ok", "alive"].contains($0) } == true)
+    }
+    DispatchQueue.global().asyncAfter(deadline: .now() + desktopCheckDeadline + 0.5) {
+      task.cancel()
+      answer(false)
+    }
+    task.resume()
   }
 
   @objc(getApiBase:rejecter:)

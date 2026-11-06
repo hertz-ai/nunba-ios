@@ -261,7 +261,10 @@ final class PeerLinkModuleTests: XCTestCase {
   func test_getApiBase_unreachableSelectedDesktopFallsBackToCloudWithoutCredential() {
     // A signed-in user whose saved desktop is on another network.
     withSavedDesktop("http://10.255.255.1:9") {
+      let started = Date()
       let resolution = resolveApiBase()
+      XCTAssertLessThan(Date().timeIntervalSince(started), PeerLinkModule.desktopCheckDeadline + 1,
+                        "an unreachable desktop must not hold social calls past the deadline")
       XCTAssertEqual(resolution["source"] as? String, "cloud")
       XCTAssertNil(resolution["credential"], "the device token must not leave with a cloud answer")
       XCTAssertTrue((resolution["url"] as? String ?? "").hasPrefix("https://azurekong.hertzai.com"))
