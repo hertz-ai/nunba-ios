@@ -107,3 +107,26 @@ describe('a desktop that drops off the network', () => {
     expect(fetch).toHaveBeenCalledTimes(1);
   });
 });
+
+describe('PUT follows the same rules (iOS #3 adds put)', () => {
+  const owner = () => Object.values(require('../js/shared/services/socialApi'))
+    .find(v => v && typeof v.setPersona === 'function');
+
+  test('PUT carries the device token to the selected desktop', async () => {
+    if (!owner()) return; // put/setPersona exist only on the sync branch
+    useDesktop();
+    await owner().setPersona({bio: 'x'});
+    expect(fetch.mock.calls[0][0]).toBe(`${DESKTOP}/api/social/encounter/persona`);
+    expect(fetch.mock.calls[0][1].method).toBe('PUT');
+    expect(bearerOf(fetch.mock.calls[0])).toBe('Bearer device-proof');
+  });
+
+  test('a PUT to a desktop that dropped off forgets it and is not replayed', async () => {
+    if (!owner()) return;
+    useDesktop();
+    fetch.mockRejectedValueOnce(new TypeError('Network request failed'));
+    await expect(owner().setPersona({bio: 'x'})).rejects.toThrow('Network request failed');
+    expect(resolver.invalidateCache).toHaveBeenCalledTimes(1);
+    expect(fetch).toHaveBeenCalledTimes(1);
+  });
+});

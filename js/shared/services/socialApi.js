@@ -315,10 +315,8 @@ const patch = async (path, body) => {
 };
 
 const put = async (path, body) => {
-  const base = await _resolveSocialBase();
-  const url = buildUrl(path, undefined, base);
-  const response = await _authedFetch(url, { method: 'PUT', body });
-  if (!response.ok) _emitApiError(path, response.status, 'PUT');
+  const { url, response } = await _socialFetch(path, undefined, { method: 'PUT', body });
+  if (!response.ok) _emitApiError(path, response.status, 'PUT', url);
   const json = await _safeJson(response);
   if (response.ok) _bustForPath(path);
   return json;
