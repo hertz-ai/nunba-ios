@@ -27,11 +27,18 @@ DeviceEventEmitter.addListener('authChanged', () => {
   apiCache.bustAll?.();
 });
 
-const _emitApiError = (path, status, method) => {
+// The cloud HARTOS behind Kong: the only host that verifies the account's
+// HARTOS token, and the only one whose 401 means the login has expired.
+const CLOUD_ORIGIN = 'https://azurekong.hertzai.com';
+const _isCloudUrl = (url) => typeof url === 'string' && url.startsWith(`${CLOUD_ORIGIN}/`);
+
+const _emitApiError = (path, status, method, url) => {
   try {
     DeviceEventEmitter.emit('ApiError', { path, status, method });
   } catch (_) {}
-  if (status === 401) {
+  // A 401 from the selected desktop means the desktop has not allowed this
+  // phone; signing in again cannot fix that, so only a cloud 401 re-logs in.
+  if (status === 401 && _isCloudUrl(url)) {
     const now = Date.now();
     if (now - _sessionExpiredEmittedAt > SESSION_EXPIRED_DEBOUNCE_MS) {
       _sessionExpiredEmittedAt = now;
@@ -156,21 +163,34 @@ const getHartosToken = () =>
     }
   });
 
+// The bearer is chosen by where the call lands:
+//   - the desktop selected in Privacy: the token this phone signs with its
+//     PeerLink key (the desktop owner allows the phone once);
+//   - cloud HARTOS: the HARTOS token from the Keychain;
+//   - the HTTPS legacy base (mailer.hertzai.com for coding, goals,
+//     intelligence, builds, ip and admin, or an HTTPS developer override):
+//     the Hevolve account token, what these calls sent before HARTOS tokens.
+// Any other host (a LAN address without a device credential, plain HTTP)
+// gets no credential at all: the request is refused before it is sent.
+const _isLegacyHttpsUrl = (url) =>
+  _apiBase.startsWith('https://') && url.startsWith(`${_apiBase.replace(/\/+$/, '')}/`);
+
 const getHeaders = async (url) => {
   const endpoint = await endpointResolver.getApiBase();
   const base = endpoint.url.replace(/\/+$/, '');
   let token;
-  if (endpoint.source === 'lan' && url.startsWith(base + '/') && endpoint.credential) {
+  if (endpoint.source === 'lan' && endpoint.credential && url.startsWith(base + '/')) {
     token = endpoint.credential;
-  } else if (url.startsWith('https://azurekong.hertzai.com/')) {
-    token = await getHartosToken();
+  } else if (_isCloudUrl(url)) {
+    token = await getHartosToken().catch(() => null);
+  } else if (_isLegacyHttpsUrl(url)) {
+    token = await getAccessToken().catch(() => null);
   } else {
-    throw new Error('No device credential for this desktop. Open Nunba on the same network and sign in with the desktop account.');
+    throw new Error('No device credential for this desktop. Connect it in Privacy settings and allow this iPhone on the desktop.');
   }
-  return {
-    'Content-Type': 'application/json',
-    Authorization: `Bearer ${token}`,
-  };
+  const headers = { 'Content-Type': 'application/json' };
+  if (token) headers.Authorization = `Bearer ${token}`;
+  return headers;
 };
 
 // Re-link with the currently authenticated account, keeping the Hevolve
@@ -224,7 +244,7 @@ const _authedFetch = async (url, { method = 'GET', body, extraHeaders } = {}) =>
     });
   };
   let response = await doFetch();
-  if (response.status === 401 && url.startsWith('https://azurekong.hertzai.com/')) {
+  if (response.status === 401 && _isCloudUrl(url)) {
     const fresh = await ensureFreshHartosToken();
     if (fresh) response = await doFetch();
   }
@@ -242,6 +262,28 @@ const _bustForPath = (path) => {
   if (parts.length > 2) apiCache.bust(`GET:/${parts[0]}/${parts[1]}:`);
 };
 
+const _isNetworkError = (err) =>
+  !!err && (err.name === 'TypeError' || /Network request failed|Failed to fetch/i.test(String(err.message || err)));
+
+// The selected desktop can disappear between the resolver's health check and
+// this call (Wi-Fi change, desktop closed). Forget the resolved base so the
+// next call re-checks it and falls back to the cloud. A read is replayed once
+// against the fresh choice; a write is not, so it never lands twice.
+const _socialFetch = async (path, params, init) => {
+  const send = async () => {
+    const url = buildUrl(path, params, await _resolveSocialBase());
+    return { url, response: await _authedFetch(url, init) };
+  };
+  try {
+    return await send();
+  } catch (err) {
+    if (!_isNetworkError(err)) throw err;
+    try { endpointResolver.invalidateCache(); } catch (_) {}
+    if (init.method !== 'GET') throw err;
+    return send();
+  }
+};
+
 const get = async (path, params) => {
   // Polish round 3 perf 2026-06-03: 30s TTL cache so tab-flipping
   // (Feed → Notifications → back to Feed) doesn't re-fetch the same
@@ -250,38 +292,31 @@ const get = async (path, params) => {
   const base = await _resolveSocialBase();
   const cacheKey = `GET:${path}:${base}:${params ? JSON.stringify(params) : ''}`;
   return apiCache.wrap(cacheKey, null, 30000, async () => {
-    const url = buildUrl(path, params, base);
-    const response = await _authedFetch(url, { method: 'GET' });
-    if (!response.ok) _emitApiError(path, response.status, 'GET');
+    const { url, response } = await _socialFetch(path, params, { method: 'GET' });
+    if (!response.ok) _emitApiError(path, response.status, 'GET', url);
     return _safeJson(response);
   });
 };
 
 const post = async (path, body) => {
-  const base = await _resolveSocialBase();
-  const url = buildUrl(path, undefined, base);
-  const response = await _authedFetch(url, { method: 'POST', body });
-  if (!response.ok) _emitApiError(path, response.status, 'POST');
+  const { url, response } = await _socialFetch(path, undefined, { method: 'POST', body });
+  if (!response.ok) _emitApiError(path, response.status, 'POST', url);
   const json = await _safeJson(response);
   if (response.ok) _bustForPath(path);
   return json;
 };
 
 const patch = async (path, body) => {
-  const base = await _resolveSocialBase();
-  const url = buildUrl(path, undefined, base);
-  const response = await _authedFetch(url, { method: 'PATCH', body });
-  if (!response.ok) _emitApiError(path, response.status, 'PATCH');
+  const { url, response } = await _socialFetch(path, undefined, { method: 'PATCH', body });
+  if (!response.ok) _emitApiError(path, response.status, 'PATCH', url);
   const json = await _safeJson(response);
   if (response.ok) _bustForPath(path);
   return json;
 };
 
 const del = async (path) => {
-  const base = await _resolveSocialBase();
-  const url = buildUrl(path, undefined, base);
-  const response = await _authedFetch(url, { method: 'DELETE' });
-  if (!response.ok) _emitApiError(path, response.status, 'DELETE');
+  const { url, response } = await _socialFetch(path, undefined, { method: 'DELETE' });
+  if (!response.ok) _emitApiError(path, response.status, 'DELETE', url);
   const json = await _safeJson(response);
   if (response.ok) _bustForPath(path);
   return json;

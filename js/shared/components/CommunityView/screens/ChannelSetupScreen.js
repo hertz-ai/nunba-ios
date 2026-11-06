@@ -80,23 +80,20 @@ const _promptHartosTokenOverride = async () => {
 // meant this diagnostic could never explain a "Missing or invalid
 // Authorization header" failure. Also surfaces which host endpointResolver
 // picked, since cloud-vs-local routing is the other leading theory.
-const _debugToken = () =>
-  new Promise((resolve) => {
-    try {
-      NativeModules.OnboardingModule.getHartosToken((t) => resolve(t || ''));
-    } catch (_) {
-      resolve('<threw>');
-    }
-  });
-
-const _debugSource = async () => {
+// Debug builds add the error and which endpoint served the call to the alert.
+// Release builds show the plain message. Never put any part of a credential
+// in user-visible text, in either build.
+const _debugDetail = async (err) => {
+  if (!__DEV__) return '';
+  let src;
   try {
     const resolver = require('../../../services/endpointResolver').default;
     const { url, source } = await resolver.getApiBase();
-    return `${source} (${url})`;
+    src = `${source} (${url})`;
   } catch (e) {
-    return `<threw: ${e?.message}>`;
+    src = `<threw: ${e?.message}>`;
   }
+  return `\n\n[debug] ${err ? `${err.message || err}\n[debug] ` : ''}endpoint=${src}`;
 };
 
 const CHANNEL_COLORS = {
@@ -215,17 +212,13 @@ const ChannelSetupScreen = () => {
           { text: 'OK', onPress: () => navigation.goBack() },
         ]);
       } else {
-        const tok = await _debugToken();
-        const src = await _debugSource();
         Alert.alert(
           'Error',
-          `${res.error || 'Failed to connect channel. Please try again.'}\n\n[debug] hartos token len=${tok.length} tail=${tok.slice(-8)}\n[debug] endpoint=${src}`,
+          `${res.error || 'Failed to connect channel. Please try again.'}${await _debugDetail()}`,
         );
       }
     } catch (e) {
-      const tok = await _debugToken();
-      const src = await _debugSource();
-      Alert.alert('Error', `Failed to connect channel. Please try again.\n\n[debug] ${e?.message}\n[debug] hartos token len=${tok.length} tail=${tok.slice(-8)}\n[debug] endpoint=${src}`);
+      Alert.alert('Error', `Failed to connect channel. Please try again.${await _debugDetail(e)}`);
     } finally {
       setConnecting(false);
     }
