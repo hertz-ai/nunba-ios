@@ -112,7 +112,10 @@ final class PeerLinkModuleTests: XCTestCase {
   func test_getApiBase_returnsCloudFallbackWhenNotConnected() {
     let exp = expectation(description: "")
     module.getApiBase({ result in
-      let url = result as? String ?? ""
+      let resolution = result as? [String: Any] ?? [:]
+      let url = resolution["url"] as? String ?? ""
+      XCTAssertEqual(resolution["source"] as? String, "cloud")
+      XCTAssertNil(resolution["credential"])
       XCTAssertTrue(url.contains("azurekong.hertzai.com"),
                     "Should fall back to cloud URL when no peer is connected")
       exp.fulfill()
@@ -217,5 +220,74 @@ final class PeerLinkModuleTests: XCTestCase {
 
   func test_requiresMainQueueSetup_isFalse() {
     XCTAssertFalse(PeerLinkModule.requiresMainQueueSetup())
+  }
+  func test_manualDesktopAddressIsLocalAndContainsNoCredentials() {
+    XCTAssertEqual(PeerLinkModule.validDesktopEndpoint("http://172.20.10.13:5000/"), "http://172.20.10.13:5000")
+    XCTAssertEqual(PeerLinkModule.validDesktopEndpoint("http://my-desktop.local:5000"), "http://my-desktop.local:5000")
+    for bad in ["https://azurekong.hertzai.com", "http://example.com", "http://user:pass@192.168.0.1:5000", "http://192.168.0.1:5000/api", "file:///tmp/test"] {
+      XCTAssertNil(PeerLinkModule.validDesktopEndpoint(bad))
+    }
+  }
+
+
+  // MARK: — Selected desktop (review of #2, 2026-10-27)
+
+  private func withSavedDesktop(_ address: String?, _ body: () -> Void) {
+    let previousUser = OnboardingModule.persistedUserId()
+    OnboardingModule.setPersistedUserId("review-test-user")
+    if let address = address {
+      UserDefaults.standard.set(address, forKey: PeerLinkModule.preferredDesktopKey)
+    } else {
+      UserDefaults.standard.removeObject(forKey: PeerLinkModule.preferredDesktopKey)
+    }
+    defer {
+      UserDefaults.standard.removeObject(forKey: PeerLinkModule.preferredDesktopKey)
+      OnboardingModule.setPersistedUserId(previousUser)
+    }
+    body()
+  }
+
+  private func resolveApiBase() -> [String: Any] {
+    let exp = expectation(description: "getApiBase")
+    var resolution: [String: Any] = [:]
+    module.getApiBase({ result in
+      resolution = result as? [String: Any] ?? [:]
+      exp.fulfill()
+    }, rejecter: { _, _, _ in XCTFail("getApiBase never rejects") })
+    wait(for: [exp], timeout: 8.0)
+    return resolution
+  }
+
+  func test_getApiBase_unreachableSelectedDesktopFallsBackToCloudWithoutCredential() {
+    // A signed-in user whose saved desktop is on another network.
+    withSavedDesktop("http://10.255.255.1:9") {
+      let started = Date()
+      let resolution = resolveApiBase()
+      XCTAssertLessThan(Date().timeIntervalSince(started), PeerLinkModule.desktopCheckDeadline + 1,
+                        "an unreachable desktop must not hold social calls past the deadline")
+      XCTAssertEqual(resolution["source"] as? String, "cloud")
+      XCTAssertNil(resolution["credential"], "the device token must not leave with a cloud answer")
+      XCTAssertTrue((resolution["url"] as? String ?? "").hasPrefix("https://azurekong.hertzai.com"))
+    }
+  }
+
+  func test_getApiBase_withoutSelectedDesktopNeverSendsDeviceToken() {
+    // Signed in, no desktop chosen: discovery beacons alone never get the token.
+    withSavedDesktop(nil) {
+      let resolution = resolveApiBase()
+      XCTAssertEqual(resolution["source"] as? String, "cloud")
+      XCTAssertNil(resolution["credential"])
+    }
+  }
+
+  func test_getDesktopEndpoint_showsTheSavedDesktop() {
+    withSavedDesktop("http://192.168.1.4:5000/") {
+      let exp = expectation(description: "getDesktopEndpoint")
+      module.getDesktopEndpoint({ result in
+        XCTAssertEqual(result as? String, "http://192.168.1.4:5000")
+        exp.fulfill()
+      }, rejecter: { _, _, _ in XCTFail() })
+      wait(for: [exp], timeout: 1.0)
+    }
   }
 }

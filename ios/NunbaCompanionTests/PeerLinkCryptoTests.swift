@@ -182,4 +182,20 @@ final class PeerLinkCryptoTests: XCTestCase {
     let hex = PeerLinkCrypto.toHex(data)
     XCTAssertEqual(PeerLinkCrypto.fromHex(hex), data)
   }
+  func test_deviceProofUsesCanonicalSignedClaimsAndShortExpiry() throws {
+    let key = Curve25519.Signing.PrivateKey()
+    let token = try PeerLinkCrypto.deviceToken(userId: "123", username: "தமிழ் 😀", identity: key, now: 1000)
+    let part = String(token.split(separator: ".")[1])
+    var b64 = part.replacingOccurrences(of: "-", with: "+").replacingOccurrences(of: "_", with: "/")
+    b64 += String(repeating: "=", count: (4 - b64.count % 4) % 4)
+    var claims = try JSONSerialization.jsonObject(with: XCTUnwrap(Data(base64Encoded: b64))) as! [String: Any]
+    let signature = try XCTUnwrap(PeerLinkCrypto.fromHex(claims.removeValue(forKey: "node_sig") as! String))
+    let canonical = try PeerLinkCrypto.canonicalDeviceClaims(claims)
+    XCTAssertTrue(key.publicKey.isValidSignature(signature, for: canonical))
+    XCTAssertEqual(claims["exp"] as? Int, 1900)
+    XCTAssertEqual(claims["user_id"] as? String, "123")
+    XCTAssertEqual(claims["node_public_key"] as? String, PeerLinkCrypto.toHex(key.publicKey.rawRepresentation))
+    XCTAssertTrue(String(data: canonical, encoding: .utf8)!.contains("\\ud83d\\ude00"))
+  }
+
 }

@@ -31,7 +31,7 @@ import * as Animatable from 'react-native-animatable';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
 import { useNavigation } from '@react-navigation/native';
-import { friendsApi } from '../../../services/socialApi';
+import { friendsApi, conversationsApi } from '../../../services/socialApi';
 import EmptyState from '../../shared/EmptyState';
 import { emptyStatePreset } from '../../shared/emptyStatePresets';
 import { flatListVirtualizationProps } from '../../shared/listPerf';
@@ -179,12 +179,20 @@ const FriendsScreen = () => {
       }
     });
 
-  const handleMessage = (userId) => {
+  const handleMessage = (userId, name, avatarUrl) => {
     // Conversation auto-dedups on (kind='dm', sorted member_hash)
-    // so re-tapping just opens the existing thread.
-    navigation.navigate('ConversationDetail', {
-      kind: 'dm',
-      member_ids: [userId],
+    // so re-tapping just opens the existing thread. There is no
+    // ConversationDetail route: create the DM, then open DirectChat.
+    withBusy(userId, async () => {
+      const res = await conversationsApi
+        .create({ kind: 'dm', member_ids: [userId] })
+        .catch((e) => ({ success: false, error: e.message }));
+      const convId = res?.data?.id || res?.data?.conversation_id;
+      if (res?.success && convId) {
+        navigation.navigate('DirectChat', { conversation_id: convId, name, avatar_url: avatarUrl });
+      } else {
+        Alert.alert("Couldn't start chat", res?.error || 'Please try again.');
+      }
     });
   };
 
@@ -219,7 +227,7 @@ const FriendsScreen = () => {
           <View style={styles.actionsRow}>
             <TouchableOpacity
               style={styles.primaryBtn}
-              onPress={() => handleMessage(other.id)}
+              onPress={() => handleMessage(other.id, name, other.avatar_url)}
               disabled={busyId === other.id}
             >
               <Ionicons name="chatbubble-outline" size={16} color="#000000" />

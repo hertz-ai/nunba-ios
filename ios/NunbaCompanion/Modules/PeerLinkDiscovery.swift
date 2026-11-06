@@ -61,7 +61,7 @@ final class PeerLinkDiscovery {
     private var isRunning = false
     private var ownNodeId: String
 
-    /// Caller-supplied callback fired once per unique node_id seen.
+    /// Reports accepted beacons, including refreshes of an existing peer.
     var onPeerDiscovered: ((DiscoveredPeer) -> Void)?
 
     /// Snapshot of everything found so far (key = node_id).
@@ -230,7 +230,11 @@ final class PeerLinkDiscovery {
 
         let fromAddress = endpointHost(endpoint) ?? "unknown"
         let wsPort = (parsed["ws_port"] as? Int) ?? Self.peerlinkPort
-        let backendPort = (parsed["backend_port"] as? Int) ?? Self.backendPort
+        // HARTOS advertises its HTTP service as `url`; older mobile
+        // beacons use backend_port. Keep the socket sender as the host.
+        let advertised = (parsed["url"] as? String).flatMap { URL(string: $0) }
+        let backendPort = (parsed["backend_port"] as? Int) ?? advertised?.port ?? Self.backendPort
+        guard (1...65535).contains(backendPort) else { return }
         let tier = (parsed["tier"] as? String) ?? "regional"
         let platform = (parsed["platform"] as? String) ?? "unknown"
 
@@ -244,14 +248,15 @@ final class PeerLinkDiscovery {
             discoveredAt: Date()
         )
 
-        // De-dupe by node_id; fire onPeerDiscovered only on first sight.
+        // Keep one row per node, but refresh listeners on every beacon so
+        // endpoint expiry is measured from last sight, not first discovery.
         let isNew = peers[nodeId] == nil
         peers[nodeId] = peer
         if isNew {
             NSLog("PeerLinkDiscovery: discovered \(nodeId.prefix(8)) at \(fromAddress) (\(tier)/\(platform))")
-            DispatchQueue.main.async { [weak self] in
-                self?.onPeerDiscovered?(peer)
-            }
+        }
+        DispatchQueue.main.async { [weak self] in
+            self?.onPeerDiscovered?(peer)
         }
     }
 

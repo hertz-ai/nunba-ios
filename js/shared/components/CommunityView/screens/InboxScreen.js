@@ -78,8 +78,8 @@ const routeForRow = (row) => {
     case 'message':
       return {
         kind: 'navigate',
-        screen: 'ConversationHistory',
-        params: { conversation_id: row.parent_id },
+        screen: 'DirectChat',
+        params: { conversation_id: row.parent_id, name: senderName(row), avatar_url: senderUri(row) },
       };
     case 'mention':
       if (row.parent_kind === 'post' || row.parent_kind === 'comment') {

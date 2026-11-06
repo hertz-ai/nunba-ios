@@ -86,6 +86,7 @@ import ConversationHistoryScreen from '../screens/ConversationHistoryScreen';
 // RevisionChatActivity / AssessmentChatActivity / CustomBotsActivity).
 // Same screen on iOS via SHARED_JS_MANIFEST.
 import CustomBotChatScreen from '../screens/CustomBotChatScreen';
+import DirectChatScreen from '../screens/DirectChatScreen';
 // Agents hub — RN mirror of the Android activity_learn_dark layout
 // (Browse Goals + Video Call With AI Agents + Your HevolveAI Agents +
 // Create Agents).  Closes the iOS parity hole for the Agents tab.
@@ -241,6 +242,7 @@ const HomeRoutes = () => {
       <Stack.Screen name="QRScanner" component={QRScannerScreen} options={{headerShown: false}} />
       <Stack.Screen name="ConversationHistory" component={ConversationHistoryScreen} options={{headerShown: false}} />
       <Stack.Screen name="CustomBotChat" component={CustomBotChatScreen} options={{headerShown: false}} />
+      <Stack.Screen name="DirectChat" component={DirectChatScreen} options={{headerShown: false}} />
       <Stack.Screen name="AgentsHub" component={AgentsHubScreen} options={{headerShown: false}} />
 
       {/* Provider Management (admin) */}

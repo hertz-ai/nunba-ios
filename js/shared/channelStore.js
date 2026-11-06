@@ -126,6 +126,40 @@ const useChannelStore = create((set) => ({
     }
   },
 
+  // Real WhatsApp linking (embedded Baileys gateway) — polls connection
+  // state and requests the "Link with phone number" code.
+  whatsappStatus: async () => {
+    try {
+      return await channelsApi.whatsappStatus();
+    } catch {
+      return { success: false };
+    }
+  },
+
+  whatsappPairCode: async (phone) => {
+    try {
+      return await channelsApi.whatsappPairCode(phone);
+    } catch {
+      return { success: false };
+    }
+  },
+
+  whatsappMessages: async (sinceTs) => {
+    try {
+      return await channelsApi.whatsappMessages(sinceTs);
+    } catch {
+      return { success: false };
+    }
+  },
+
+  whatsappSend: async (to, text) => {
+    try {
+      return await channelsApi.whatsappSend(to, text);
+    } catch {
+      return { success: false };
+    }
+  },
+
   fetchPresence: async () => {
     try {
       const res = await channelsApi.presence();

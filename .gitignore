@@ -39,6 +39,9 @@ xcuserdata/
 # Bundler artifacts
 *.jsbundle
 ios/main.jsbundle
+# RN image/asset payload emitted next to main.jsbundle by
+# `react-native bundle --assets-dest ios`; referenced (optional) by project.yml.
+ios/assets/
 
 # IDE
 .idea/

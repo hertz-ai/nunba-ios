@@ -7,6 +7,7 @@ import {
   StyleSheet,
   SafeAreaView,
   StatusBar,
+  Alert,
 } from 'react-native';
 import {
   widthPercentageToDP as wp,
@@ -30,7 +31,7 @@ try {
 }
 const INSTA = themeColors.gradientInstagram;
 import useLocationPing from '../../../hooks/useLocationPing';
-import { encountersApi } from '../../../services/socialApi';
+import { encountersApi, authApi } from '../../../services/socialApi';
 import ProximityBanner from '../components/Encounters/ProximityBanner';
 import ProximityMatchCard from '../components/Encounters/ProximityMatchCard';
 import MissedConnectionCard from '../components/Encounters/MissedConnectionCard';
@@ -163,20 +164,33 @@ const EncountersScreen = () => {
   ]);
 
   const handleReveal = useCallback(async (matchId) => {
-    try {
-      await encountersApi.revealMatch(matchId);
-    } catch (e) {
-      console.warn('Reveal failed:', e.message);
+    // socialApi returns the {success, data} envelope instead of throwing on
+    // HTTP errors, so a rejected reveal used to vanish silently and the card
+    // only changed on the next 15 s poll.
+    const result = await encountersApi
+      .revealMatch(matchId)
+      .catch((e) => ({ success: false, error: e.message }));
+    if (result?.success) {
+      if (result.data) {
+        const { matches, setMatches } = useEncounterStore.getState();
+        setMatches(matches.map((m) => (m.id === matchId ? { ...m, ...result.data } : m)));
+      }
+    } else {
+      Alert.alert("Couldn't reveal", result?.error || 'Please try again.');
     }
   }, []);
 
-  const handleChat = useCallback(
-    (userId) => {
-      // Navigate to chat - placeholder for existing chat integration
-      console.log('Start chat with:', userId);
-    },
-    [],
-  );
+  // The HARTOS user id (not the Hevolve numeric id in currentUser) -- a
+  // matched card needs it to tell which side of the match is the viewer.
+  const [socialUserId, setSocialUserId] = useState(null);
+  useEffect(() => {
+    let cancelled = false;
+    authApi
+      .me()
+      .then((r) => { if (!cancelled && r?.data?.id) setSocialUserId(r.data.id); })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, []);
 
   const handleMissedPress = useCallback(
     (item) => {
@@ -204,19 +218,42 @@ const EncountersScreen = () => {
     );
   }, []);
 
-  // PRODUCT_MAP J207-J210 — open icebreaker draft modal for a BLE
-  // match.  IcebreakerDraftSheet (mounted once below) handles the
-  // draft → review → send/decline state machine.
+  // PRODUCT_MAP J207-J210 — "Break the ice": open the icebreaker draft
+  // modal for a BLE match or a GPS match.  IcebreakerDraftSheet (mounted
+  // once below) handles the draft → review → send/decline state machine;
+  // `kind` tells the server which match table the id belongs to.
   const handleSendIcebreaker = useCallback((match) => {
     if (!match?.id) return;
-    setIcebreakerMatch(match);
+    setIcebreakerMatch({ ...match, kind: 'ble' });
   }, []);
 
-  // After successful send, refetch matches so the icebreaker_a/b
-  // status flips ('sent') reflect on the BleMatchCard chips.
-  const handleIcebreakerSent = useCallback(() => {
-    fetchBleMatches();
-  }, [fetchBleMatches]);
+  const handleBreakTheIce = useCallback((match, name) => {
+    if (!match?.id) return;
+    setIcebreakerMatch({ ...match, kind: 'proximity', peerName: name || undefined });
+  }, []);
+
+  const openIcebreakerChat = useCallback(
+    (convId, name) => {
+      setIcebreakerMatch(null);
+      navigation.navigate('DirectChat', { conversation_id: convId, name });
+    },
+    [navigation],
+  );
+
+  // After a send, refetch so the BleMatchCard 'sent' chips update, and
+  // open the DM the approved text landed in -- the reply comes there.
+  const handleIcebreakerSent = useCallback(
+    (match, convId) => {
+      fetchBleMatches();
+      if (convId) openIcebreakerChat(convId, match?.peerName);
+    },
+    [fetchBleMatches, openIcebreakerChat],
+  );
+
+  const handleIcebreakerOpenChat = useCallback(
+    (convId) => openIcebreakerChat(convId, icebreakerMatch?.peerName),
+    [openIcebreakerChat, icebreakerMatch],
+  );
 
   const handleIcebreakerClose = useCallback(() => {
     setIcebreakerMatch(null);
@@ -282,9 +319,9 @@ const EncountersScreen = () => {
             renderItem={({ item }) => (
               <ProximityMatchCard
                 match={item}
-                currentUserId={null}
+                currentUserId={socialUserId}
                 onReveal={handleReveal}
-                onChat={handleChat}
+                onBreakTheIce={handleBreakTheIce}
               />
             )}
             contentContainerStyle={styles.listContent}
@@ -512,7 +549,7 @@ const EncountersScreen = () => {
         renderItem={({ item }) => (
           <BleMatchCard
             match={item}
-            currentUserId={null /* TODO: thread current user id from auth */}
+            currentUserId={socialUserId}
             onIcebreaker={handleSendIcebreaker}
             onHide={handleHideMatch}
           />
@@ -557,7 +594,7 @@ const EncountersScreen = () => {
           <Ionicons name="arrow-back" size={24} color="#FFF" />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Encounters</Text>
-        <View style={styles.headerSpacer} />
+        <TouchableOpacity accessibilityRole="button" accessibilityLabel="Privacy settings" testID="encounters-privacy" onPress={() => navigation.navigate("PrivacySettings")}><Text style={{color: "#FFF"}}>Privacy</Text></TouchableOpacity>
       </View>
       {/* BLE consent panel — RN parity for the web SPA's
           DiscoverableTogglePanel (commit 5a705452 / F1 GREENLIT).
@@ -620,6 +657,7 @@ const EncountersScreen = () => {
         viewer={null /* TODO: thread current viewer from auth */}
         onClose={handleIcebreakerClose}
         onSent={handleIcebreakerSent}
+        onOpenChat={handleIcebreakerOpenChat}
       />
     </SafeAreaView>
   );
