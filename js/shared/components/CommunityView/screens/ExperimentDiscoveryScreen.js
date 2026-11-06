@@ -15,12 +15,12 @@ import {
   TouchableOpacity,
   FlatList,
   StyleSheet,
-  SafeAreaView,
   StatusBar,
   ActivityIndicator,
   ScrollView,
   RefreshControl,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import {
   widthPercentageToDP as wp,
   heightPercentageToDP as hp,
@@ -161,6 +161,18 @@ const ExperimentDiscoveryScreen = () => {
     navigation.navigate('ExperimentDetail', { experimentId: exp.id, postId: exp.post_id });
   };
 
+  // Gap thought-exp-fab (2026-06-20): wire the "+ Propose" affordance the
+  // empty-state copy promised but never delivered. ProposeExperiment lives
+  // in home.routes.js next to ExperimentDiscovery; on create we refresh.
+  const handleProposePress = useCallback(() => {
+    navigation.navigate('ProposeExperiment', {
+      onCreated: () => {
+        reset();
+        fetchExperiments(true);
+      },
+    });
+  }, [navigation, reset, fetchExperiments]);
+
   const renderItem = ({ item }) => (
     <View>
       <ThoughtExperimentCard experiment={item} onPress={handleExperimentPress} />
@@ -284,9 +296,14 @@ const ExperimentDiscoveryScreen = () => {
       <View style={styles.emptyState}>
         <MaterialCommunityIcons name="flask-empty-outline" size={48} color={colors.textMuted} />
         <Text style={styles.emptyTitle}>No thought experiments found</Text>
-        <Text style={styles.emptySubtitle}>
-          Be the first to propose a thought experiment!
-        </Text>
+        <TouchableOpacity
+          onPress={handleProposePress}
+          accessibilityRole="button"
+          accessibilityLabel="Propose a thought experiment">
+          <Text style={[styles.emptySubtitle, styles.emptySubtitleLink]}>
+            Be the first to propose a thought experiment!
+          </Text>
+        </TouchableOpacity>
       </View>
     ) : null;
 
@@ -307,7 +324,17 @@ const ExperimentDiscoveryScreen = () => {
           <MaterialIcons name="arrow-back" size={24} color={colors.text} />
         </TouchableOpacity>
         <Text style={styles.topBarTitle}>Thought Experiments</Text>
-        <View style={{ width: 40 }} />
+        {/* Keyboard/TV-focusable equivalent of the FAB. Replaces the
+            previous 40px spacer View so D-pad users have a way to
+            propose without scrolling to the FAB. */}
+        <TouchableOpacity
+          onPress={handleProposePress}
+          style={styles.topBarAction}
+          accessibilityRole="button"
+          accessibilityLabel="Propose a new thought experiment"
+          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+          <MaterialIcons name="add" size={24} color={colors.accent} />
+        </TouchableOpacity>
       </View>
 
       <FlatList
@@ -324,6 +351,18 @@ const ExperimentDiscoveryScreen = () => {
         }
         contentContainerStyle={styles.listContent}
       />
+
+      {/* Floating "+" FAB — mirrors the pattern from CommunitiesScreen /
+          CampaignsScreen / TasksScreen. onPress matches the top-bar action
+          so phone-thumb and TV-focus paths converge. */}
+      <TouchableOpacity
+        style={styles.fab}
+        onPress={handleProposePress}
+        activeOpacity={0.85}
+        accessibilityRole="button"
+        accessibilityLabel="Propose a new thought experiment">
+        <MaterialIcons name="add" size={28} color="#fff" />
+      </TouchableOpacity>
     </SafeAreaView>
   );
 };
@@ -467,9 +506,40 @@ const styles = StyleSheet.create({
     fontSize: 13,
     marginTop: 4,
   },
+  emptySubtitleLink: {
+    color: colors.accent,
+    fontWeight: '700',
+    textDecorationLine: 'underline',
+  },
   footerLoader: {
     paddingVertical: 20,
     alignItems: 'center',
+  },
+  topBarAction: {
+    width: 40,
+    height: 40,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  // 2026-06-20: bottom:24 left the FAB half-hidden behind the bottom
+  // nav (~96-120dp tall + 32dp safe-area on Xiaomi).  Verified on
+  // device — only a sliver of the FAB was visible above the nav.
+  // 130 clears the nav + gives breathing room.
+  fab: {
+    position: 'absolute',
+    bottom: 130,
+    right: 20,
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: colors.accent,
+    alignItems: 'center',
+    justifyContent: 'center',
+    elevation: 6,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
   },
 });
 

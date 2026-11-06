@@ -27,6 +27,7 @@ const EmptyState = ({
         onPress={onCta}
         activeOpacity={0.8}
         accessibilityRole="button"
+        accessibilityLabel={ctaLabel}
       >
         <Text style={styles.ctaText}>{ctaLabel}</Text>
       </TouchableOpacity>

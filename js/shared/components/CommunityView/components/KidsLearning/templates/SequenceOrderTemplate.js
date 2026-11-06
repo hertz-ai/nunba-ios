@@ -5,6 +5,8 @@ import {kidsColors, kidsSpacing, kidsBorderRadius, kidsFontSize, kidsFontWeight,
 import ProgressDots from '../shared/ProgressDots';
 import FeedbackOverlay from '../shared/FeedbackOverlay';
 import {SPRINGS} from '../shared/gameThemes';
+import {STEP, LEVEL, sequenceOrder as guide} from '../shared/gameGuide';
+import holdUntilSpoken from '../shared/holdUntilSpoken';
 
 /**
  * SequenceOrderTemplate - Arrange items in the correct order.
@@ -22,11 +24,11 @@ import {SPRINGS} from '../shared/gameThemes';
  * - Correct tap: item slides into the next available slot
  *
  * Intelligence features:
- * - After 3+ consecutive wrong: shows the first unhinted item with a glow
+ * - At the shell's easiest level: the next item glows
  * - After fast correct streak: removes number labels from slots
  * - Records concept and response time per sequence
  */
-const SequenceOrderTemplate = ({config, onAnswer, onComplete}) => {
+const SequenceOrderTemplate = ({config, onAnswer, onComplete, onStep, level = LEVEL.START}) => {
   const [sequences, setSequences] = useState([]);
   const [currentSeqIndex, setCurrentSeqIndex] = useState(0);
   const [shuffledItems, setShuffledItems] = useState([]);
@@ -40,10 +42,9 @@ const SequenceOrderTemplate = ({config, onAnswer, onComplete}) => {
   const [feedbackCorrect, setFeedbackCorrect] = useState(false);
   const [feedbackMessage, setFeedbackMessage] = useState('');
 
-  // Adaptive difficulty state
-  const [consecutiveWrong, setConsecutiveWrong] = useState(0);
-  const [consecutiveCorrect, setConsecutiveCorrect] = useState(0);
-  const [adaptiveMode, setAdaptiveMode] = useState('normal');
+  // Difficulty is the shell's one ladder (shared/gameGuide): at LEVEL.MIN the
+  // next item glows, at LEVEL.MAX the slots lose their numbers.
+  const difficulty = level <= LEVEL.MIN ? 'easy' : level >= LEVEL.MAX ? 'hard' : 'normal';
   const [wrongAttemptsForSeq, setWrongAttemptsForSeq] = useState(0);
 
   // Animation refs
@@ -95,19 +96,14 @@ const SequenceOrderTemplate = ({config, onAnswer, onComplete}) => {
       }).start();
 
       startTimeRef.current = Date.now();
+      if (onStep) {
+        // The whole order read back is the longest line a sequence needs;
+        // it is prepared while the child builds it.
+        onStep({kind: STEP.ASKED, itemId: seq.concept || `sequence:${currentSeqIndex}`, say: guide.ask(seq),
+                prepare: [guide.right(seq)]});
+      }
     }
   }, [currentSeqIndex, sequences]);
-
-  // Update adaptive mode
-  useEffect(() => {
-    if (consecutiveWrong >= 3) {
-      setAdaptiveMode('easy');
-    } else if (consecutiveCorrect >= 4) {
-      setAdaptiveMode('hard');
-    } else {
-      setAdaptiveMode('normal');
-    }
-  }, [consecutiveWrong, consecutiveCorrect]);
 
   const shakeItem = useCallback((itemId) => {
     const anim = itemShakeAnims.current[itemId];
@@ -138,8 +134,11 @@ const SequenceOrderTemplate = ({config, onAnswer, onComplete}) => {
     const nextPosition = placedOrder.length;
     const seq = sequences[currentSeqIndex];
 
-    // Is this the correct next item?
-    if (item.correctPosition === nextPosition) {
+    // Is this the correct next item? Judged on the VALUE the tile shows, not
+    // on the index it was built from. The Fibonacci sequence opens 1, 1, 2, so
+    // two tiles read "1"; comparing correctPosition accepted one of them for
+    // the first slot and shook the other, with nothing to tell them apart.
+    if (String(seq?.items?.[nextPosition]) === String(item.label)) {
       // Correct tap
       setIsLocked(true);
       animateSlotFill(nextPosition);
@@ -153,27 +152,40 @@ const SequenceOrderTemplate = ({config, onAnswer, onComplete}) => {
         const responseTimeMs = Date.now() - startTimeRef.current;
         const concept = seq.concept || `sequence:${currentSeqIndex}`;
 
-        setConsecutiveWrong(0);
-        setConsecutiveCorrect(prev => prev + 1);
+        const spoken = onStep
+          ? onStep({kind: STEP.RIGHT, itemId: concept, concept, say: guide.right(seq)}) : undefined;
         setResults(prev => [...prev, true]);
 
+        // Guided, the finished order stays on screen while the voice reads it
+        // back; the overlay covered it and moved on first.  Unguided keeps it.
         setFeedbackCorrect(true);
         setFeedbackMessage(responseTimeMs < 5000 ? 'Super fast ordering!' : 'Perfect sequence!');
-        setShowFeedback(true);
+        if (onStep) {
+          holdUntilSpoken(spoken, () => advanceRef.current(), () => mountedRef.current);
+        } else {
+          setShowFeedback(true);
+        }
 
         if (onAnswer) {
           onAnswer(true, concept, responseTimeMs);
         }
       } else {
+        if (onStep) {
+          onStep({kind: STEP.ASKED, itemId: seq.concept || `sequence:${currentSeqIndex}`,
+                  say: guide.next(item.label)});
+        }
         setIsLocked(false);
       }
     } else {
       // Wrong tap
+      if (onStep) {
+        onStep({kind: STEP.WRONG, itemId: seq.concept || `sequence:${currentSeqIndex}`,
+                chosen: item.label, wanted: seq?.items?.[nextPosition],
+                say: guide.explainMiss(item.label, seq, nextPosition)});
+      }
       shakeItem(item.id);
       setWrongTapItem(item.id);
       setWrongAttemptsForSeq(prev => prev + 1);
-      setConsecutiveCorrect(0);
-      setConsecutiveWrong(prev => prev + 1);
 
       // Record wrong answer for this attempt (but don't advance)
       const responseTimeMs = Date.now() - startTimeRef.current;
@@ -190,8 +202,9 @@ const SequenceOrderTemplate = ({config, onAnswer, onComplete}) => {
         if (mountedRef.current) setWrongTapItem(null);
       }, 600);
     }
-  }, [isLocked, placedOrder, sequences, currentSeqIndex, animateSlotFill, shakeItem, onAnswer]);
+  }, [isLocked, placedOrder, sequences, currentSeqIndex, animateSlotFill, shakeItem, onAnswer, onStep]);
 
+  const advanceRef = useRef(null);
   const handleFeedbackDismiss = useCallback(() => {
     setShowFeedback(false);
     setIsLocked(false);
@@ -204,16 +217,21 @@ const SequenceOrderTemplate = ({config, onAnswer, onComplete}) => {
       setCurrentSeqIndex(prev => prev + 1);
     }
   }, [currentSeqIndex, sequences, onComplete]);
+  advanceRef.current = handleFeedbackDismiss;
 
   // Get the next correct item hint (for easy mode)
   const getHintItemId = useCallback(() => {
-    if (adaptiveMode !== 'easy') return null;
+    if (difficulty !== 'easy') return null;
     const nextPos = placedOrder.length;
+    // Any unplaced tile showing the value the next slot wants - so the hint
+    // never points at a tile that has already been used for an equal one.
+    const wanted = sequences[currentSeqIndex]?.items?.[nextPos];
     const hintItem = shuffledItems.find(
-      item => item.correctPosition === nextPos && !placedOrder.includes(item),
+      item =>
+        String(item.label) === String(wanted) && !placedOrder.includes(item),
     );
     return hintItem?.id ?? null;
-  }, [adaptiveMode, placedOrder, shuffledItems]);
+  }, [difficulty, placedOrder, shuffledItems, sequences, currentSeqIndex]);
 
   const hintItemId = getHintItemId();
 
@@ -236,7 +254,7 @@ const SequenceOrderTemplate = ({config, onAnswer, onComplete}) => {
     inputRange: [0, 1],
     outputRange: [0.85, 1],
   });
-  const showSlotNumbers = adaptiveMode !== 'hard';
+  const showSlotNumbers = difficulty !== 'hard';
 
   return (
     <View style={styles.container}>
@@ -252,13 +270,13 @@ const SequenceOrderTemplate = ({config, onAnswer, onComplete}) => {
       />
 
       {/* Adaptive mode indicator */}
-      {adaptiveMode === 'easy' && (
+      {difficulty === 'easy' && (
         <View style={styles.adaptiveBanner}>
           <Icon name="lightbulb-on-outline" size={16} color={kidsColors.star} />
           <Text style={styles.adaptiveText}>Look for the glowing item!</Text>
         </View>
       )}
-      {adaptiveMode === 'hard' && (
+      {difficulty === 'hard' && (
         <View style={[styles.adaptiveBanner, {backgroundColor: kidsColors.accentLight + '20'}]}>
           <Icon name="fire" size={16} color={kidsColors.streak} />
           <Text style={[styles.adaptiveText, {color: kidsColors.streak}]}>No numbers, you got this!</Text>

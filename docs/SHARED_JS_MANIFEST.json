@@ -110,7 +110,14 @@
         "socialApi.js",
         "TTSCapabilityProbe.js",
         "vaultApi.js",
-        "visionApi.js"
+        "visionApi.js",
+        "apiErrorMessages.js",
+        "apiFailure.js",
+        "awesomeGames.js",
+        "encounterTracker.js",
+        "httpJson.js",
+        "kidsAssetGen.js",
+        "livekitSdk.js"
       ]
     },
     {
@@ -391,7 +398,24 @@
         "SignUp/StudentPhoneEmail.js",
         "SignUp/translations.js",
         "SignUp/WhoPays.js",
-        "wallpaper/scrolls.js"
+        "wallpaper/scrolls.js",
+        "CommunityView/components/KidsLearning/UniqueGameRenderer.js",
+        "CommunityView/components/KidsLearning/shared/MicStatusOverlay.js",
+        "CommunityView/components/KidsLearning/shared/PhoneticSimilarity.js",
+        "CommunityView/components/KidsLearning/shared/agentGameSound.js",
+        "CommunityView/components/KidsLearning/shared/gameGuide.js",
+        "CommunityView/components/KidsLearning/shared/gameMusic.js",
+        "CommunityView/components/KidsLearning/shared/gameShellContext.js",
+        "CommunityView/components/KidsLearning/shared/holdUntilSpoken.js",
+        "CommunityView/components/KidsLearning/shared/useGuidedSteps.js",
+        "CommunityView/components/KidsLearning/shared/useHeardLine.js",
+        "CommunityView/screens/CreateCodingGoalScreen.js",
+        "CommunityView/screens/CreateCommunityScreen.js",
+        "CommunityView/screens/ProposeExperimentScreen.js",
+        "CommunityView/screens/ShareRecipeScreen.js",
+        "CommunityView/components/KidsLearning/canvas/KidsCanvas.js",
+        "CommunityView/components/KidsLearning/canvas/svgs/index.js",
+        "CommunityView/components/KidsLearning/canvas/svgs/extras.js"
       ]
     },
     {
@@ -457,6 +481,10 @@
         {
           "src": "images/user1.png",
           "dst": "images/user1.png"
+        },
+        {
+          "src": "assets/kids/catalog.json",
+          "dst": "assets/kids/catalog.json"
         }
       ]
     }

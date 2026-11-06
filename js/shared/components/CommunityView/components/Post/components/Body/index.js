@@ -97,7 +97,10 @@ const Body = ({ resourceUri, contentType, caption, userData }) => {
           // half-written file.
           try {
             const stat = await RNFetchBlob.fs.stat(cached);
-            if (!cancelled && stat && Number(stat.size) > 0) {
+            // Match MediaCacheManager's MIN_VALID_BYTES (4 KB).  Tiny
+            // files are partial writes from the pre-fix build that
+            // wrote bytes straight to the final target path.
+            if (!cancelled && stat && Number(stat.size) >= 4096) {
               setVideoSource((prev) =>
                 prev?.uri?.startsWith('file://') ? prev : { uri: `file://${cached}` },
               );
@@ -181,7 +184,7 @@ const Body = ({ resourceUri, contentType, caption, userData }) => {
             style={[containercaption, { lineHeight: 21 }]}
             onTextLayout={onTextLayout}
             onPress={toggleNumberOfLines}
-            numberOfLines={textShown ? undefined : 1}
+            numberOfLines={textShown ? undefined : 2}
           >
             {caption}
             {lengthMore ? (textShown ? ' Read less' : ' Read more') : null}

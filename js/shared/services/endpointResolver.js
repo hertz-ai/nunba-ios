@@ -16,12 +16,18 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 const CLOUD_FALLBACK = 'https://azurekong.hertzai.com';
 const CACHE_TTL_MS = 30_000; // 30 seconds
 
-let _cached = null;     // { url, source, resolvedAt }
+let _cached = null;     // { url, source, credential, resolvedAt }
 let _resolving = null;  // dedup concurrent calls
 
 /**
  * Resolve the best API endpoint.
- * @returns {Promise<{url: string, source: string}>}
+ *
+ * `credential` is the bearer that goes with `url` (#111): chosen natively
+ * by the same rule Retrofit uses (HartosBaseUrlResolver.bearerFor), so a
+ * LAN desktop gets the token this phone signs with its PeerLink key and
+ * the cloud gets the account token.  Absent when the native resolver was
+ * not consulted; apiHelpers then sends the account token as before.
+ * @returns {Promise<{url: string, source: string, credential?: string}>}
  */
 export async function getApiBase() {
   // Return cache if fresh
@@ -42,8 +48,8 @@ export async function getApiBase() {
 }
 
 function _fromCache() {
-  const {url, source, credential} = _cached;
-  return credential ? {url, source, credential} : {url, source};
+  const { url, source, credential } = _cached;
+  return credential ? { url, source, credential } : { url, source };
 }
 
 async function _doResolve() {
@@ -61,7 +67,12 @@ async function _doResolve() {
   try {
     const peer = await NativeModules.PeerLinkModule.getApiBase();
     if (peer && peer.url) {
-      _cached = { url: peer.url, source: peer.source || 'lan', credential: peer.credential, resolvedAt: Date.now() };
+      _cached = {
+        url: peer.url,
+        source: peer.source || 'lan',
+        credential: peer.credential || null,
+        resolvedAt: Date.now(),
+      };
       return _fromCache();
     }
   } catch (_) {

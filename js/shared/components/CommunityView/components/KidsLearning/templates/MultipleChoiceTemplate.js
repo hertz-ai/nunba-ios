@@ -8,8 +8,9 @@ import GameLivesBar from '../shared/GameLivesBar';
 import KidsCharacter from '../shared/KidsCharacter';
 import VisualHint from '../shared/VisualHint';
 import {getEmojiForText} from '../shared/emojiMap';
-import {GameSounds} from '../shared/SoundManager';
 import {SPRINGS} from '../shared/gameThemes';
+import {STEP, LEVEL, multipleChoice as guide} from '../shared/gameGuide';
+import holdUntilSpoken from '../shared/holdUntilSpoken';
 
 /**
  * MultipleChoiceTemplate - Adaptive multiple choice quiz for kids.
@@ -21,11 +22,18 @@ import {SPRINGS} from '../shared/gameThemes';
  *
  * Intelligence features:
  * - Tracks response time per question (fast = confident, slow = struggling)
- * - After 3+ consecutive wrong: shows hints automatically, reduces to 2 options
+ * - At the shell's easiest level: two options instead of four
  * - After fast correct streak: adds distractor options to increase challenge
  * - After 2 wrong on same question: reveals the hint
  */
-const MultipleChoiceTemplate = ({config, onAnswer, onComplete}) => {
+// How many answers in a row were right, for the lives bar's streak.
+const trailingRight = (results) => {
+  let n = 0;
+  for (let i = results.length - 1; i >= 0 && results[i]; i--) n++;
+  return n;
+};
+
+const MultipleChoiceTemplate = ({config, onAnswer, onComplete, onStep, level = LEVEL.START}) => {
   // --- Shuffle questions on mount ---
   const [questions, setQuestions] = useState([]);
   const [currentIndex, setCurrentIndex] = useState(0);
@@ -38,10 +46,9 @@ const MultipleChoiceTemplate = ({config, onAnswer, onComplete}) => {
   const [wrongCountForCurrent, setWrongCountForCurrent] = useState(0);
   const [isLocked, setIsLocked] = useState(false);
 
-  // Adaptive difficulty state
-  const [consecutiveWrong, setConsecutiveWrong] = useState(0);
-  const [consecutiveCorrect, setConsecutiveCorrect] = useState(0);
-  const [adaptiveMode, setAdaptiveMode] = useState('normal'); // 'easy' | 'normal' | 'hard'
+  // Difficulty is the shell's one ladder (shared/gameGuide): at LEVEL.MIN two
+  // options instead of four.  This template's own ladder is gone.
+  const difficulty = level <= LEVEL.MIN ? 'easy' : level >= LEVEL.MAX ? 'hard' : 'normal';
   const [reducedOptions, setReducedOptions] = useState(null);
 
   // Visual overhaul state
@@ -84,22 +91,22 @@ const MultipleChoiceTemplate = ({config, onAnswer, onComplete}) => {
       hintAnim.setValue(1);
 
       // In easy mode, automatically reduce options
-      if (adaptiveMode === 'easy' && questions[currentIndex]?.options?.length > 2) {
+      if (difficulty === 'easy' && questions[currentIndex]?.options?.length > 2) {
         reduceOptionsForQuestion(currentIndex);
+      }
+      const q = questions[currentIndex];
+      if (onStep && q) {
+        // Every line an answer can need is prepared while the child thinks,
+        // so a tap is answered at once instead of after a synthesis round trip.
+        const options = q.options || [];
+        const nextQ = questions[currentIndex + 1];
+        const prepare = [guide.right(q)]
+          .concat(options.filter((_, i) => i !== q.correctIndex).map((o) => guide.explainMiss(o, q)))
+          .concat(nextQ ? [guide.ask(nextQ)] : []);
+        onStep({kind: STEP.ASKED, itemId: q.concept || `q-${currentIndex}`, say: guide.ask(q), prepare});
       }
     }
   }, [currentIndex, questions]);
-
-  // Update adaptive mode based on streaks
-  useEffect(() => {
-    if (consecutiveWrong >= 3) {
-      setAdaptiveMode('easy');
-    } else if (consecutiveCorrect >= 4) {
-      setAdaptiveMode('hard');
-    } else {
-      setAdaptiveMode('normal');
-    }
-  }, [consecutiveWrong, consecutiveCorrect]);
 
   const reduceOptionsForQuestion = useCallback((qIndex) => {
     const q = questions[qIndex];
@@ -125,7 +132,6 @@ const MultipleChoiceTemplate = ({config, onAnswer, onComplete}) => {
 
   const handleAnswer = useCallback((optionIndex) => {
     if (isLocked || currentIndex >= questions.length) return;
-    GameSounds.tap();
     setIsLocked(true);
 
     const question = questions[currentIndex];
@@ -158,15 +164,22 @@ const MultipleChoiceTemplate = ({config, onAnswer, onComplete}) => {
       }, 1500);
       setLives(prev => Math.max(0, prev - 1));
     }
-    setShowFeedback(true);
+    // Guided, the marked answer stays on screen until the voice has said why,
+    // then the game moves on; the full-screen overlay would cover the answer
+    // and move on before the explanation ends.  Unguided keeps the overlay.
+    if (!onStep) setShowFeedback(true);
 
-    // Update adaptive tracking
-    if (isCorrect) {
-      setConsecutiveWrong(0);
-      setConsecutiveCorrect(prev => prev + 1);
-    } else {
-      setConsecutiveCorrect(0);
-      setConsecutiveWrong(prev => prev + 1);
+    if (onStep) {
+      const chosen = (question.options || [])[optionIndex];
+      const spoken = onStep(isCorrect
+        ? {kind: STEP.RIGHT, itemId: question.concept || `q-${currentIndex}`,
+           concept: question.concept, say: guide.right(question)}
+        : {kind: STEP.WRONG, itemId: question.concept || `q-${currentIndex}`,
+           chosen, wanted: (question.options || [])[question.correctIndex],
+           say: guide.explainMiss(chosen, question)});
+      holdUntilSpoken(spoken, () => advanceRef.current(), () => mountedRef.current);
+    }
+    if (!isCorrect) {
       const newWrongCount = wrongCountForCurrent + 1;
       setWrongCountForCurrent(newWrongCount);
       if (newWrongCount >= 2 && question.hint && !showHint) {
@@ -181,8 +194,9 @@ const MultipleChoiceTemplate = ({config, onAnswer, onComplete}) => {
 
     // Update results and advance
     setResults(prev => [...prev, isCorrect]);
-  }, [currentIndex, questions, isLocked, wrongCountForCurrent, showHint, onAnswer, revealHint]);
+  }, [currentIndex, questions, isLocked, wrongCountForCurrent, showHint, onAnswer, revealHint, onStep]);
 
+  const advanceRef = useRef(null);
   const handleFeedbackDismiss = useCallback(() => {
     setShowFeedback(false);
     setIsLocked(false);
@@ -211,11 +225,12 @@ const MultipleChoiceTemplate = ({config, onAnswer, onComplete}) => {
       // Stay on same question, but allow retry
       setOptionStates({});
       // If in easy mode and not already reduced, reduce now
-      if (adaptiveMode === 'easy' && !reducedOptions) {
+      if (difficulty === 'easy' && !reducedOptions) {
         reduceOptionsForQuestion(currentIndex);
       }
     }
-  }, [currentIndex, questions, results, adaptiveMode, reducedOptions, onComplete, reduceOptionsForQuestion]);
+  }, [currentIndex, questions, results, difficulty, reducedOptions, onComplete, reduceOptionsForQuestion]);
+  advanceRef.current = handleFeedbackDismiss;
 
   // --- Render ---
   if (questions.length === 0) {
@@ -258,7 +273,7 @@ const MultipleChoiceTemplate = ({config, onAnswer, onComplete}) => {
         score={results.filter(r => r).length}
         currentLevel={currentIndex + 1}
         totalLevels={questions.length}
-        streak={consecutiveCorrect}
+        streak={trailingRight(results)}
       />
 
       {/* Kids Character */}
@@ -270,13 +285,13 @@ const MultipleChoiceTemplate = ({config, onAnswer, onComplete}) => {
       <VisualHint type="tap" visible={showVisualHint && currentIndex === 0} onDismiss={() => setShowVisualHint(false)} />
 
       {/* Adaptive mode indicator */}
-      {adaptiveMode === 'easy' && (
+      {difficulty === 'easy' && (
         <View style={styles.adaptiveBanner}>
           <Icon name="lightbulb-on-outline" size={16} color={kidsColors.star} />
           <Text style={styles.adaptiveText}>Helper mode ON</Text>
         </View>
       )}
-      {adaptiveMode === 'hard' && (
+      {difficulty === 'hard' && (
         <View style={[styles.adaptiveBanner, {backgroundColor: kidsColors.accentLight + '20'}]}>
           <Icon name="fire" size={16} color={kidsColors.streak} />
           <Text style={[styles.adaptiveText, {color: kidsColors.streak}]}>Challenge mode!</Text>

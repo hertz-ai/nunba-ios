@@ -1,8 +1,16 @@
 import React, { useState, useCallback, useEffect } from 'react';
 import {
-  View, Text, StyleSheet, FlatList, TouchableOpacity,
-  SafeAreaView, StatusBar, RefreshControl, ActivityIndicator, Alert,
+  View,
+  Text,
+  StyleSheet,
+  FlatList,
+  TouchableOpacity,
+  StatusBar,
+  RefreshControl,
+  ActivityIndicator,
+  Alert,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import {
   widthPercentageToDP as wp,
   heightPercentageToDP as hp,
@@ -77,16 +85,21 @@ const ChannelBindingsScreen = () => {
     );
   };
 
-  const handleSetPreferred = async (item) => {
+  const handleSetPreferred = useCallback(async (item) => {
     if (item.is_preferred) return;
-    await setPreferred(item.id);
-  };
+    try {
+      await setPreferred(item.id);
+    } catch (e) {
+      console.warn('[ChannelBindingsScreen] Set preferred failed:', e);
+    }
+  }, [setPreferred]);
 
   const renderItem = ({ item, index }) => {
     const color = getChannelColor(item.channel);
     const iconName = getChannelIcon(item.channel);
     const displayName = item.channel_name || item.channel || 'Channel';
-    const statusText = item.status === 'active' ? 'Connected' : (item.status || 'Pending');
+    const statusText = item.status === 'active' ? 'Connected'
+      : item.status === 'inactive' ? 'Not connected' : (item.status || 'Pending');
     const statusColor = item.status === 'active' ? '#6C63FF' : '#888';
 
     return (

@@ -208,6 +208,7 @@ function parseCustomScheme(url) {
         channel_type: channelType,
         ok: params.get('ok') === 'true' || (!!code && !params.get('error')),
         message: params.get('message') || params.get('error_description') || '',
+        // PKCE fields:
         code,
         state,
         error: params.get('error') || '',
@@ -336,7 +337,9 @@ class DeepLinkService {
    */
   _handleOAuthComplete(parsed) {
     try {
-      if (parsed.code && parsed.state) {
+      // A denied authorization comes back with `state` and `error` but no
+      // `code`; it must reach the waiting flow too, or it hangs for 5 minutes.
+      if (parsed.state && (parsed.code || parsed.error)) {
         DeviceEventEmitter.emit('oauth_complete', {
           state: parsed.state,
           code: parsed.code,
@@ -372,6 +375,22 @@ class DeepLinkService {
       await this._trackCampaignTouch('meet_click', {
         platform, room_id: roomId, ...(utmData || {}),
       });
+      // #437 (2026-06-22): for platform === 'hevolve' the join target IS
+      // CallChannelScreen — route directly so the link is no longer
+      // silently deferred.  External-platform meet links (zoom, meet,
+      // teams, etc.) still defer because HARTOS Join_External_Room is
+      // desktop-first; deferred entries are replayed by
+      // ``_processDeferredLink`` when those flows ship on mobile.
+      // 2026-06-22 self-review fix: navigationRef is a React ref —
+      // every other call site uses `.current.<method>`.  Earlier draft
+      // called `this._navigationRef.isReady()` which is always undefined
+      // on a real ref, making the navigate a silent no-op in prod.
+      if (platform === 'hevolve' && this._navigationRef?.current?.isReady?.()) {
+        try {
+          this._navigationRef.current.navigate('CallChannel', { call_id: roomId });
+          return { type: 'meet', platform, roomId, routed: 'CallChannel' };
+        } catch (_) { /* fall through to defer */ }
+      }
       await AsyncStorage.setItem(
         STORAGE_KEYS.DEFERRED_LINK,
         JSON.stringify({

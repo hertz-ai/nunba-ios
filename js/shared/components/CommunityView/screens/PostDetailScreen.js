@@ -267,7 +267,7 @@ const PostDetailScreen = () => {
             source={post.author_avatar ? { uri: post.author_avatar } : require('../../../images/user1.png')}
           />
           <View style={s.authorInfo}>
-            <Text style={s.authorName}>
+            <Text style={s.authorName} numberOfLines={1}>
               {post.author_name || post.username || post.name || 'Unknown'}
             </Text>
             <Text style={s.postTime}>
@@ -338,13 +338,15 @@ const PostDetailScreen = () => {
           reactions={reactions}
           onToggle={async (emoji) => {
             const id = postId || post?.id;
-            if (!id) return;
+            if (!id) return Promise.reject(new Error('No post ID'));
             // togglePost is server-side toggle (same emoji+user adds first
             // call, removes second).  ReactionsStrip already did the
-            // optimistic flip; we just persist + reconcile.
+            // optimistic flip; we just persist + reconcile.  Awaiting
+            // fetchReactions keeps the promise chain coherent for the
+            // strip's rollback path.
             try {
               await reactionsApi.togglePost(id, emoji);
-              fetchReactions();
+              await fetchReactions();
             } catch (err) {
               console.warn('Reaction toggle failed:', err);
               throw err; // let ReactionsStrip rollback

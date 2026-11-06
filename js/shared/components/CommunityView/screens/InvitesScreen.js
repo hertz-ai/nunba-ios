@@ -23,10 +23,22 @@
  */
 import React, { useState, useCallback, useEffect } from 'react';
 import {
-  View, Text, StyleSheet, FlatList, TouchableOpacity, TextInput,
-  SafeAreaView, StatusBar, RefreshControl, ActivityIndicator,
-  Alert, Modal, KeyboardAvoidingView, Platform, Share,
+  View,
+  Text,
+  StyleSheet,
+  FlatList,
+  TouchableOpacity,
+  TextInput,
+  StatusBar,
+  RefreshControl,
+  ActivityIndicator,
+  Alert,
+  Modal,
+  KeyboardAvoidingView,
+  Platform,
+  Share,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import {
   widthPercentageToDP as wp,
   heightPercentageToDP as hp,
@@ -261,6 +273,7 @@ const InvitesScreen = () => {
               style={styles.primaryBtn}
               onPress={handleAccept(item.id)}
               disabled={busyId === item.id}
+              accessibilityLabel={`Accept invite from ${inviter.display_name || inviter.username || 'Someone'}`}
             >
               <Ionicons name="checkmark" size={16} color="#000000" />
               <Text style={styles.primaryBtnText}>Accept</Text>
@@ -269,6 +282,7 @@ const InvitesScreen = () => {
               style={styles.ghostBtn}
               onPress={handleReject(item.id)}
               disabled={busyId === item.id}
+              accessibilityLabel={`Decline invite from ${inviter.display_name || inviter.username || 'Someone'}`}
             >
               <Text style={styles.ghostBtnText}>Decline</Text>
             </TouchableOpacity>
@@ -316,19 +330,22 @@ const InvitesScreen = () => {
         <View style={styles.centerContainer}>
           <ActivityIndicator size="large" color="#6C63FF" />
         </View>
+      ) : incoming.length === 0 ? (
+        // #418-followup: FlatList ListEmptyComponent eats CTA tap.
+        // Render as sibling.
+        <View style={styles.centerContainer}>
+          <EmptyState
+            {...emptyStatePreset('no-invites')}
+            onCta={() => setComposeOpen(true)}
+            ctaLabel="Send an invite"
+          />
+        </View>
       ) : (
         <FlatList
           data={incoming}
           keyExtractor={(item) => String(item.id)}
           renderItem={renderIncoming}
           // UX-AUDIT 2026-05-19: P7 preset + P10 virtualization wires.
-          ListEmptyComponent={
-            <EmptyState
-              {...emptyStatePreset('no-invites')}
-              onCta={() => setComposeOpen(true)}
-              ctaLabel="Send an invite"
-            />
-          }
           {...flatListVirtualizationProps(INVITES_ROW_HEIGHT)}
           contentContainerStyle={styles.listContent}
           showsVerticalScrollIndicator={false}

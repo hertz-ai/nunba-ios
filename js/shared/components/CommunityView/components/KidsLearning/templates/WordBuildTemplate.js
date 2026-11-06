@@ -5,6 +5,8 @@ import {kidsColors, kidsSpacing, kidsBorderRadius, kidsFontSize, kidsFontWeight,
 import {SPRINGS} from '../shared/gameThemes';
 import ProgressDots from '../shared/ProgressDots';
 import FeedbackOverlay from '../shared/FeedbackOverlay';
+import {STEP, LEVEL, wordBuild as guide} from '../shared/gameGuide';
+import holdUntilSpoken from '../shared/holdUntilSpoken';
 
 /**
  * WordBuildTemplate - Spell words from scattered letters.
@@ -13,6 +15,14 @@ import FeedbackOverlay from '../shared/FeedbackOverlay';
  * - config: { content: { words: [{ word, hint, concept, extraLetters }] } }
  * - onAnswer: (isCorrect, concept, responseTimeMs) => void
  * - onComplete: () => void
+ * - onStep: (step) => void   GameShell speaks it and plays its cue.  When
+ *                            present the game is GUIDED: each letter is
+ *                            checked as it is tapped (a wrong one is
+ *                            explained and not placed), as in the owner's
+ *                            Number Meadow "Spell It".
+ * - level: number            the shell's ladder: at LEVEL.MIN no decoy
+ *                            letters and the first letter shown; at
+ *                            LEVEL.MAX extra decoys.
  *
  * Gameplay:
  * - Shows blank slots for each letter of the word
@@ -27,7 +37,7 @@ import FeedbackOverlay from '../shared/FeedbackOverlay';
  * - After fast correct streak: adds more distractor letters
  * - Records concept and response time per word
  */
-const WordBuildTemplate = ({config, onAnswer, onComplete}) => {
+const WordBuildTemplate = ({config, onAnswer, onComplete, onStep, level = LEVEL.START}) => {
   const [words, setWords] = useState([]);
   const [currentWordIndex, setCurrentWordIndex] = useState(0);
   const [filledSlots, setFilledSlots] = useState([]);
@@ -43,10 +53,9 @@ const WordBuildTemplate = ({config, onAnswer, onComplete}) => {
   const [feedbackCorrect, setFeedbackCorrect] = useState(false);
   const [feedbackMessage, setFeedbackMessage] = useState('');
 
-  // Adaptive difficulty state
-  const [consecutiveWrong, setConsecutiveWrong] = useState(0);
-  const [consecutiveCorrect, setConsecutiveCorrect] = useState(0);
-  const [adaptiveMode, setAdaptiveMode] = useState('normal');
+  // Difficulty comes from the shell's one ladder (shared/gameGuide); this
+  // template's own "3 wrong / 4 right" ladder is gone.
+  const difficulty = level <= LEVEL.MIN ? 'easy' : level >= LEVEL.MAX ? 'hard' : 'normal';
 
   // Animation refs
   // Initialized at 1 (visible) instead of 0 — the bounce-in spring at
@@ -104,10 +113,17 @@ const WordBuildTemplate = ({config, onAnswer, onComplete}) => {
         ? [...rawExtra]
         : makeRandomLetters(rawExtra);
 
+      if (onStep) {
+        // The spelled-out word is the longest line a word needs; it is
+        // prepared while the child builds it.
+        onStep({kind: STEP.ASKED, itemId: wordObj.concept || `spell:${wordObj.word}`,
+                say: guide.ask(wordObj), prepare: [guide.right(wordObj)]});
+      }
+
       // In easy mode, reduce or remove extra letters
-      if (adaptiveMode === 'easy') {
+      if (difficulty === 'easy') {
         distractors = []; // Remove all distractors in easy mode
-      } else if (adaptiveMode === 'hard') {
+      } else if (difficulty === 'hard') {
         // Add more random distractors
         const additionalCount = Math.min(3, wordLetters.length);
         for (let i = 0; i < additionalCount; i++) {
@@ -150,24 +166,13 @@ const WordBuildTemplate = ({config, onAnswer, onComplete}) => {
       startTimeRef.current = Date.now();
 
       // In easy mode after 2 wrong attempts, reveal first letter as a hint
-      if (adaptiveMode === 'easy' && wrongCountRef.current >= 2) {
+      if (difficulty === 'easy' && wrongCountRef.current >= 2) {
         revealFirstLetter(wordLetters, shuffledLetters);
       }
-      // Reset ref for new word (but keep value if same word retrying via adaptiveMode change)
+      // Reset ref for new word (but keep value if same word retrying after a level change)
       wrongCountRef.current = 0;
     }
-  }, [currentWordIndex, words, adaptiveMode]);
-
-  // Update adaptive mode
-  useEffect(() => {
-    if (consecutiveWrong >= 3) {
-      setAdaptiveMode('easy');
-    } else if (consecutiveCorrect >= 4) {
-      setAdaptiveMode('hard');
-    } else {
-      setAdaptiveMode('normal');
-    }
-  }, [consecutiveWrong, consecutiveCorrect]);
+  }, [currentWordIndex, words, difficulty]);
 
   const revealFirstLetter = useCallback((wordLetters, letters) => {
     if (!wordLetters || wordLetters.length === 0) return;
@@ -205,6 +210,21 @@ const WordBuildTemplate = ({config, onAnswer, onComplete}) => {
     // Find the first empty slot
     const emptySlotIdx = filledSlots.findIndex(s => s === null);
     if (emptySlotIdx === -1) return;
+
+    // Guided: each letter is checked as it is tapped.  A wrong one is
+    // explained from the letter the child chose and is not placed.
+    const wordObj = words[currentWordIndex];
+    const wanted = String(wordObj?.word || '')[emptySlotIdx] || '';
+    if (onStep && wanted && letter.originalLetter !== wanted.toLowerCase()) {
+      onStep({kind: STEP.WRONG, itemId: wordObj.concept || `spell:${wordObj.word}`,
+              chosen: letter.letter, wanted: wanted.toUpperCase(),
+              say: guide.explainMiss(letter.letter, wordObj, emptySlotIdx)});
+      return;
+    }
+    if (onStep && wanted && emptySlotIdx < String(wordObj.word).length - 1) {
+      onStep({kind: STEP.ASKED, itemId: wordObj.concept || `spell:${wordObj.word}`,
+              say: guide.letter(wordObj, emptySlotIdx)});
+    }
 
     // Bounce animation on the letter
     const bounce = letterBounceAnims.current[letter.id];
@@ -244,7 +264,7 @@ const WordBuildTemplate = ({config, onAnswer, onComplete}) => {
     if (newSlots.every(s => s !== null)) {
       checkWord(newSlots);
     }
-  }, [isLocked, filledSlots, slotStates]);
+  }, [isLocked, filledSlots, slotStates, words, currentWordIndex, onStep]);
 
   const handleSlotTap = useCallback((slotIdx) => {
     if (isLocked) return;
@@ -282,15 +302,15 @@ const WordBuildTemplate = ({config, onAnswer, onComplete}) => {
     });
     setSlotStates(newStates);
 
-    // Update adaptive tracking
+    let spoken;
+    if (onStep && isCorrect) {
+      // The teaching moment: the letters spoken, then the whole word.
+      spoken = onStep({kind: STEP.RIGHT, itemId: concept, concept, say: guide.right(wordObj)});
+    }
     if (isCorrect) {
-      setConsecutiveWrong(0);
-      setConsecutiveCorrect(prev => prev + 1);
       setFeedbackCorrect(true);
       setFeedbackMessage(responseTimeMs < 4000 ? 'Speed speller!' : 'Well spelled!');
     } else {
-      setConsecutiveCorrect(0);
-      setConsecutiveWrong(prev => prev + 1);
       const newWrongCount = wrongCountForWord + 1;
       setWrongCountForWord(newWrongCount);
       wrongCountRef.current = newWrongCount;
@@ -302,13 +322,20 @@ const WordBuildTemplate = ({config, onAnswer, onComplete}) => {
     }
 
     setResults(prev => [...prev, isCorrect]);
-    setShowFeedback(true);
+    // Guided, the built word stays on screen while the voice spells it; the
+    // overlay covered it and moved on first.  Unguided keeps the overlay.
+    if (onStep) {
+      holdUntilSpoken(spoken, () => advanceRef.current(), () => mountedRef.current);
+    } else {
+      setShowFeedback(true);
+    }
 
     if (onAnswer) {
       onAnswer(isCorrect, concept, responseTimeMs);
     }
-  }, [words, currentWordIndex, wrongCountForWord, showHint, onAnswer, revealHint]);
+  }, [words, currentWordIndex, wrongCountForWord, showHint, onAnswer, revealHint, onStep]);
 
+  const advanceRef = useRef(null);
   const handleFeedbackDismiss = useCallback(() => {
     setShowFeedback(false);
     setIsLocked(false);
@@ -331,7 +358,7 @@ const WordBuildTemplate = ({config, onAnswer, onComplete}) => {
       startTimeRef.current = Date.now();
 
       // In easy mode, auto-fill first letter on retry
-      if (adaptiveMode === 'easy') {
+      if (difficulty === 'easy') {
         const wordLetters = words[currentWordIndex].word.toLowerCase().split('');
         setTimeout(() => {
           if (!mountedRef.current) return;
@@ -356,7 +383,8 @@ const WordBuildTemplate = ({config, onAnswer, onComplete}) => {
         }, 200);
       }
     }
-  }, [results, currentWordIndex, words, adaptiveMode, onComplete]);
+  }, [results, currentWordIndex, words, difficulty, onComplete]);
+  advanceRef.current = handleFeedbackDismiss;
 
   // --- Render ---
   if (words.length === 0) {
@@ -387,13 +415,13 @@ const WordBuildTemplate = ({config, onAnswer, onComplete}) => {
       <ProgressDots total={words.length} current={currentWordIndex} results={results.filter(r => r).slice(0, currentWordIndex)} />
 
       {/* Adaptive mode indicator */}
-      {adaptiveMode === 'easy' && (
+      {difficulty === 'easy' && (
         <View style={styles.adaptiveBanner}>
           <Icon name="lightbulb-on-outline" size={16} color={kidsColors.star} />
           <Text style={styles.adaptiveText}>Fewer letters to choose from!</Text>
         </View>
       )}
-      {adaptiveMode === 'hard' && (
+      {difficulty === 'hard' && (
         <View style={[styles.adaptiveBanner, {backgroundColor: kidsColors.accentLight + '20'}]}>
           <Icon name="fire" size={16} color={kidsColors.streak} />
           <Text style={[styles.adaptiveText, {color: kidsColors.streak}]}>Extra letters challenge!</Text>
@@ -407,6 +435,14 @@ const WordBuildTemplate = ({config, onAnswer, onComplete}) => {
             <Icon name="pencil-outline" size={24} color={kidsColors.accent} />
             <Text style={styles.promptText}>Spell the word!</Text>
           </View>
+
+          {/* The word's own picture: 50 catalogue words carry one, and a
+              child who cannot read yet needs it to know the word. */}
+          {currentWord.emoji ? (
+            <Text style={styles.wordPicture} accessibilityLabel={`picture of ${String(currentWord.word || '').toLowerCase()}`}>
+              {currentWord.emoji}
+            </Text>
+          ) : null}
 
           {/* Hint */}
           {showHint && currentWord.hint && (
@@ -450,6 +486,7 @@ const WordBuildTemplate = ({config, onAnswer, onComplete}) => {
               return (
                 <TouchableOpacity
                   key={`slot-${idx}`}
+                  testID={`wb-slot-${idx}`}
                   style={[
                     styles.letterSlot,
                     {backgroundColor: bgColor, borderColor},
@@ -503,6 +540,7 @@ const WordBuildTemplate = ({config, onAnswer, onComplete}) => {
                           opacity: letterObj.used ? 0.3 : 1,
                         },
                       ]}
+                      testID={`wb-letter-${letterObj.id}`}
                       onPress={() => handleLetterTap(letterObj)}
                       disabled={letterObj.used || isLocked}
                       activeOpacity={0.6}
@@ -586,6 +624,11 @@ const styles = StyleSheet.create({
     fontSize: kidsFontSize.xl,
     fontWeight: kidsFontWeight.bold,
     color: kidsColors.textPrimary,
+  },
+  wordPicture: {
+    fontSize: 56,
+    textAlign: 'center',
+    marginBottom: kidsSpacing.sm,
   },
   hintContainer: {
     flexDirection: 'row',

@@ -1,8 +1,16 @@
 import React, {useState, useEffect, useCallback, useMemo} from 'react';
 import {
-  View, Text, FlatList, TouchableOpacity, TextInput,
-  SafeAreaView, StyleSheet, Animated, RefreshControl, Share,
+  View,
+  Text,
+  FlatList,
+  TouchableOpacity,
+  TextInput,
+  StyleSheet,
+  Animated,
+  RefreshControl,
+  Share,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import {useNavigation} from '@react-navigation/native';
 import * as Animatable from 'react-native-animatable';
@@ -26,6 +34,7 @@ import MediaCacheManager from '../../components/KidsLearning/shared/MediaCacheMa
 import GameSounds from '../../components/KidsLearning/shared/SoundManager';
 import usePressAnimation from '../../../../hooks/usePressAnimation';
 import useDebouncedCallback from '../../../../hooks/useDebouncedCallback';
+import { sortAwesomeFirst, makeSurpriseTile, isAwesomeGame, SURPRISE_TILE_ID } from '../../../../services/awesomeGames';
 
 const AGE_GROUPS = [
   {id: 'early', label: '4-6', range: [4, 6]},
@@ -213,7 +222,19 @@ const KidsHubScreen = () => {
       );
     }
 
-    return games;
+    // Awesome-first sort: brief-backed games (unique-brief / server
+    // composed) bubble to the top, preserving relative order within
+    // each group.  A synthetic Surprise tile is pinned at position 0
+    // so the awesome path is always discoverable even before HARTOS
+    // authors per-subject briefs.  Hidden behind the My Games tab so
+    // it doesn't pollute the user's own creations list.
+    const sorted = sortAwesomeFirst(games);
+    if (selectedCategory !== 'custom' && !debouncedSearch.trim()) {
+      const surprise = makeSurpriseTile({ ageGroup: ageGroup || 'early', audience: 'kids' });
+      const withoutDup = sorted.filter(g => g.id !== SURPRISE_TILE_ID);
+      return [surprise, ...withoutDup];
+    }
+    return sorted;
   }, [allGames, selectedCategory, ageGroup, debouncedSearch]);
 
   // Check if game was played before
@@ -227,7 +248,14 @@ const KidsHubScreen = () => {
   };
 
   const renderGameCard = useCallback(({item, index}) => {
-    const catInfo = CATEGORY_MAP[item.category] || {color: kidsColors.accent, icon: 'gamepad-variant'};
+    const isAwesome = isAwesomeGame(item);
+    // Awesome (brief-backed) games render with the star palette so the
+    // unique-game path is visually distinct from the 105 template-backed
+    // configs.  Category color falls back to accent for awesome since
+    // the brief itself will carry the palette once composed.
+    const catInfo = isAwesome
+      ? { color: kidsColors.star || '#FFB400', icon: item.icon || 'auto-fix' }
+      : (CATEGORY_MAP[item.category] || {color: kidsColors.accent, icon: 'gamepad-variant'});
     const bestScore = getGameBestScore(item.id);
     const isPlayed = bestScore !== null;
     const difficulty = item.difficulty || 1;
@@ -250,7 +278,11 @@ const KidsHubScreen = () => {
               <View style={[styles.cardIcon, {backgroundColor: catInfo.color + '25'}]}>
                 <Icon name={item.icon || catInfo.icon} size={36} color={catInfo.color} />
               </View>
-              {!isPlayed && (
+              {isAwesome ? (
+                <View style={[styles.newBadge, {backgroundColor: catInfo.color}]}>
+                  <Text style={styles.newBadgeText}>AWESOME</Text>
+                </View>
+              ) : !isPlayed && (
                 <View style={[styles.newBadge, {backgroundColor: catInfo.color}]}>
                   <Text style={styles.newBadgeText}>NEW</Text>
                 </View>
@@ -839,9 +871,10 @@ const styles = StyleSheet.create({
     color: kidsColors.textMuted,
     marginTop: kidsSpacing.md,
   },
+  // 2026-06-20: bottom 24→130 so the FAB clears the bottom nav.
   fab: {
     position: 'absolute',
-    bottom: 24,
+    bottom: 130,
     right: 20,
     flexDirection: 'row',
     alignItems: 'center',

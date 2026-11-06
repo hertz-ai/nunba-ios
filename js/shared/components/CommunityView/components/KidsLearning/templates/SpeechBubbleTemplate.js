@@ -14,7 +14,10 @@ import {
   kidsFontWeight,
   kidsShadows,
 } from '../../../../../theme/kidsColors';
-import useMicAmplitude from '../../../../../hooks/useMicAmplitude';
+import useMicAmplitude, {MIC_STATUS} from '../../../../../hooks/useMicAmplitude';
+import MicStatusOverlay from '../shared/MicStatusOverlay';
+import {STEP, LEVEL, speechBubble as guide} from '../shared/gameGuide';
+import useHeardLine from '../shared/useHeardLine';
 
 const {width: SCREEN_WIDTH, height: SCREEN_HEIGHT} = Dimensions.get('window');
 
@@ -33,6 +36,10 @@ const BUBBLE_COLORS = [
 ];
 
 const DECOY_LETTERS = 'XZQJWKVYBMP'.split('');
+
+// How often a floating bubble holds a letter the word still needs, by the
+// shell's level (shared/gameGuide LEVEL): more help at 0, less at 3.
+const NEEDED_CHANCE = [0.6, 0.4, 0.33, 0.25];
 
 /**
  * SpeechBubbleTemplate - Speech bubble word builder.
@@ -176,7 +183,7 @@ const FloatingBubble = ({
   );
 };
 
-const SpeechBubbleTemplate = ({config, onComplete, onAnswer}) => {
+const SpeechBubbleTemplate = ({config, onComplete, onAnswer, onStep, level = LEVEL.START}) => {
   const questions = config?.content?.questions || config?.questions || [];
 
   const [wordIndex, setWordIndex] = useState(0);
@@ -186,6 +193,11 @@ const SpeechBubbleTemplate = ({config, onComplete, onAnswer}) => {
   const [totalCaught, setTotalCaught] = useState(0);
   const [correctCaught, setCorrectCaught] = useState(0);
   const [gameStarted, setGameStarted] = useState(false);
+  // Bubbles float only once the word's line has been heard: the microphone
+  // is open, and the agent's own voice would catch them.
+  const {heard: lineHeard, sayThenListen, hush} = useHeardLine(onStep);
+  const levelRef = useRef(level);
+  levelRef.current = level;
 
   const mountedRef = useRef(true);
   const completedRef = useRef(false);
@@ -195,8 +207,13 @@ const SpeechBubbleTemplate = ({config, onComplete, onAnswer}) => {
   const bubbleIdCounter = useRef(0);
   const spawnTimerRef = useRef(null);
 
-  const {amplitude, isListening, startListening, stopListening} =
-    useMicAmplitude(1.0);
+  // 2026-06-18: sensitivity 1.0 → 4.0 (see BalloonPopTemplate for why).
+  // SpeechBubble bands go up to amplitude >= 0.6 for the largest bubble
+  // — at 1× sensitivity that band was unreachable without genuinely
+  // shouting into the phone.  4× boost makes the bands meaningful for
+  // normal child speech distance.
+  const {amplitude, isListening, status, error, startListening, stopListening} =
+    useMicAmplitude(4.0);
 
   const currentQuestion = questions[wordIndex] || {word: 'HELLO', hint: 'A greeting'};
   const targetWord = currentQuestion.word.toUpperCase();
@@ -242,9 +259,19 @@ const SpeechBubbleTemplate = ({config, onComplete, onAnswer}) => {
     return needed;
   }, [targetLetters, filledLetters]);
 
-  // Spawn bubbles periodically
+  // Each word is introduced (after the first, with the last word spelled
+  // back), and the round waits until that line has been heard.
   useEffect(() => {
     if (!gameStarted) return;
+    sayThenListen({kind: STEP.ASKED, itemId: `bubble:${targetWord}`, say: wordIndex === 0
+      ? guide.ask(currentQuestion, true)
+      : `${guide.right(questions[wordIndex - 1] || {})} ${guide.ask(currentQuestion, false)}`});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [gameStarted, wordIndex]);
+
+  // Spawn bubbles periodically
+  useEffect(() => {
+    if (!gameStarted || !lineHeard) return;
 
     const spawnBubble = () => {
       if (!mountedRef.current) return;
@@ -254,9 +281,10 @@ const SpeechBubbleTemplate = ({config, onComplete, onAnswer}) => {
       const sizeCategory =
         sizeCategories[Math.floor(Math.random() * sizeCategories.length)];
 
-      // 40% chance of being a needed letter, 60% decoy
+      // A needed letter or a decoy; how often, by level
+      const chance = NEEDED_CHANCE[levelRef.current] ?? NEEDED_CHANCE[LEVEL.START];
       const isCorrect =
-        neededLetters.length > 0 && Math.random() < 0.4;
+        neededLetters.length > 0 && Math.random() < chance;
       const letter = isCorrect
         ? neededLetters[Math.floor(Math.random() * neededLetters.length)]
         : DECOY_LETTERS[Math.floor(Math.random() * DECOY_LETTERS.length)];
@@ -288,7 +316,7 @@ const SpeechBubbleTemplate = ({config, onComplete, onAnswer}) => {
     return () => {
       if (spawnTimerRef.current) clearInterval(spawnTimerRef.current);
     };
-  }, [gameStarted, wordIndex]);
+  }, [gameStarted, wordIndex, lineHeard]);
 
   const handleBubbleCatch = useCallback(
     (bubbleId, wasCaught, wasCorrect) => {
@@ -300,6 +328,10 @@ const SpeechBubbleTemplate = ({config, onComplete, onAnswer}) => {
       if (!wasCaught) return; // escaped bubble
 
       setTotalCaught((prev) => prev + 1);
+
+      // A catch is answered by its cue alone: a spoken line would be caught
+      // by the open microphone.
+      if (onStep) onStep({kind: wasCorrect ? STEP.RIGHT : STEP.WRONG, itemId: `bubble:${targetWord}`});
 
       if (wasCorrect) {
         setCorrectCaught((prev) => prev + 1);
@@ -324,7 +356,7 @@ const SpeechBubbleTemplate = ({config, onComplete, onAnswer}) => {
         onAnswer(false);
       }
     },
-    [activeBubbles],
+    [activeBubbles, onStep, targetWord],
   );
 
   // Check word completion
@@ -332,10 +364,17 @@ const SpeechBubbleTemplate = ({config, onComplete, onAnswer}) => {
     if (filledLetters.length >= targetLetters.length && targetLetters.length > 0) {
       if (!mountedRef.current) return;
 
-      // Clear spawner
+      // Clear spawner, and the bubbles still floating: the word is done, and
+      // the next line must not be caught by them
       if (spawnTimerRef.current) {
         clearInterval(spawnTimerRef.current);
         spawnTimerRef.current = null;
+      }
+      setActiveBubbles([]);
+      hush();
+      // The last word is spelled back here; the others with the next word.
+      if (onStep && wordIndexRef.current + 1 >= questions.length) {
+        onStep({kind: STEP.ASKED, itemId: `bubble:${targetWord}:done`, say: guide.right(currentQuestion)});
       }
 
       setScore((prev) => prev + targetLetters.length * 2);
@@ -515,6 +554,15 @@ const SpeechBubbleTemplate = ({config, onComplete, onAnswer}) => {
           Accuracy: {totalCaught > 0 ? Math.round((correctCaught / totalCaught) * 100) : 0}%
         </Text>
       </View>
+
+      {/* Mic-status overlay — gives the player a clear "Allow microphone"
+          tap target when permission is missing, instead of the bubbles
+          floating uncatchably (#408). */}
+      <MicStatusOverlay
+        status={status}
+        error={error}
+        onRetry={startListening}
+      />
     </View>
   );
 };

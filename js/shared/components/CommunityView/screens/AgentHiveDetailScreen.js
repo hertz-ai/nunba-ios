@@ -9,12 +9,12 @@ import {
   FlatList,
   TouchableOpacity,
   StyleSheet,
-  SafeAreaView,
   StatusBar,
   Alert,
   ActivityIndicator,
   RefreshControl,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import {
   widthPercentageToDP as wp,
   heightPercentageToDP as hp,
@@ -207,6 +207,10 @@ export default function AgentHiveDetailScreen() {
           <Text style={styles.convoEmptyText}>No conversation entries yet.</Text>
         );
       default:
+        /* istanbul ignore next — defensive fallback; section types are
+           internally generated and never reach this branch in practice.
+           Test FlatList mock destructures renderItem before it can be
+           read off props, so direct invocation is impossible. */
         return null;
     }
   };

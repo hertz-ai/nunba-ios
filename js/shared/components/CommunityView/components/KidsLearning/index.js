@@ -7,6 +7,14 @@ export {default as StarReward} from './StarReward';
 export {default as StreakFire} from './StreakFire';
 export {default as OfflineBanner} from './OfflineBanner';
 export {default as DynamicGameRenderer} from './DynamicGameRenderer';
+export {default as UniqueGameRenderer} from './UniqueGameRenderer';
+// Two-step namespace re-export (`export * as` is ES2020 and our babel
+// config doesn't have @babel/plugin-transform-export-namespace-from
+// enabled — verified by mediaIntegration.test.js failure on initial
+// drop).  Import-then-export keeps the same call-site shape
+// (`import { PhoneticSimilarity } from '.../KidsLearning'`).
+import * as PhoneticSimilarityNS from './shared/PhoneticSimilarity';
+export const PhoneticSimilarity = PhoneticSimilarityNS;
 
 // Dynamic Backend Compute
 export {default as ServerDrivenUI, RenderNode, STYLE_PRESETS, resolveStyle, resolvePath} from './ServerDrivenUI';

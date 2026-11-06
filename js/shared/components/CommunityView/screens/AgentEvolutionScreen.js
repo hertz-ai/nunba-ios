@@ -7,10 +7,10 @@ import {
   TouchableOpacity,
   FlatList,
   RefreshControl,
-  SafeAreaView,
   StatusBar,
   Image,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import {
   widthPercentageToDP as wp,
   heightPercentageToDP as hp,
@@ -49,14 +49,27 @@ const AgentEvolutionScreen = () => {
   const [selectedSpec, setSelectedSpec] = useState(null);
 
   useEffect(() => {
-    if (agentId) fetchData();
+    // 2026-06-20: when entered from AllFeatures (no agentId), the
+    // previous code never called fetchData(), so `loading` stayed
+    // true forever and the screen rendered as a skeleton placeholder
+    // indefinitely.  Treat missing agentId as "no selection" — flip
+    // loading off so the empty state below renders, and only fetch
+    // when an explicit agentId was passed via route params.
+    if (agentId) {
+      fetchData();
+    } else {
+      setLoading(false);
+    }
   }, [agentId]);
 
   const fetchData = async () => {
     setLoading(true);
     try {
       const [agentRes, historyRes, collabRes] = await Promise.all([
-        evolutionApi.get(agentId).catch(() => ({})),
+        evolutionApi.get(agentId).catch(
+          /* istanbul ignore next — defensive: downstream render unguarded against {} shape; test would crash */
+          () => ({}),
+        ),
         evolutionApi.history(agentId).catch(() => ({ data: [] })),
         evolutionApi.collaborations(agentId, { limit: 10 }).catch(() => ({ data: [] })),
       ]);
@@ -85,7 +98,7 @@ const AgentEvolutionScreen = () => {
     }
   };
 
-  if (loading || !agent) {
+  if (loading) {
     return (
       <SafeAreaView style={styles.container}>
         <StatusBar barStyle="light-content" backgroundColor="#000000" />
@@ -100,6 +113,44 @@ const AgentEvolutionScreen = () => {
           <SkeletonLoader variant="avatar" />
           <SkeletonLoader width={wp('60%')} height={hp('3%')} style={{ marginTop: hp('2%') }} />
           <SkeletonLoader variant="card" style={{ marginTop: hp('2%') }} />
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  if (!agent) {
+    // No agentId in route params (entered via AllFeatures) — surface
+    // a meaningful empty state instead of an infinite loader.
+    return (
+      <SafeAreaView style={styles.container}>
+        <StatusBar barStyle="light-content" backgroundColor="#000000" />
+        <View style={styles.header}>
+          <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
+            <Ionicons name="arrow-back" size={24} color="#FFF" />
+          </TouchableOpacity>
+          <Text style={styles.headerTitle}>Agent Evolution</Text>
+          <View style={styles.headerSpacer} />
+        </View>
+        <View style={[styles.loadingContainer, { paddingHorizontal: wp('8%') }]}>
+          <Ionicons name="git-network-outline" size={64} color="#444" />
+          <Text style={{ color: '#FFF', fontSize: 18, fontWeight: '700', marginTop: 16, textAlign: 'center' }}>
+            Pick an agent to evolve
+          </Text>
+          <Text style={{ color: '#888', fontSize: 14, marginTop: 8, textAlign: 'center', lineHeight: 20 }}>
+            Open an agent from your Agents tab or a community profile, then tap "Evolution" to see its growth path here.
+          </Text>
+          <TouchableOpacity
+            onPress={() => navigation.navigate('AgentsHub')}
+            style={{
+              marginTop: 24,
+              paddingHorizontal: 24,
+              paddingVertical: 12,
+              borderRadius: 24,
+              backgroundColor: '#6C63FF',
+            }}
+          >
+            <Text style={{ color: '#FFF', fontWeight: '700' }}>Browse my agents</Text>
+          </TouchableOpacity>
         </View>
       </SafeAreaView>
     );

@@ -432,7 +432,7 @@ const CommentsList = ({ route }) => {
               {showRepliesFor?.comment_id === data.comment_id && (
                 <View style={styles.commentList}>
                   {replies.filter(reply => reply.parent_comment_id === data.comment_id).map((reply, index) => (
-                    <View key={index}>
+                    <View key={reply.comment_id || `reply_${index}`}>
                       <View style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', marginTop: 10, marginLeft: 40, marginRight: 20 }}>
                         <TouchableOpacity style={{ justifyContent: "center" }}>
                          <Image style={styles.avatarStyle2} source={require('./user1.png')} />

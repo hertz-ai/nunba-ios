@@ -6,9 +6,9 @@ import {
   FlatList,
   TouchableOpacity,
   RefreshControl,
-  SafeAreaView,
   StatusBar,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import {
   widthPercentageToDP as wp,
   heightPercentageToDP as hp,
@@ -70,6 +70,7 @@ const ChallengesScreen = () => {
       case 0: return challenges.active;
       case 1: return challenges.upcoming;
       case 2: return challenges.completed;
+      /* istanbul ignore next — unreachable: only 3 tabs (0/1/2) wired in the UI. */
       default: return [];
     }
   };
@@ -264,7 +265,12 @@ const styles = StyleSheet.create({
     padding: 4,
   },
   listContent: {
-    paddingBottom: hp('10%'),
+    // 2026-06-20: was hp('10%') (≈256px on tablet) — not enough for
+    // the bottom nav (≈96dp) + system gesture bar (≈48dp) on tall
+    // displays.  Tabs at the bottom of ListHeaderComponent ended up
+    // clipped behind the nav.  Bumped so content + tabs clear the
+    // chrome cleanly.
+    paddingBottom: hp('15%'),
   },
   progressCard: {
     backgroundColor: '#141225',

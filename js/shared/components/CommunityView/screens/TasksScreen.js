@@ -1,8 +1,18 @@
 import React, { useState, useCallback, useEffect } from 'react';
 import {
-  View, Text, StyleSheet, FlatList, TouchableOpacity, TextInput,
-  SafeAreaView, StatusBar, RefreshControl, ActivityIndicator, Alert, Modal,
+  View,
+  Text,
+  StyleSheet,
+  FlatList,
+  TouchableOpacity,
+  TextInput,
+  StatusBar,
+  RefreshControl,
+  ActivityIndicator,
+  Alert,
+  Modal,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import {
   widthPercentageToDP as wp,
   heightPercentageToDP as hp,

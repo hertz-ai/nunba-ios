@@ -1,6 +1,6 @@
-import React, { useCallback, useEffect, useMemo } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef } from 'react';
 import {
-  View, Text, StyleSheet,
+  View, Text, StyleSheet, InteractionManager,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import ICON_MAP from '../../../../utils/iconMap';
@@ -132,6 +132,7 @@ const FeatureTile = React.memo(({ item, onPress, isMore }) => {
       scaleTo={0.94}
       haptic={false}
       accessibilityLabel={item.label}
+      accessibilityRole="button"
       rippleColor={tint + '33'}
     >
       <View
@@ -158,27 +159,48 @@ const FeatureNavStrip = () => {
   const features = useMemo(() => buildPersonalizedList(signals), [signals]);
 
   // Polish round 3 perf 2026-06-03: warm the API cache for the
-  // likely-next tile destinations so tapping a tile feels instant.
-  // Communities + Notifications are the most-tapped tiles per UX-audit;
-  // both are 30s-TTL cached in services/apiCache so a duplicate fetch
-  // on screen mount is a cache hit.  Fire-and-forget; errors swallowed.
+  // likely-next tile destinations.  2026-06-16: defer past first
+  // interaction so a tap-during-mount doesn't compete with the
+  // cache-warm fetch on the JS thread.
   useEffect(() => {
-    try { communitiesApi?.list?.({ limit: 5 })?.catch?.(() => {}); } catch (_) {}
-    try { notificationsApi?.unreadCount?.()?.catch?.(() => {}); } catch (_) {}
+    const handle = InteractionManager.runAfterInteractions(() => {
+      try { communitiesApi?.list?.({ limit: 5 })?.catch?.(() => {}); } catch (_) {}
+      try { notificationsApi?.unreadCount?.()?.catch?.(() => {}); } catch (_) {}
+    });
+    return () => { try { handle?.cancel?.(); } catch (_) {} };
   }, []);
 
+  // 2026-06-16 race fix (recurring):  the prior fixes (React.memo +
+  // useCallback + MainScreen race-free guard) closed the largest
+  // window but tap-during-load STILL pops users back to People when
+  // a competing render fires too close to the navigate.  Add a hard
+  // navigation lock: after a tap, the next 1500ms ignore any further
+  // attempt to navigate or focus this tile, and the navigate itself
+  // is dispatched via requestAnimationFrame so the React reconciler
+  // has time to drain any pending state update queue first.
+  // 2026-06-16 v2: the prior RAF defer + 1500ms lock was preventing
+  // ALL tile taps on the freshly-installed APK during this session's
+  // verification.  Hypothesis: requestAnimationFrame in Hermes inside
+  // a useCallback closure is firing AFTER the navigation transition
+  // is already cancelled by the next render's reconciler.  Drop the
+  // RAF, keep a minimal 500ms double-tap dedup which is plenty to
+  // stop the rapid-fire race the original #381 task described without
+  // starving the legitimate first tap.
+  const navLockUntilRef = useRef(0);
+  const dispatchNav = useCallback((screen) => {
+    const now = Date.now();
+    if (now < navLockUntilRef.current) return;
+    navLockUntilRef.current = now + 500;
+    try { hapticLight(); } catch (_) {}
+    try { navigation.navigate(screen); } catch (_e) {}
+  }, [navigation]);
+
   const handleNavigate = useCallback(
-    (screen) => {
-      try { hapticLight(); } catch (_) {}
-      navigation.navigate(screen);
-    },
-    [navigation],
+    (screen) => dispatchNav(screen),
+    [dispatchNav],
   );
 
-  const handleMore = useCallback(() => {
-    try { hapticLight(); } catch (_) {}
-    navigation.navigate('AllFeatures');
-  }, [navigation]);
+  const handleMore = useCallback(() => dispatchNav('AllFeatures'), [dispatchNav]);
 
   return (
     <View style={styles.container}>

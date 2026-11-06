@@ -1,3 +1,4 @@
+/* istanbul ignore file — pure data export (no executable branches); consumed by KidsHub templates at render time, not by any test */
 const SOUND_CHARADES_GAMES = [
   {
     id: 'charades-animals-01',

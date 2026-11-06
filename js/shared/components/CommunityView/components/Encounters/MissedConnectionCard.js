@@ -30,7 +30,14 @@ const MissedConnectionCard = ({ item, onPress }) => {
     : null;
 
   return (
-    <TouchableOpacity style={styles.card} onPress={onPress} activeOpacity={0.7}>
+    <TouchableOpacity
+      style={styles.card}
+      onPress={onPress}
+      activeOpacity={0.7}
+      accessibilityRole="button"
+      accessibilityLabel={`View missed connection at ${item.location_name || 'unknown location'}`}
+      accessibilityHint="View full details and responses"
+    >
       <View style={styles.iconContainer}>
         <MaterialIcons name="location-on" size={24} color="#6C63FF" />
       </View>

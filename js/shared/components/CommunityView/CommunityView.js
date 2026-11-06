@@ -1,5 +1,5 @@
 import React, { useRef, useEffect } from 'react';
-import {NavigationContainer} from '@react-navigation/native';
+import {NavigationContainer, CommonActions} from '@react-navigation/native';
 import {StatusBar, DeviceEventEmitter, BackHandler, NativeModules} from 'react-native';
 import HomeRoutes from './router/home.routes';
 import LiquidOverlay from '../shared/LiquidOverlay';
@@ -58,16 +58,71 @@ const CommunityView = () => {
     // side kept re-emitting "navigateTo" every 250 ms for 8 s — any
     // subsequent JS navigation (Back, tile tap) inside that window was
     // overridden back to the originally-requested screen (#390).
+    // 2026-06-20 (#422 follow-up): the previous "stale-event guard"
+    // ALSO swallowed legitimate People-tab presses when the user was
+    // already on a child screen.  Reported symptom: from Notifications,
+    // tapping the People bottom-nav stayed on Notifications until the
+    // user pressed the in-screen back arrow.  The first emit after a
+    // tap and a stale retry-loop emit look identical at the JS layer
+    // (same `screen` field, no sequence number) — the only difference
+    // is timing.  Switching from "swallow when on child" to a per-
+    // screen "recent-ack" dedup: ack immediately, then process the
+    // navigation.  Repeat emits for the same screen within the 8 s
+    // retry window are recognised as retries and dropped.
+    const recentAckRef = { current: Object.create(null) };
+    const RETRY_DEDUP_MS = 1500; // Java retries 250ms × 32, this dedups them
     const navSub = DeviceEventEmitter.addListener('navigateTo', (payload) => {
       const screen = payload && payload.screen;
       if (!screen) return;
+      // Dedup: if we already acked this screen recently, the native
+      // side just hasn't seen the ack yet — drop the retry.
+      const lastAt = recentAckRef.current[screen] || 0;
+      if (Date.now() - lastAt < RETRY_DEDUP_MS) {
+        try { NativeModules.BottomNavBridge?.ackNavigateTo?.(); } catch (_) {}
+        return;
+      }
+      const startedAt = Date.now();
       const go = () => {
         try {
-          if (navigationRef.current && navigationRef.current.isReady()) {
-            navigationRef.current.navigate(screen);
+          const ref = navigationRef.current;
+          if (ref && ref.isReady()) {
+            // Mark as recently-acked BEFORE navigating so any retry
+            // that fires during the navigate() round-trip gets deduped.
+            recentAckRef.current[screen] = Date.now();
             try { NativeModules.BottomNavBridge?.ackNavigateTo?.(); } catch (_) {}
-          } else {
+            // 2026-06-20: empirical test on Xiaomi showed that
+            // navigate('MainScreen') from a pushed Notifications
+            // screen DID NOT pop back — Notifications stayed visible
+            // 1.5 s after the People tab tap.  Explicit popToTop()
+            // is deterministic: if we're already at top, it's a
+            // no-op; if there are pushed routes, they get popped in
+            // one shot.  Fall back to navigate() for unknown screen
+            // names that aren't the root.
+            try {
+              const rootState = navigationRef.current.getRootState();
+              const rootRoute = rootState?.routes?.[0];
+              const topRoute = rootRoute?.name;
+              if (screen === topRoute || screen === 'MainScreen') {
+                // Reset to the root route the stack already has, key and
+                // all.  A route without a key gets a new one, and a new key
+                // builds the screen again: every People tap rebuilt the whole
+                // feed, and a More tap right after it waited 1.7 s.
+                navigationRef.current.dispatch(
+                  CommonActions.reset({ index: 0, routes: [rootRoute || { name: screen }] })
+                );
+              } else {
+                navigationRef.current.navigate(screen);
+              }
+            } catch (_e) {
+              // Fallback to navigate() if reset fails for any reason.
+              navigationRef.current.navigate(screen);
+            }
+          } else if (Date.now() - startedAt < 2000) {
             setTimeout(go, 100);
+          } else {
+            // Give up: navigation never became ready inside the 2 s
+            // window — ack so the native loop stops.
+            try { NativeModules.BottomNavBridge?.ackNavigateTo?.(); } catch (_) {}
           }
         } catch (_e) { /* ignore */ }
       };
@@ -109,7 +164,6 @@ const CommunityView = () => {
         // that might be filtering canGoBack/goBack incorrectly.
         if (typeof nav.dispatch === 'function') {
           try {
-            const { CommonActions } = require('@react-navigation/native');
             nav.dispatch(CommonActions.goBack());
             return true;
           } catch (_eDispatch) { /* swallow */ }

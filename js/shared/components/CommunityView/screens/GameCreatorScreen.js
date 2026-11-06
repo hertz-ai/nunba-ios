@@ -1,8 +1,16 @@
 import React, {useState, useCallback} from 'react';
 import {
-  View, Text, TextInput, TouchableOpacity, ScrollView,
-  SafeAreaView, StyleSheet, ActivityIndicator, Alert, NativeModules,
+  View,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  ScrollView,
+  StyleSheet,
+  ActivityIndicator,
+  Alert,
+  NativeModules,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import {useNavigation} from '@react-navigation/native';
 import * as Animatable from 'react-native-animatable';
@@ -135,7 +143,11 @@ const GameCreatorScreen = () => {
 
     // Text response - extract JSON or treat as HTML
     if (response.botMessage || response.text) {
-      const text = response.botMessage || response.text;
+      const raw = response.botMessage || response.text;
+      // Central's chat/custom_gpt answers `text` as a string over HTTP, but a
+      // node's old stub answered a one-element array, and calling .match on
+      // it threw, so the screen reported "Could not connect".  Accept both.
+      const text = Array.isArray(raw) ? String(raw[0] || '') : String(raw);
       const jsonMatch = text.match(/\{[\s\S]*\}/);
       if (jsonMatch) {
         try {

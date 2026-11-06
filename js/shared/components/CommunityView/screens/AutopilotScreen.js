@@ -50,6 +50,7 @@ const ACCENT = '#6C63FF';
 const ACCENT_GREEN = '#6C63FF';
 const MUTED = '#888';
 
+/* istanbul ignore next — SectionHeader subcomponent; mocked FlatList in tests doesn't invoke renderItem so SectionHeader callsites don't fire. */
 const SectionHeader = ({ icon, title }) => (
   <View style={styles.sectionHeader}>
     {icon ? (

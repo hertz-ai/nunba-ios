@@ -15,7 +15,10 @@ import {
   kidsFontWeight,
   kidsShadows,
 } from '../../../../../theme/kidsColors';
-import useMicAmplitude from '../../../../../hooks/useMicAmplitude';
+import useMicAmplitude, {MIC_STATUS} from '../../../../../hooks/useMicAmplitude';
+import MicStatusOverlay from '../shared/MicStatusOverlay';
+import {STEP, peekaboo as guide} from '../shared/gameGuide';
+import useHeardLine from '../shared/useHeardLine';
 
 const {width: SCREEN_WIDTH} = Dimensions.get('window');
 
@@ -151,7 +154,7 @@ const HidingSpot = ({emoji, index, isPeeking, isCharacterHere, onTap, shakeAnim,
   );
 };
 
-const PeekabooTemplate = ({config, onComplete, onAnswer}) => {
+const PeekabooTemplate = ({config, onComplete, onAnswer, onStep}) => {
   const difficulty = config?.difficulty || 1;
   const firstQuestion =
     config?.content?.questions?.[0] || config?.questions?.[0];
@@ -192,10 +195,25 @@ const PeekabooTemplate = ({config, onComplete, onAnswer}) => {
   // Result animation
   const resultScale = useRef(new Animated.Value(1)).current;
 
-  const {amplitude, isListening, startListening, stopListening} =
-    useMicAmplitude(1.0);
+  // 2026-06-18: sensitivity 1.0 → 4.0 (see BalloonPopTemplate for why).
+  // Peekaboo's AMP_THRESHOLD=0.4 is even higher than BalloonPop's 0.3 —
+  // without the boost only a shout would trigger the character reveal,
+  // which the user reported as "voice games not working".
+  const {amplitude, isListening, status, error, startListening, stopListening} =
+    useMicAmplitude(4.0);
 
   const totalRounds = firstQuestion?.rounds || TOTAL_ROUNDS;
+
+  // The mouse listens only once the round's line has been heard: a voice
+  // held over the threshold makes it peek, the agent's from the speaker too,
+  // and then the child would not need to speak at all.
+  const {heard, sayThenListen, hush} = useHeardLine(onStep);
+  const foundAtRef = useRef(undefined);
+  useEffect(() => {
+    if (!gameStarted) return;
+    sayThenListen({kind: STEP.ASKED, itemId: `peekaboo:${round}`, say: guide.ask(foundAtRef.current)});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [gameStarted, round]);
 
   // Initialize game
   useEffect(() => {
@@ -224,7 +242,7 @@ const PeekabooTemplate = ({config, onComplete, onAnswer}) => {
 
   // Voice sustain detection for peeking
   useEffect(() => {
-    if (!gameStarted || roundResult) return;
+    if (!gameStarted || roundResult || !heard) return;
 
     if (amplitude > AMP_THRESHOLD) {
       if (sustainStartRef.current === 0) {
@@ -254,7 +272,7 @@ const PeekabooTemplate = ({config, onComplete, onAnswer}) => {
         }
       }
     }
-  }, [amplitude, gameStarted, isPeeking, roundResult, peekTimeout]);
+  }, [amplitude, gameStarted, heard, isPeeking, roundResult, peekTimeout]);
 
   const handleTap = useCallback(
     (spotIndex) => {
@@ -262,10 +280,20 @@ const PeekabooTemplate = ({config, onComplete, onAnswer}) => {
 
       const isCorrect = spotIndex === characterSpot;
 
+      const spot = hidingSpots[spotIndex];
       if (isCorrect) {
         setRoundResult('correct');
         setScore(prev => prev + 1);
         onAnswer(true);
+        hush();
+        foundAtRef.current = spot;
+        if (onStep) {
+          onStep({kind: STEP.RIGHT, itemId: `peekaboo:${roundRef.current}`});
+          // The last find is said here; the others with the next round.
+          if (roundRef.current + 1 >= totalRounds) {
+            onStep({kind: STEP.ASKED, itemId: 'peekaboo:done', say: guide.right(spot)});
+          }
+        }
 
         // Show celebration
         Animated.sequence([
@@ -288,6 +316,8 @@ const PeekabooTemplate = ({config, onComplete, onAnswer}) => {
       } else {
         setRoundResult('wrong');
         onAnswer(false);
+        // its cue alone: a spoken line would make the mouse peek for the child
+        if (onStep) onStep({kind: STEP.WRONG, itemId: `peekaboo:${roundRef.current}`, chosen: guide.spotName(spot) || spot});
 
         // Shake the tapped spot
         const shakeAnim = shakeAnims[spotIndex];
@@ -310,7 +340,7 @@ const PeekabooTemplate = ({config, onComplete, onAnswer}) => {
         return () => clearTimeout(timeout);
       }
     },
-    [isPeeking, characterSpot, roundResult],
+    [isPeeking, characterSpot, roundResult, hidingSpots, onStep, hush, totalRounds],
   );
 
   const advanceRound = useCallback(() => {
@@ -390,9 +420,17 @@ const PeekabooTemplate = ({config, onComplete, onAnswer}) => {
                 ? 'Peeking! Tap now!'
                 : 'Keep going...'
               : 'Speak louder!'
-            : 'Starting...'}
+            : 'Get ready…'}
         </Text>
       </View>
+
+      {/* Mic-status overlay: tap-to-retry on denial, fallback on
+          unsupported — replaces the old forever "Starting..." text (#408). */}
+      <MicStatusOverlay
+        status={status}
+        error={error}
+        onRetry={startListening}
+      />
 
       {/* Hiding spots grid */}
       <View style={styles.spotsContainer}>

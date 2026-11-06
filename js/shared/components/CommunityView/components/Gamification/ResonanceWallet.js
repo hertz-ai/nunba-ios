@@ -158,9 +158,21 @@ const ResonanceWallet = ({
           xpToNextLevel={xpToNextLevel}
           size="small"
         />
-        <View style={styles.headerText}>
-          <Text style={styles.walletTitle}>Resonance Wallet</Text>
-          <Text style={styles.levelLabel}>
+        {/* #412 batch fix: headerText is flex:1 sibling of LevelBadge +
+            chevron; Android RN won't apply implicit minWidth:0 so the
+            title was wrapping per-syllable ("Reso/nanc/e Wal/let") on
+            Samsung S23.  numberOfLines+adjustsFontSizeToFit on the
+            title locks it to one line; minWidth:0 lets the column
+            actually shrink. */}
+        <View style={[styles.headerText, {minWidth: 0}]}>
+          <Text
+            style={styles.walletTitle}
+            numberOfLines={1}
+            adjustsFontSizeToFit
+            minimumFontScale={0.7}>
+            Resonance Wallet
+          </Text>
+          <Text style={styles.levelLabel} numberOfLines={1}>
             Level {level} - {Math.round((currentXP / xpToNextLevel) * 100)}% to
             next
           </Text>

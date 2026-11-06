@@ -5,10 +5,10 @@ import {
   StyleSheet,
   ScrollView,
   RefreshControl,
-  SafeAreaView,
   StatusBar,
   TouchableOpacity,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import {
   widthPercentageToDP as wp,
   heightPercentageToDP as hp,
@@ -128,7 +128,12 @@ export default function AgentDashboardScreen() {
 
       {/* Header */}
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
+        <TouchableOpacity
+          onPress={() => { try { navigation.goBack(); } catch (_) {} }}
+          style={styles.backBtn}
+          hitSlop={{ top: 16, bottom: 16, left: 16, right: 16 }}
+          accessibilityRole="button"
+          accessibilityLabel="Back">
           <Ionicons name="arrow-back" size={22} color="#fff" />
         </TouchableOpacity>
         <View style={{ flex: 1 }}>

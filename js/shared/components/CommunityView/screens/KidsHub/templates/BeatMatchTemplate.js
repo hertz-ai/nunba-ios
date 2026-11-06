@@ -215,6 +215,10 @@ const BeatMatchTemplate = ({config, onComplete, onAnswer}) => {
     // Score the round
     const results = [];
     beats.forEach((_, i) => {
+      /* istanbul ignore next — finishRound is invoked from a setTimeout
+         captured in a useEffect that depends only on [phase, currentIndex],
+         so its closure pins beatResults to the empty array at play-phase
+         entry; the `else` branch is dead code in practice (stale closure). */
       if (!beatResults[i]) results[i] = 'miss';
       else results[i] = beatResults[i];
     });

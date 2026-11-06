@@ -29,16 +29,17 @@ import {
   FlatList,
   TouchableOpacity,
   TextInput,
-  SafeAreaView,
   StatusBar,
   RefreshControl,
   Linking,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
 import { inboxApi, channelsApi } from '../../../services/socialApi';
 import { colors, spacing } from '../../../theme/colors';
+import useDeviceCapability from '../../../hooks/useDeviceCapability';
 import ListRowCard    from '../../shared/ListRowCard';
 import FilterChips    from '../../shared/FilterChips';
 import EmptyState     from '../../shared/EmptyState';
@@ -147,6 +148,10 @@ const isAgent = (row) =>
 
 const InboxScreen = () => {
   const navigation = useNavigation();
+  // inbox-compose-fab gap: hide the FAB on TV (Leanback D-pad doesn't
+  // map well to a floating affordance — TV mirrors the Account →
+  // Friends header path instead).
+  const { isTV } = useDeviceCapability();
   const [rows, setRows]               = useState([]);
   const [cursor, setCursor]           = useState(null);
   const [hasMore, setHasMore]         = useState(false);
@@ -480,90 +485,99 @@ const InboxScreen = () => {
 
       {loading ? (
         <SkeletonRow count={6} />
-      ) : (
-        <FlatList
-          data={filteredRows}
-          keyExtractor={(item, idx) => String(item.id || idx)}
-          renderItem={renderItem}
-          contentContainerStyle={
-            filteredRows.length === 0
-              ? styles.listContentEmpty
-              : styles.listContent
-          }
-          showsVerticalScrollIndicator={false}
-          refreshControl={
-            <RefreshControl
-              refreshing={refreshing}
-              onRefresh={onRefresh}
-              tintColor={colors.accent}
-            />
-          }
-          // UX-AUDIT 2026-05-18 (P2.5 / interleaved P4): permanent
-          // Nunba assistant card at the top of every inbox view.
-          // Empty inbox → it's the only thing; busy inbox → it's
-          // always above messages.  Tap → opens ConversationHistory
-          // with the Nunba agent (auto-created server-side on first
-          // message per Part E.3).
-          ListHeaderComponent={<NunbaHeroCard />}
-          // UX-AUDIT 2026-05-19: virtualization (P10 listPerf) — pins
-          // row height so FlatList skips per-item measurement passes.
-          // 60fps scroll on inbox with 100+ rows.
-          {...flatListVirtualizationProps(INBOX_ROW_HEIGHT)}
-          onEndReached={onEndReached}
-          onEndReachedThreshold={0.5}
-          ListEmptyComponent={
-            // UX-AUDIT 2026-05-19: migrated to emptyStatePresets (Part X.P7).
-            // PR P.1 onConnectCTA preserved when bindingCount === 0:
-            // the "Connect a channel" CTA is binding-aware and overrides
-            // the generic preset CTA for first-time users with no
-            // active channel.  Reviewer 2026-05-19 caught the dropped
-            // CTA — this restores it.
-            (() => {
-              const noBindings = bindingCount === 0;
-              if (!search && filter === 'all' && noBindings) {
-                return (
-                  <EmptyState
-                    icon="link-variant"
-                    title="No channels yet"
-                    body="Connect Discord / WhatsApp / Slack to see channel mentions here."
-                    ctaLabel="Connect a channel"
-                    onCta={onConnectCTA}
-                  />
-                );
-              }
-              const preset = emptyStatePreset(
-                search
-                  ? 'no-search-results'
-                  : filter === 'all'
-                    ? 'inbox-empty'
-                    : 'inbox-filtered',
-              );
+      ) : filteredRows.length === 0 ? (
+        // #418-followup applied to Inbox: render NunbaHeroCard + empty
+        // EmptyState as siblings so the CTA tap isn't eaten by
+        // FlatList's pan responder.
+        <View style={{flex: 1}}>
+          <NunbaHeroCard />
+          {(() => {
+            const noBindings = bindingCount === 0;
+            if (!search && filter === 'all' && noBindings) {
               return (
                 <EmptyState
-                  {...preset}
-                  onCta={
-                    search
-                      ? () => setSearch('')
-                      : filter !== 'all'
-                        ? () => setFilter('all')
-                        : null
-                  }
+                  icon="link-variant"
+                  title="No channels yet"
+                  body="Connect Discord / WhatsApp / Slack to see channel mentions here."
+                  ctaLabel="Connect a channel"
+                  onCta={onConnectCTA}
                 />
               );
-            })()
-          }
-          ListFooterComponent={
-            loadingMore ? (
-              <View style={styles.footerLoad}>
-                <MaterialCommunityIcons
-                  name="dots-horizontal"
-                  size={28}
-                  color={colors.textMuted}
-                />
-              </View>
-            ) : null
-          }
-        />
+            }
+            const preset = emptyStatePreset(
+              search
+                ? 'no-search-results'
+                : filter === 'all'
+                  ? 'inbox-empty'
+                  : 'inbox-filtered',
+            );
+            return (
+              <EmptyState
+                {...preset}
+                onCta={
+                  search
+                    ? () => setSearch('')
+                    : filter !== 'all'
+                      ? () => setFilter('all')
+                      : null
+                }
+              />
+            );
+          })()}
+        </View>
+      ) : (
+        // 2026-06-18: NunbaHeroCard moved OUT of ListHeaderComponent
+        // because flatListVirtualizationProps sets
+        // removeClippedSubviews:true, which on Android intermittently
+        // clipped the morphable agent card off-screen on first mount
+        // — user reported "polymorphic agent card hidden".  Rendering
+        // it as a sibling ABOVE the FlatList sidesteps the virtualizer
+        // entirely; the card always paints.
+        <View style={{flex: 1}}>
+          <NunbaHeroCard />
+          <FlatList
+            data={filteredRows}
+            keyExtractor={(item, idx) => String(item.id || idx)}
+            renderItem={renderItem}
+            contentContainerStyle={
+              filteredRows.length === 0
+                ? styles.listContentEmpty
+                : styles.listContent
+            }
+            showsVerticalScrollIndicator={false}
+            refreshControl={
+              <RefreshControl
+                refreshing={refreshing}
+                onRefresh={onRefresh}
+                tintColor={colors.accent}
+              />
+            }
+            // UX-AUDIT 2026-05-19: virtualization (P10 listPerf) — pins
+            // row height so FlatList skips per-item measurement passes.
+            // 60fps scroll on inbox with 100+ rows.
+            {...flatListVirtualizationProps(INBOX_ROW_HEIGHT)}
+            onEndReached={onEndReached}
+            onEndReachedThreshold={0.5}
+            // ListEmptyComponent removed — the empty-state EmptyState
+            // CTA is now rendered as a sibling below when filteredRows
+            // is empty, because FlatList's pan responder swallows
+            // TouchableOpacity taps inside ListEmptyComponent (#418-
+            // followup applied to Inbox).  NunbaHeroCard is now a
+            // sibling ABOVE the FlatList in both branches, so the
+            // morphable agent card always paints and CTA taps work.
+            ListFooterComponent={
+              loadingMore ? (
+                <View style={styles.footerLoad}>
+                  <MaterialCommunityIcons
+                    name="dots-horizontal"
+                    size={28}
+                    color={colors.textMuted}
+                  />
+                </View>
+              ) : null
+            }
+          />
+        </View>
       )}
 
       <ActionSheet
@@ -572,6 +586,25 @@ const InboxScreen = () => {
         actions={actionSheetActions}
         onClose={closeActionSheet}
       />
+
+      {/* inbox-compose-fab gap: there was no way to start a new DM from
+          the inbox — users had to find a friend's profile first.  Mirror
+          the CommunitiesScreen Create FAB pattern (post-#418) with a
+          floating pencil affordance that opens FriendsScreen in
+          pickMode='dm', turning the friends list into a peer-picker
+          that creates (or reuses) a DM conversation on tap.  Hidden on
+          TV — keyboard nav on Leanback uses the header path. */}
+      {!isTV ? (
+        <TouchableOpacity
+          style={styles.composeFab}
+          onPress={() => navigation.navigate('Friends', { pickMode: 'dm' })}
+          activeOpacity={0.85}
+          accessibilityRole="button"
+          accessibilityLabel="Start a new message"
+        >
+          <MaterialCommunityIcons name="pencil" size={26} color="#FFF" />
+        </TouchableOpacity>
+      ) : null}
     </SafeAreaView>
   );
 };
@@ -634,6 +667,26 @@ const styles = StyleSheet.create({
   footerLoad: {
     paddingVertical: spacing.lg,
     alignItems: 'center',
+  },
+  // inbox-compose-fab gap: same dimensions as CommunitiesScreen's FAB so
+  // the affordance reads as the same primitive across the social shell.
+  // 2026-06-20: bottom 28→130 so the FAB clears the bottom nav instead
+  // of sitting half-occluded behind it.
+  composeFab: {
+    position: 'absolute',
+    right: 20,
+    bottom: 130,
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: colors.accent || '#6C63FF',
+    alignItems: 'center',
+    justifyContent: 'center',
+    elevation: 6,
+    shadowColor: '#000',
+    shadowOpacity: 0.4,
+    shadowRadius: 6,
+    shadowOffset: { width: 0, height: 3 },
   },
 });
 

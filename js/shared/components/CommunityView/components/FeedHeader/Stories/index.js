@@ -30,7 +30,7 @@ const AddStoryTile = () => {
         <View style={styles.addIconWrap}>
           <Icon name="plus" size={28} color="#FFFFFF" />
         </View>
-        <Text style={styles.addLabel}>Your story</Text>
+        <Text style={styles.addLabel} numberOfLines={1}>Your story</Text>
       </View>
     </Pressable>
   );

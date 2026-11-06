@@ -1,0 +1,2285 @@
+{
+  "version": 1,
+  "generated_at": "2026-06-15T00:00:00.000Z",
+  "comment": "Seed asset catalog. Server can extend to 10K+ via /media/assets/catalog endpoint. Each asset declares art_styles[] it has rendered variants for; emoji is the universal last-resort fallback. Palettes are dominant-color hex triples used to build per-brief palette suggestions.",
+  "art_styles": [
+    "photo",
+    "vector",
+    "pixel",
+    "minecraft",
+    "clay",
+    "origami",
+    "painterly"
+  ],
+  "categories": [
+    {
+      "id": "fruits",
+      "name": "Fruits",
+      "tags": [
+        "edible",
+        "healthy",
+        "snack"
+      ]
+    },
+    {
+      "id": "vegetables",
+      "name": "Vegetables",
+      "tags": [
+        "edible",
+        "healthy"
+      ]
+    },
+    {
+      "id": "farm_animals",
+      "name": "Farm Animals",
+      "tags": [
+        "animal",
+        "land"
+      ]
+    },
+    {
+      "id": "jungle_animals",
+      "name": "Jungle Animals",
+      "tags": [
+        "animal",
+        "wild",
+        "land"
+      ]
+    },
+    {
+      "id": "sea_animals",
+      "name": "Sea Creatures",
+      "tags": [
+        "animal",
+        "water"
+      ]
+    },
+    {
+      "id": "birds",
+      "name": "Birds",
+      "tags": [
+        "animal",
+        "flying"
+      ]
+    },
+    {
+      "id": "insects",
+      "name": "Insects",
+      "tags": [
+        "animal",
+        "small"
+      ]
+    },
+    {
+      "id": "vehicles_land",
+      "name": "Land Vehicles",
+      "tags": [
+        "transport",
+        "wheels"
+      ]
+    },
+    {
+      "id": "vehicles_air",
+      "name": "Aircraft",
+      "tags": [
+        "transport",
+        "flying"
+      ]
+    },
+    {
+      "id": "vehicles_sea",
+      "name": "Boats",
+      "tags": [
+        "transport",
+        "water"
+      ]
+    },
+    {
+      "id": "space",
+      "name": "Space",
+      "tags": [
+        "sky",
+        "science"
+      ]
+    },
+    {
+      "id": "weather",
+      "name": "Weather",
+      "tags": [
+        "sky",
+        "outdoor"
+      ]
+    },
+    {
+      "id": "instruments",
+      "name": "Musical Instruments",
+      "tags": [
+        "music",
+        "art"
+      ]
+    },
+    {
+      "id": "sports",
+      "name": "Sports",
+      "tags": [
+        "activity",
+        "outdoor"
+      ]
+    },
+    {
+      "id": "food_cooked",
+      "name": "Cooked Food",
+      "tags": [
+        "edible",
+        "meal"
+      ]
+    },
+    {
+      "id": "household",
+      "name": "Household Items",
+      "tags": [
+        "indoor",
+        "tool"
+      ]
+    },
+    {
+      "id": "shapes",
+      "name": "Shapes",
+      "tags": [
+        "geometry",
+        "abstract"
+      ]
+    },
+    {
+      "id": "emotions",
+      "name": "Emotions",
+      "tags": [
+        "face",
+        "feeling"
+      ]
+    }
+  ],
+  "characters": [
+    {
+      "id": "bobo_toucan",
+      "name": "Bobo the Toucan",
+      "vibe": "cheerful",
+      "emoji": "🦜",
+      "palette_hint": [
+        "#2A9D8F",
+        "#E9C46A",
+        "#F4A261"
+      ]
+    },
+    {
+      "id": "luna_owl",
+      "name": "Luna the Wise Owl",
+      "vibe": "gentle",
+      "emoji": "🦉",
+      "palette_hint": [
+        "#264653",
+        "#E9C46A",
+        "#F4F1DE"
+      ]
+    },
+    {
+      "id": "zip_robot",
+      "name": "Zip the Robot",
+      "vibe": "techy",
+      "emoji": "🤖",
+      "palette_hint": [
+        "#3D5A80",
+        "#98C1D9",
+        "#EE6C4D"
+      ]
+    },
+    {
+      "id": "milo_cat",
+      "name": "Milo the Curious Cat",
+      "vibe": "playful",
+      "emoji": "🐱",
+      "palette_hint": [
+        "#FFB4A2",
+        "#E5989B",
+        "#B5838D"
+      ]
+    },
+    {
+      "id": "pip_panda",
+      "name": "Pip the Tiny Panda",
+      "vibe": "cuddly",
+      "emoji": "🐼",
+      "palette_hint": [
+        "#FFFFFF",
+        "#2B2B2B",
+        "#A8DADC"
+      ]
+    },
+    {
+      "id": "nova_astronaut",
+      "name": "Nova the Astronaut Kid",
+      "vibe": "brave",
+      "emoji": "👩‍🚀",
+      "palette_hint": [
+        "#1D3557",
+        "#457B9D",
+        "#F1FAEE"
+      ]
+    },
+    {
+      "id": "sage_wizard",
+      "name": "Sage the Apprentice Wizard",
+      "vibe": "magical",
+      "emoji": "🧙‍♀️",
+      "palette_hint": [
+        "#6A0572",
+        "#AB83A1",
+        "#F1E0C5"
+      ]
+    },
+    {
+      "id": "dash_dino",
+      "name": "Dash the Tiny Dino",
+      "vibe": "energetic",
+      "emoji": "🦖",
+      "palette_hint": [
+        "#588157",
+        "#A3B18A",
+        "#FEFAE0"
+      ]
+    },
+    {
+      "id": "echo_dolphin",
+      "name": "Echo the Friendly Dolphin",
+      "vibe": "kind",
+      "emoji": "🐬",
+      "palette_hint": [
+        "#5390D9",
+        "#7400B8",
+        "#C8B6FF"
+      ]
+    },
+    {
+      "id": "ember_dragon",
+      "name": "Ember the Pocket Dragon",
+      "vibe": "fiery",
+      "emoji": "🐲",
+      "palette_hint": [
+        "#9D0208",
+        "#E85D04",
+        "#FAA307"
+      ]
+    }
+  ],
+  "palettes": [
+    {
+      "id": "sunshine",
+      "colors": [
+        "#FFD60A",
+        "#FFC300",
+        "#FF6B35",
+        "#F1FAEE"
+      ]
+    },
+    {
+      "id": "ocean",
+      "colors": [
+        "#0077B6",
+        "#00B4D8",
+        "#90E0EF",
+        "#CAF0F8"
+      ]
+    },
+    {
+      "id": "forest",
+      "colors": [
+        "#2D6A4F",
+        "#52B788",
+        "#B7E4C7",
+        "#D8F3DC"
+      ]
+    },
+    {
+      "id": "candy",
+      "colors": [
+        "#FF006E",
+        "#FB5607",
+        "#FFBE0B",
+        "#8338EC"
+      ]
+    },
+    {
+      "id": "pastel",
+      "colors": [
+        "#FFB5A7",
+        "#FCD5CE",
+        "#F8EDEB",
+        "#D8E2DC"
+      ]
+    },
+    {
+      "id": "neon",
+      "colors": [
+        "#39FF14",
+        "#FF10F0",
+        "#00FFFF",
+        "#FFFF33"
+      ]
+    },
+    {
+      "id": "desert",
+      "colors": [
+        "#E76F51",
+        "#F4A261",
+        "#E9C46A",
+        "#264653"
+      ]
+    },
+    {
+      "id": "arctic",
+      "colors": [
+        "#E0F4FF",
+        "#A4DEF9",
+        "#79BCE0",
+        "#3E5C76"
+      ]
+    },
+    {
+      "id": "berry",
+      "colors": [
+        "#6A0572",
+        "#AB83A1",
+        "#F2C14E",
+        "#F78104"
+      ]
+    },
+    {
+      "id": "monochrome_warm",
+      "colors": [
+        "#3A2618",
+        "#7B4B25",
+        "#C4A484",
+        "#F2E8CF"
+      ]
+    }
+  ],
+  "mechanics": [
+    {
+      "id": "tap-sequence",
+      "name": "Tap In Order",
+      "input": [
+        "tap"
+      ],
+      "ages": [
+        "3-5",
+        "5-7"
+      ]
+    },
+    {
+      "id": "drag-sort",
+      "name": "Drag Into Buckets",
+      "input": [
+        "drag"
+      ],
+      "ages": [
+        "4-7",
+        "7-10"
+      ]
+    },
+    {
+      "id": "swipe-direction",
+      "name": "Swipe Where Shown",
+      "input": [
+        "swipe"
+      ],
+      "ages": [
+        "3-5",
+        "5-7"
+      ]
+    },
+    {
+      "id": "shake-mix",
+      "name": "Shake To Mix",
+      "input": [
+        "accelerometer"
+      ],
+      "ages": [
+        "3-5",
+        "5-7"
+      ]
+    },
+    {
+      "id": "blow-action",
+      "name": "Blow To Move",
+      "input": [
+        "mic-amplitude"
+      ],
+      "ages": [
+        "3-5",
+        "5-7"
+      ]
+    },
+    {
+      "id": "sing-summon",
+      "name": "Sing The Note",
+      "input": [
+        "mic-pitch"
+      ],
+      "ages": [
+        "5-7",
+        "7-10"
+      ]
+    },
+    {
+      "id": "repeat-tts",
+      "name": "Repeat After Me",
+      "input": [
+        "stt"
+      ],
+      "ages": [
+        "3-5",
+        "5-7",
+        "7-10"
+      ]
+    },
+    {
+      "id": "find-hidden",
+      "name": "Find The Hidden Thing",
+      "input": [
+        "tap"
+      ],
+      "ages": [
+        "4-7"
+      ]
+    },
+    {
+      "id": "trace-shape",
+      "name": "Trace The Path",
+      "input": [
+        "pan"
+      ],
+      "ages": [
+        "3-5",
+        "5-7"
+      ]
+    },
+    {
+      "id": "balance-tilt",
+      "name": "Tilt To Balance",
+      "input": [
+        "accelerometer"
+      ],
+      "ages": [
+        "5-7",
+        "7-10"
+      ]
+    },
+    {
+      "id": "rhythm-tap",
+      "name": "Tap To The Beat",
+      "input": [
+        "tap"
+      ],
+      "ages": [
+        "5-7",
+        "7-10"
+      ]
+    },
+    {
+      "id": "conveyor-pick",
+      "name": "Pick From Conveyor",
+      "input": [
+        "tap",
+        "stt"
+      ],
+      "ages": [
+        "4-7",
+        "7-10"
+      ]
+    }
+  ],
+  "assets": [
+    {
+      "id": "apple",
+      "category": "fruits",
+      "name": "Apple",
+      "emoji": "🍎",
+      "art_styles": [
+        "photo",
+        "vector",
+        "clay",
+        "pixel",
+        "origami"
+      ],
+      "palette": [
+        "#E63946",
+        "#A8DADC",
+        "#F1FAEE"
+      ],
+      "tags": [
+        "red",
+        "crunchy"
+      ],
+      "render": "svg",
+      "svg": "fruits/apple"
+    },
+    {
+      "id": "banana",
+      "category": "fruits",
+      "name": "Banana",
+      "emoji": "🍌",
+      "art_styles": [
+        "photo",
+        "vector",
+        "pixel",
+        "clay"
+      ],
+      "palette": [
+        "#FFD60A",
+        "#FFC300",
+        "#3A2618"
+      ],
+      "tags": [
+        "yellow",
+        "soft"
+      ],
+      "render": "svg",
+      "svg": "fruits/banana"
+    },
+    {
+      "id": "strawberry",
+      "category": "fruits",
+      "name": "Strawberry",
+      "emoji": "🍓",
+      "art_styles": [
+        "photo",
+        "vector",
+        "clay"
+      ],
+      "palette": [
+        "#E63946",
+        "#2D6A4F",
+        "#FFB4A2"
+      ],
+      "tags": [
+        "red",
+        "sweet"
+      ],
+      "render": "svg",
+      "svg": "fruits/strawberry"
+    },
+    {
+      "id": "grapes",
+      "category": "fruits",
+      "name": "Grapes",
+      "emoji": "🍇",
+      "art_styles": [
+        "photo",
+        "vector"
+      ],
+      "palette": [
+        "#6A0572",
+        "#52B788"
+      ],
+      "tags": [
+        "purple",
+        "round"
+      ],
+      "render": "svg",
+      "svg": "fruits/grapes"
+    },
+    {
+      "id": "watermelon",
+      "category": "fruits",
+      "name": "Watermelon",
+      "emoji": "🍉",
+      "art_styles": [
+        "photo",
+        "vector",
+        "painterly"
+      ],
+      "palette": [
+        "#E63946",
+        "#2D6A4F",
+        "#000000"
+      ],
+      "tags": [
+        "red",
+        "summer"
+      ],
+      "render": "svg",
+      "svg": "fruits/watermelon"
+    },
+    {
+      "id": "orange",
+      "category": "fruits",
+      "name": "Orange",
+      "emoji": "🍊",
+      "art_styles": [
+        "photo",
+        "vector",
+        "clay"
+      ],
+      "palette": [
+        "#FB5607",
+        "#FFBE0B"
+      ],
+      "tags": [
+        "orange",
+        "tangy"
+      ],
+      "render": "svg",
+      "svg": "fruits/orange"
+    },
+    {
+      "id": "pineapple",
+      "category": "fruits",
+      "name": "Pineapple",
+      "emoji": "🍍",
+      "art_styles": [
+        "photo",
+        "vector",
+        "origami"
+      ],
+      "palette": [
+        "#FFD60A",
+        "#2D6A4F"
+      ],
+      "tags": [
+        "tropical",
+        "spiky"
+      ],
+      "render": "svg",
+      "svg": "fruits/pineapple"
+    },
+    {
+      "id": "mango",
+      "category": "fruits",
+      "name": "Mango",
+      "emoji": "🥭",
+      "art_styles": [
+        "photo",
+        "painterly"
+      ],
+      "palette": [
+        "#FB5607",
+        "#E63946"
+      ],
+      "tags": [
+        "tropical",
+        "sweet"
+      ]
+    },
+    {
+      "id": "carrot",
+      "category": "vegetables",
+      "name": "Carrot",
+      "emoji": "🥕",
+      "art_styles": [
+        "photo",
+        "vector",
+        "pixel"
+      ],
+      "palette": [
+        "#FB5607",
+        "#52B788"
+      ],
+      "tags": [
+        "orange",
+        "crunchy"
+      ]
+    },
+    {
+      "id": "broccoli",
+      "category": "vegetables",
+      "name": "Broccoli",
+      "emoji": "🥦",
+      "art_styles": [
+        "photo",
+        "vector"
+      ],
+      "palette": [
+        "#2D6A4F",
+        "#52B788"
+      ],
+      "tags": [
+        "green",
+        "tree-shaped"
+      ]
+    },
+    {
+      "id": "corn",
+      "category": "vegetables",
+      "name": "Corn",
+      "emoji": "🌽",
+      "art_styles": [
+        "photo",
+        "vector",
+        "pixel"
+      ],
+      "palette": [
+        "#FFD60A",
+        "#52B788"
+      ],
+      "tags": [
+        "yellow",
+        "rows"
+      ]
+    },
+    {
+      "id": "tomato",
+      "category": "vegetables",
+      "name": "Tomato",
+      "emoji": "🍅",
+      "art_styles": [
+        "photo",
+        "vector",
+        "clay"
+      ],
+      "palette": [
+        "#E63946",
+        "#2D6A4F"
+      ],
+      "tags": [
+        "red",
+        "round"
+      ]
+    },
+    {
+      "id": "cow",
+      "category": "farm_animals",
+      "name": "Cow",
+      "emoji": "🐄",
+      "art_styles": [
+        "photo",
+        "vector",
+        "minecraft",
+        "clay"
+      ],
+      "palette": [
+        "#3A2618",
+        "#FFFFFF"
+      ],
+      "tags": [
+        "large",
+        "spots"
+      ],
+      "render": "svg",
+      "svg": "animals/cow"
+    },
+    {
+      "id": "pig",
+      "category": "farm_animals",
+      "name": "Pig",
+      "emoji": "🐖",
+      "art_styles": [
+        "photo",
+        "vector",
+        "clay"
+      ],
+      "palette": [
+        "#FFB4A2",
+        "#E5989B"
+      ],
+      "tags": [
+        "pink",
+        "round"
+      ]
+    },
+    {
+      "id": "sheep",
+      "category": "farm_animals",
+      "name": "Sheep",
+      "emoji": "🐑",
+      "art_styles": [
+        "photo",
+        "vector",
+        "clay"
+      ],
+      "palette": [
+        "#FFFFFF",
+        "#3A2618"
+      ],
+      "tags": [
+        "fluffy",
+        "white"
+      ]
+    },
+    {
+      "id": "chicken",
+      "category": "farm_animals",
+      "name": "Chicken",
+      "emoji": "🐔",
+      "art_styles": [
+        "photo",
+        "vector",
+        "pixel",
+        "origami"
+      ],
+      "palette": [
+        "#FFD60A",
+        "#E63946"
+      ],
+      "tags": [
+        "small",
+        "feathers"
+      ]
+    },
+    {
+      "id": "horse",
+      "category": "farm_animals",
+      "name": "Horse",
+      "emoji": "🐎",
+      "art_styles": [
+        "photo",
+        "vector",
+        "painterly"
+      ],
+      "palette": [
+        "#7B4B25",
+        "#3A2618"
+      ],
+      "tags": [
+        "fast",
+        "tall"
+      ]
+    },
+    {
+      "id": "duck",
+      "category": "farm_animals",
+      "name": "Duck",
+      "emoji": "🦆",
+      "art_styles": [
+        "photo",
+        "vector",
+        "origami"
+      ],
+      "palette": [
+        "#FFD60A",
+        "#52B788"
+      ],
+      "tags": [
+        "water",
+        "quack"
+      ],
+      "render": "svg",
+      "svg": "animals/duck"
+    },
+    {
+      "id": "tiger",
+      "category": "jungle_animals",
+      "name": "Tiger",
+      "emoji": "🐅",
+      "art_styles": [
+        "photo",
+        "vector",
+        "painterly",
+        "minecraft"
+      ],
+      "palette": [
+        "#FB5607",
+        "#000000"
+      ],
+      "tags": [
+        "stripes",
+        "fierce"
+      ]
+    },
+    {
+      "id": "lion",
+      "category": "jungle_animals",
+      "name": "Lion",
+      "emoji": "🦁",
+      "art_styles": [
+        "photo",
+        "vector",
+        "clay"
+      ],
+      "palette": [
+        "#E9C46A",
+        "#7B4B25"
+      ],
+      "tags": [
+        "mane",
+        "king"
+      ],
+      "render": "svg",
+      "svg": "animals/lion"
+    },
+    {
+      "id": "elephant",
+      "category": "jungle_animals",
+      "name": "Elephant",
+      "emoji": "🐘",
+      "art_styles": [
+        "photo",
+        "vector",
+        "clay",
+        "origami"
+      ],
+      "palette": [
+        "#90A4AE",
+        "#546E7A"
+      ],
+      "tags": [
+        "large",
+        "trunk"
+      ],
+      "render": "svg",
+      "svg": "animals/elephant"
+    },
+    {
+      "id": "monkey",
+      "category": "jungle_animals",
+      "name": "Monkey",
+      "emoji": "🐒",
+      "art_styles": [
+        "photo",
+        "vector",
+        "clay"
+      ],
+      "palette": [
+        "#7B4B25",
+        "#E9C46A"
+      ],
+      "tags": [
+        "playful",
+        "climb"
+      ]
+    },
+    {
+      "id": "giraffe",
+      "category": "jungle_animals",
+      "name": "Giraffe",
+      "emoji": "🦒",
+      "art_styles": [
+        "photo",
+        "vector",
+        "painterly"
+      ],
+      "palette": [
+        "#E9C46A",
+        "#7B4B25"
+      ],
+      "tags": [
+        "tall",
+        "spots"
+      ]
+    },
+    {
+      "id": "zebra",
+      "category": "jungle_animals",
+      "name": "Zebra",
+      "emoji": "🦓",
+      "art_styles": [
+        "photo",
+        "vector",
+        "minecraft"
+      ],
+      "palette": [
+        "#FFFFFF",
+        "#000000"
+      ],
+      "tags": [
+        "stripes"
+      ]
+    },
+    {
+      "id": "fish",
+      "category": "sea_animals",
+      "name": "Fish",
+      "emoji": "🐟",
+      "art_styles": [
+        "photo",
+        "vector",
+        "pixel",
+        "origami"
+      ],
+      "palette": [
+        "#5390D9",
+        "#FFC300"
+      ],
+      "tags": [
+        "water",
+        "swim"
+      ],
+      "render": "svg",
+      "svg": "animals/fish"
+    },
+    {
+      "id": "octopus",
+      "category": "sea_animals",
+      "name": "Octopus",
+      "emoji": "🐙",
+      "art_styles": [
+        "photo",
+        "vector",
+        "clay"
+      ],
+      "palette": [
+        "#9D0208",
+        "#F78104"
+      ],
+      "tags": [
+        "arms",
+        "ocean"
+      ]
+    },
+    {
+      "id": "whale",
+      "category": "sea_animals",
+      "name": "Whale",
+      "emoji": "🐋",
+      "art_styles": [
+        "photo",
+        "vector",
+        "painterly"
+      ],
+      "palette": [
+        "#264653",
+        "#5390D9"
+      ],
+      "tags": [
+        "huge",
+        "ocean"
+      ]
+    },
+    {
+      "id": "crab",
+      "category": "sea_animals",
+      "name": "Crab",
+      "emoji": "🦀",
+      "art_styles": [
+        "photo",
+        "vector",
+        "pixel"
+      ],
+      "palette": [
+        "#E63946",
+        "#FFB4A2"
+      ],
+      "tags": [
+        "claws",
+        "shore"
+      ]
+    },
+    {
+      "id": "starfish",
+      "category": "sea_animals",
+      "name": "Starfish",
+      "emoji": "⭐",
+      "art_styles": [
+        "photo",
+        "vector"
+      ],
+      "palette": [
+        "#FB5607",
+        "#FFD60A"
+      ],
+      "tags": [
+        "five-points"
+      ]
+    },
+    {
+      "id": "dolphin",
+      "category": "sea_animals",
+      "name": "Dolphin",
+      "emoji": "🐬",
+      "art_styles": [
+        "photo",
+        "vector",
+        "painterly"
+      ],
+      "palette": [
+        "#5390D9",
+        "#A8DADC"
+      ],
+      "tags": [
+        "smart",
+        "leap"
+      ]
+    },
+    {
+      "id": "parrot",
+      "category": "birds",
+      "name": "Parrot",
+      "emoji": "🦜",
+      "art_styles": [
+        "photo",
+        "vector",
+        "painterly"
+      ],
+      "palette": [
+        "#E63946",
+        "#52B788",
+        "#FFD60A"
+      ],
+      "tags": [
+        "colorful",
+        "talk"
+      ]
+    },
+    {
+      "id": "owl",
+      "category": "birds",
+      "name": "Owl",
+      "emoji": "🦉",
+      "art_styles": [
+        "photo",
+        "vector",
+        "origami",
+        "clay"
+      ],
+      "palette": [
+        "#7B4B25",
+        "#E9C46A"
+      ],
+      "tags": [
+        "night",
+        "wise"
+      ]
+    },
+    {
+      "id": "eagle",
+      "category": "birds",
+      "name": "Eagle",
+      "emoji": "🦅",
+      "art_styles": [
+        "photo",
+        "vector"
+      ],
+      "palette": [
+        "#3A2618",
+        "#FFFFFF"
+      ],
+      "tags": [
+        "soar",
+        "sharp"
+      ]
+    },
+    {
+      "id": "penguin",
+      "category": "birds",
+      "name": "Penguin",
+      "emoji": "🐧",
+      "art_styles": [
+        "photo",
+        "vector",
+        "clay",
+        "origami"
+      ],
+      "palette": [
+        "#000000",
+        "#FFFFFF",
+        "#FFD60A"
+      ],
+      "tags": [
+        "cold",
+        "waddle"
+      ]
+    },
+    {
+      "id": "butterfly",
+      "category": "insects",
+      "name": "Butterfly",
+      "emoji": "🦋",
+      "art_styles": [
+        "photo",
+        "vector",
+        "origami",
+        "painterly"
+      ],
+      "palette": [
+        "#8338EC",
+        "#FB5607",
+        "#FFC300"
+      ],
+      "tags": [
+        "wings",
+        "flutter"
+      ]
+    },
+    {
+      "id": "bee",
+      "category": "insects",
+      "name": "Bee",
+      "emoji": "🐝",
+      "art_styles": [
+        "photo",
+        "vector",
+        "pixel",
+        "clay"
+      ],
+      "palette": [
+        "#FFD60A",
+        "#000000"
+      ],
+      "tags": [
+        "buzz",
+        "stripes"
+      ]
+    },
+    {
+      "id": "ladybug",
+      "category": "insects",
+      "name": "Ladybug",
+      "emoji": "🐞",
+      "art_styles": [
+        "photo",
+        "vector",
+        "clay"
+      ],
+      "palette": [
+        "#E63946",
+        "#000000"
+      ],
+      "tags": [
+        "dots",
+        "small"
+      ]
+    },
+    {
+      "id": "ant",
+      "category": "insects",
+      "name": "Ant",
+      "emoji": "🐜",
+      "art_styles": [
+        "photo",
+        "vector",
+        "pixel"
+      ],
+      "palette": [
+        "#3A2618"
+      ],
+      "tags": [
+        "small",
+        "march"
+      ]
+    },
+    {
+      "id": "car",
+      "category": "vehicles_land",
+      "name": "Car",
+      "emoji": "🚗",
+      "art_styles": [
+        "photo",
+        "vector",
+        "pixel",
+        "minecraft"
+      ],
+      "palette": [
+        "#E63946",
+        "#000000"
+      ],
+      "tags": [
+        "fast",
+        "wheels"
+      ],
+      "render": "svg",
+      "svg": "vehicles/car"
+    },
+    {
+      "id": "truck",
+      "category": "vehicles_land",
+      "name": "Truck",
+      "emoji": "🚚",
+      "art_styles": [
+        "photo",
+        "vector",
+        "minecraft"
+      ],
+      "palette": [
+        "#FFD60A",
+        "#000000"
+      ],
+      "tags": [
+        "big",
+        "wheels"
+      ],
+      "render": "svg",
+      "svg": "vehicles/truck"
+    },
+    {
+      "id": "fire_engine",
+      "category": "vehicles_land",
+      "name": "Fire Engine",
+      "emoji": "🚒",
+      "art_styles": [
+        "photo",
+        "vector",
+        "minecraft"
+      ],
+      "palette": [
+        "#E63946",
+        "#FFD60A"
+      ],
+      "tags": [
+        "red",
+        "siren"
+      ]
+    },
+    {
+      "id": "bicycle",
+      "category": "vehicles_land",
+      "name": "Bicycle",
+      "emoji": "🚲",
+      "art_styles": [
+        "photo",
+        "vector",
+        "pixel"
+      ],
+      "palette": [
+        "#0077B6",
+        "#000000"
+      ],
+      "tags": [
+        "two-wheels",
+        "pedal"
+      ]
+    },
+    {
+      "id": "train",
+      "category": "vehicles_land",
+      "name": "Train",
+      "emoji": "🚂",
+      "art_styles": [
+        "photo",
+        "vector",
+        "pixel",
+        "minecraft"
+      ],
+      "palette": [
+        "#3A2618",
+        "#E63946"
+      ],
+      "tags": [
+        "choo",
+        "rails"
+      ],
+      "render": "svg",
+      "svg": "vehicles/train"
+    },
+    {
+      "id": "tractor",
+      "category": "vehicles_land",
+      "name": "Tractor",
+      "emoji": "🚜",
+      "art_styles": [
+        "photo",
+        "vector"
+      ],
+      "palette": [
+        "#52B788",
+        "#FFD60A"
+      ],
+      "tags": [
+        "farm",
+        "wheels"
+      ]
+    },
+    {
+      "id": "airplane",
+      "category": "vehicles_air",
+      "name": "Airplane",
+      "emoji": "✈️",
+      "art_styles": [
+        "photo",
+        "vector",
+        "origami"
+      ],
+      "palette": [
+        "#FFFFFF",
+        "#0077B6"
+      ],
+      "tags": [
+        "sky",
+        "wings"
+      ],
+      "render": "svg",
+      "svg": "vehicles/airplane"
+    },
+    {
+      "id": "helicopter",
+      "category": "vehicles_air",
+      "name": "Helicopter",
+      "emoji": "🚁",
+      "art_styles": [
+        "photo",
+        "vector"
+      ],
+      "palette": [
+        "#E63946",
+        "#000000"
+      ],
+      "tags": [
+        "hover",
+        "blades"
+      ]
+    },
+    {
+      "id": "rocket",
+      "category": "vehicles_air",
+      "name": "Rocket",
+      "emoji": "🚀",
+      "art_styles": [
+        "photo",
+        "vector",
+        "pixel",
+        "clay"
+      ],
+      "palette": [
+        "#FFFFFF",
+        "#E63946",
+        "#FB5607"
+      ],
+      "tags": [
+        "fast",
+        "space"
+      ],
+      "render": "svg",
+      "svg": "vehicles/rocket"
+    },
+    {
+      "id": "hot_air_balloon",
+      "category": "vehicles_air",
+      "name": "Hot Air Balloon",
+      "emoji": "🎈",
+      "art_styles": [
+        "photo",
+        "vector",
+        "painterly"
+      ],
+      "palette": [
+        "#E63946",
+        "#FFD60A",
+        "#2D6A4F"
+      ],
+      "tags": [
+        "float",
+        "colorful"
+      ]
+    },
+    {
+      "id": "sailboat",
+      "category": "vehicles_sea",
+      "name": "Sailboat",
+      "emoji": "⛵",
+      "art_styles": [
+        "photo",
+        "vector",
+        "origami",
+        "painterly"
+      ],
+      "palette": [
+        "#FFFFFF",
+        "#0077B6"
+      ],
+      "tags": [
+        "sail",
+        "wind"
+      ]
+    },
+    {
+      "id": "submarine",
+      "category": "vehicles_sea",
+      "name": "Submarine",
+      "emoji": "🚢",
+      "art_styles": [
+        "photo",
+        "vector",
+        "pixel"
+      ],
+      "palette": [
+        "#FFD60A",
+        "#0077B6"
+      ],
+      "tags": [
+        "under",
+        "dive"
+      ]
+    },
+    {
+      "id": "ship",
+      "category": "vehicles_sea",
+      "name": "Ship",
+      "emoji": "🚢",
+      "art_styles": [
+        "photo",
+        "vector"
+      ],
+      "palette": [
+        "#FFFFFF",
+        "#264653"
+      ],
+      "tags": [
+        "big",
+        "ocean"
+      ]
+    },
+    {
+      "id": "sun",
+      "category": "space",
+      "name": "Sun",
+      "emoji": "☀️",
+      "art_styles": [
+        "photo",
+        "vector",
+        "clay",
+        "painterly"
+      ],
+      "palette": [
+        "#FFD60A",
+        "#FB5607"
+      ],
+      "tags": [
+        "bright",
+        "hot"
+      ],
+      "render": "svg",
+      "svg": "space/sun"
+    },
+    {
+      "id": "moon",
+      "category": "space",
+      "name": "Moon",
+      "emoji": "🌙",
+      "art_styles": [
+        "photo",
+        "vector",
+        "clay"
+      ],
+      "palette": [
+        "#F1FAEE",
+        "#264653"
+      ],
+      "tags": [
+        "night",
+        "crescent"
+      ]
+    },
+    {
+      "id": "star",
+      "category": "space",
+      "name": "Star",
+      "emoji": "⭐",
+      "art_styles": [
+        "photo",
+        "vector",
+        "pixel",
+        "origami"
+      ],
+      "palette": [
+        "#FFD60A"
+      ],
+      "tags": [
+        "sparkle",
+        "night"
+      ],
+      "render": "svg",
+      "svg": "space/star"
+    },
+    {
+      "id": "earth",
+      "category": "space",
+      "name": "Earth",
+      "emoji": "🌍",
+      "art_styles": [
+        "photo",
+        "vector",
+        "painterly"
+      ],
+      "palette": [
+        "#52B788",
+        "#0077B6"
+      ],
+      "tags": [
+        "home",
+        "planet"
+      ]
+    },
+    {
+      "id": "saturn",
+      "category": "space",
+      "name": "Saturn",
+      "emoji": "🪐",
+      "art_styles": [
+        "photo",
+        "vector",
+        "clay"
+      ],
+      "palette": [
+        "#E9C46A",
+        "#7B4B25"
+      ],
+      "tags": [
+        "rings",
+        "planet"
+      ]
+    },
+    {
+      "id": "comet",
+      "category": "space",
+      "name": "Comet",
+      "emoji": "☄️",
+      "art_styles": [
+        "photo",
+        "vector",
+        "painterly"
+      ],
+      "palette": [
+        "#FFC300",
+        "#5390D9"
+      ],
+      "tags": [
+        "fast",
+        "tail"
+      ]
+    },
+    {
+      "id": "cloud",
+      "category": "weather",
+      "name": "Cloud",
+      "emoji": "☁️",
+      "art_styles": [
+        "photo",
+        "vector",
+        "clay",
+        "origami"
+      ],
+      "palette": [
+        "#FFFFFF",
+        "#A8DADC"
+      ],
+      "tags": [
+        "fluffy",
+        "sky"
+      ],
+      "render": "svg",
+      "svg": "weather/cloud"
+    },
+    {
+      "id": "rain",
+      "category": "weather",
+      "name": "Rain",
+      "emoji": "🌧️",
+      "art_styles": [
+        "photo",
+        "vector",
+        "painterly"
+      ],
+      "palette": [
+        "#5390D9",
+        "#264653"
+      ],
+      "tags": [
+        "drops",
+        "wet"
+      ],
+      "render": "svg",
+      "svg": "weather/rain"
+    },
+    {
+      "id": "snowflake",
+      "category": "weather",
+      "name": "Snowflake",
+      "emoji": "❄️",
+      "art_styles": [
+        "photo",
+        "vector",
+        "origami",
+        "pixel"
+      ],
+      "palette": [
+        "#E0F4FF",
+        "#3E5C76"
+      ],
+      "tags": [
+        "cold",
+        "white"
+      ]
+    },
+    {
+      "id": "rainbow",
+      "category": "weather",
+      "name": "Rainbow",
+      "emoji": "🌈",
+      "art_styles": [
+        "photo",
+        "vector",
+        "painterly"
+      ],
+      "palette": [
+        "#E63946",
+        "#FB5607",
+        "#FFD60A",
+        "#52B788",
+        "#0077B6",
+        "#8338EC"
+      ],
+      "tags": [
+        "colorful",
+        "arc"
+      ]
+    },
+    {
+      "id": "lightning",
+      "category": "weather",
+      "name": "Lightning",
+      "emoji": "⚡",
+      "art_styles": [
+        "photo",
+        "vector",
+        "pixel"
+      ],
+      "palette": [
+        "#FFD60A",
+        "#FFFFFF"
+      ],
+      "tags": [
+        "bright",
+        "fast"
+      ],
+      "render": "svg",
+      "svg": "weather/lightning"
+    },
+    {
+      "id": "drum",
+      "category": "instruments",
+      "name": "Drum",
+      "emoji": "🥁",
+      "art_styles": [
+        "photo",
+        "vector",
+        "pixel"
+      ],
+      "palette": [
+        "#E63946",
+        "#FFD60A"
+      ],
+      "tags": [
+        "beat",
+        "loud"
+      ],
+      "render": "svg",
+      "svg": "instruments/drum"
+    },
+    {
+      "id": "guitar",
+      "category": "instruments",
+      "name": "Guitar",
+      "emoji": "🎸",
+      "art_styles": [
+        "photo",
+        "vector",
+        "pixel"
+      ],
+      "palette": [
+        "#7B4B25",
+        "#FFD60A"
+      ],
+      "tags": [
+        "strings",
+        "rock"
+      ],
+      "render": "svg",
+      "svg": "instruments/guitar"
+    },
+    {
+      "id": "piano",
+      "category": "instruments",
+      "name": "Piano",
+      "emoji": "🎹",
+      "art_styles": [
+        "photo",
+        "vector"
+      ],
+      "palette": [
+        "#000000",
+        "#FFFFFF"
+      ],
+      "tags": [
+        "keys",
+        "melody"
+      ],
+      "render": "svg",
+      "svg": "instruments/piano"
+    },
+    {
+      "id": "trumpet",
+      "category": "instruments",
+      "name": "Trumpet",
+      "emoji": "🎺",
+      "art_styles": [
+        "photo",
+        "vector"
+      ],
+      "palette": [
+        "#FFD60A"
+      ],
+      "tags": [
+        "brass",
+        "loud"
+      ]
+    },
+    {
+      "id": "ball",
+      "category": "sports",
+      "name": "Ball",
+      "emoji": "⚽",
+      "art_styles": [
+        "photo",
+        "vector",
+        "pixel",
+        "minecraft"
+      ],
+      "palette": [
+        "#FFFFFF",
+        "#000000"
+      ],
+      "tags": [
+        "round",
+        "kick"
+      ],
+      "render": "svg",
+      "svg": "toys/ball"
+    },
+    {
+      "id": "basketball",
+      "category": "sports",
+      "name": "Basketball",
+      "emoji": "🏀",
+      "art_styles": [
+        "photo",
+        "vector",
+        "pixel"
+      ],
+      "palette": [
+        "#FB5607",
+        "#000000"
+      ],
+      "tags": [
+        "round",
+        "bounce"
+      ],
+      "render": "svg",
+      "svg": "sports/basketball"
+    },
+    {
+      "id": "tennis_racket",
+      "category": "sports",
+      "name": "Tennis Racket",
+      "emoji": "🎾",
+      "art_styles": [
+        "photo",
+        "vector"
+      ],
+      "palette": [
+        "#52B788",
+        "#FFFFFF"
+      ],
+      "tags": [
+        "swing",
+        "net"
+      ]
+    },
+    {
+      "id": "skateboard",
+      "category": "sports",
+      "name": "Skateboard",
+      "emoji": "🛹",
+      "art_styles": [
+        "photo",
+        "vector",
+        "pixel"
+      ],
+      "palette": [
+        "#7B4B25",
+        "#E63946"
+      ],
+      "tags": [
+        "roll",
+        "trick"
+      ]
+    },
+    {
+      "id": "pizza",
+      "category": "food_cooked",
+      "name": "Pizza",
+      "emoji": "🍕",
+      "art_styles": [
+        "photo",
+        "vector",
+        "clay"
+      ],
+      "palette": [
+        "#FB5607",
+        "#FFD60A",
+        "#E63946"
+      ],
+      "tags": [
+        "slice",
+        "cheese"
+      ],
+      "render": "svg",
+      "svg": "food/pizza"
+    },
+    {
+      "id": "burger",
+      "category": "food_cooked",
+      "name": "Burger",
+      "emoji": "🍔",
+      "art_styles": [
+        "photo",
+        "vector",
+        "clay",
+        "minecraft"
+      ],
+      "palette": [
+        "#7B4B25",
+        "#FFD60A",
+        "#52B788"
+      ],
+      "tags": [
+        "stack",
+        "tasty"
+      ],
+      "render": "svg",
+      "svg": "food/burger"
+    },
+    {
+      "id": "donut",
+      "category": "food_cooked",
+      "name": "Donut",
+      "emoji": "🍩",
+      "art_styles": [
+        "photo",
+        "vector",
+        "clay"
+      ],
+      "palette": [
+        "#FFB4A2",
+        "#E63946",
+        "#FFD60A"
+      ],
+      "tags": [
+        "sweet",
+        "ring"
+      ],
+      "render": "svg",
+      "svg": "food/donut"
+    },
+    {
+      "id": "ice_cream",
+      "category": "food_cooked",
+      "name": "Ice Cream",
+      "emoji": "🍦",
+      "art_styles": [
+        "photo",
+        "vector",
+        "clay"
+      ],
+      "palette": [
+        "#FFB4A2",
+        "#FFD60A"
+      ],
+      "tags": [
+        "cold",
+        "sweet"
+      ]
+    },
+    {
+      "id": "cookie",
+      "category": "food_cooked",
+      "name": "Cookie",
+      "emoji": "🍪",
+      "art_styles": [
+        "photo",
+        "vector",
+        "clay",
+        "pixel"
+      ],
+      "palette": [
+        "#7B4B25",
+        "#3A2618"
+      ],
+      "tags": [
+        "round",
+        "chocolate"
+      ]
+    },
+    {
+      "id": "sushi",
+      "category": "food_cooked",
+      "name": "Sushi",
+      "emoji": "🍣",
+      "art_styles": [
+        "photo",
+        "vector"
+      ],
+      "palette": [
+        "#FFFFFF",
+        "#FB5607"
+      ],
+      "tags": [
+        "roll",
+        "japan"
+      ]
+    },
+    {
+      "id": "umbrella",
+      "category": "household",
+      "name": "Umbrella",
+      "emoji": "☂️",
+      "art_styles": [
+        "photo",
+        "vector",
+        "origami"
+      ],
+      "palette": [
+        "#E63946",
+        "#000000"
+      ],
+      "tags": [
+        "rain",
+        "open"
+      ]
+    },
+    {
+      "id": "key",
+      "category": "household",
+      "name": "Key",
+      "emoji": "🔑",
+      "art_styles": [
+        "photo",
+        "vector",
+        "pixel"
+      ],
+      "palette": [
+        "#FFD60A"
+      ],
+      "tags": [
+        "unlock",
+        "metal"
+      ]
+    },
+    {
+      "id": "lamp",
+      "category": "household",
+      "name": "Lamp",
+      "emoji": "💡",
+      "art_styles": [
+        "photo",
+        "vector",
+        "pixel"
+      ],
+      "palette": [
+        "#FFD60A",
+        "#FFFFFF"
+      ],
+      "tags": [
+        "bright",
+        "light"
+      ]
+    },
+    {
+      "id": "clock",
+      "category": "household",
+      "name": "Clock",
+      "emoji": "🕰️",
+      "art_styles": [
+        "photo",
+        "vector"
+      ],
+      "palette": [
+        "#FFFFFF",
+        "#000000"
+      ],
+      "tags": [
+        "time",
+        "tick"
+      ],
+      "render": "svg",
+      "svg": "household/clock"
+    },
+    {
+      "id": "book",
+      "category": "household",
+      "name": "Book",
+      "emoji": "📕",
+      "art_styles": [
+        "photo",
+        "vector",
+        "pixel"
+      ],
+      "palette": [
+        "#E63946",
+        "#FFFFFF"
+      ],
+      "tags": [
+        "read",
+        "story"
+      ],
+      "render": "svg",
+      "svg": "household/book"
+    },
+    {
+      "id": "circle",
+      "category": "shapes",
+      "name": "Circle",
+      "emoji": "⭕",
+      "art_styles": [
+        "vector",
+        "pixel"
+      ],
+      "palette": [
+        "#E63946"
+      ],
+      "tags": [
+        "round"
+      ],
+      "render": "svg",
+      "svg": "shapes/circle"
+    },
+    {
+      "id": "square",
+      "category": "shapes",
+      "name": "Square",
+      "emoji": "🟦",
+      "art_styles": [
+        "vector",
+        "pixel",
+        "minecraft"
+      ],
+      "palette": [
+        "#0077B6"
+      ],
+      "tags": [
+        "sides",
+        "even"
+      ],
+      "render": "svg",
+      "svg": "shapes/square"
+    },
+    {
+      "id": "triangle",
+      "category": "shapes",
+      "name": "Triangle",
+      "emoji": "🔺",
+      "art_styles": [
+        "vector",
+        "pixel"
+      ],
+      "palette": [
+        "#E63946"
+      ],
+      "tags": [
+        "pointy"
+      ],
+      "render": "svg",
+      "svg": "shapes/triangle"
+    },
+    {
+      "id": "star_shape",
+      "category": "shapes",
+      "name": "Star Shape",
+      "emoji": "⭐",
+      "art_styles": [
+        "vector",
+        "pixel",
+        "origami"
+      ],
+      "palette": [
+        "#FFD60A"
+      ],
+      "tags": [
+        "points"
+      ]
+    },
+    {
+      "id": "heart",
+      "category": "shapes",
+      "name": "Heart",
+      "emoji": "❤️",
+      "art_styles": [
+        "vector",
+        "pixel",
+        "clay"
+      ],
+      "palette": [
+        "#E63946"
+      ],
+      "tags": [
+        "love"
+      ],
+      "render": "svg",
+      "svg": "shapes/heart"
+    },
+    {
+      "id": "happy_face",
+      "category": "emotions",
+      "name": "Happy",
+      "emoji": "😄",
+      "art_styles": [
+        "vector",
+        "clay"
+      ],
+      "palette": [
+        "#FFD60A"
+      ],
+      "tags": [
+        "smile",
+        "joy"
+      ]
+    },
+    {
+      "id": "sad_face",
+      "category": "emotions",
+      "name": "Sad",
+      "emoji": "😢",
+      "art_styles": [
+        "vector",
+        "clay"
+      ],
+      "palette": [
+        "#5390D9"
+      ],
+      "tags": [
+        "cry",
+        "down"
+      ]
+    },
+    {
+      "id": "surprised_face",
+      "category": "emotions",
+      "name": "Surprised",
+      "emoji": "😮",
+      "art_styles": [
+        "vector",
+        "clay"
+      ],
+      "palette": [
+        "#FFD60A"
+      ],
+      "tags": [
+        "wow"
+      ]
+    },
+    {
+      "id": "sleepy_face",
+      "category": "emotions",
+      "name": "Sleepy",
+      "emoji": "😴",
+      "art_styles": [
+        "vector",
+        "clay"
+      ],
+      "palette": [
+        "#A8DADC"
+      ],
+      "tags": [
+        "zzz",
+        "rest"
+      ]
+    }
+  ]
+}

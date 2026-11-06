@@ -18,7 +18,6 @@
 
 import useKidsIntelligenceStore from '../kidsIntelligenceStore';
 import useKidsLearningStore from '../kidsLearningStore';
-import { computeTarget } from './computePolicy';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const STORAGE_KEY = '@gameRec:history';

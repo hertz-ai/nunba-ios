@@ -92,7 +92,14 @@ const ParallaxHero = ({
   }, [scrollY]);
 
   return (
-    <View style={[styles.wrap, { height: height + 60 }]} testID={testID}>
+    // 2026-06-20: wrap height was `height + 60` while the avatar
+    // block sits at `top: height - 36` and is itself 88px tall +
+    // name (20px) + subtitle (13px) + margins ≈ 130px below its
+    // top.  That meant the avatar+name+subtitle were clipped by
+    // overflow:hidden — verified on Xiaomi tablet: the cover dark
+    // navy box showed only the "U" initial avatar and no name.
+    // Bumping to +130 reserves room for the whole identity block.
+    <View style={[styles.wrap, { height: height + 130 }]} testID={testID}>
       {/* Cover layer — parallaxed + bounce-scaled */}
       <Animated.View
         style={[
