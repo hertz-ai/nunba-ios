@@ -46,3 +46,16 @@ test('slow consent history does not leave Connect stuck busy', async () => {
  expect(JSON.stringify(root.toJSON())).toContain('Desktop selected');
  await act(async () => finish({success: true, data: {consents: []}}));
 });
+test('the saved desktop is shown when Privacy opens', async () => {
+ NativeModules.PeerLinkModule.getDesktopEndpoint = jest.fn(async () => 'http://192.168.1.4:5000');
+ await act(async () => {root = create(<Screen />);});
+ expect(root.root.findByProps({accessibilityLabel: 'Desktop address'}).props.value).toBe('http://192.168.1.4:5000');
+ delete NativeModules.PeerLinkModule.getDesktopEndpoint;
+});
+test('clearing the address says social now uses the cloud', async () => {
+ NativeModules.PeerLinkModule.setDesktopEndpoint.mockResolvedValue(true);
+ await act(async () => {root = create(<Screen />);});
+ await act(async () => root.root.findByProps({accessibilityLabel: 'Connect to desktop'}).props.onPress());
+ expect(NativeModules.PeerLinkModule.setDesktopEndpoint).toHaveBeenCalledWith('');
+ expect(JSON.stringify(root.toJSON())).toContain('Social features use the cloud');
+});

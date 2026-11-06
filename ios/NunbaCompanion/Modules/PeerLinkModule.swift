@@ -609,13 +609,40 @@ final class PeerLinkModule: NSObject {
     return url.hasSuffix("/") ? String(url.dropLast()) : url
   }
 
-  private static func checkDesktopHTTP(_ base: String, completion: @escaping (Bool) -> Void) {
+  /// Hard cap on one desktop health check. URLRequest.timeoutInterval is an
+  /// idle timeout: with Wi-Fi off, a private LAN address over mobile data can
+  /// sit in connect far longer, and every social call waits on this check.
+  static let desktopCheckDeadline: TimeInterval = 4
+
+  private static let desktopCheckSession: URLSession = {
+    let config = URLSessionConfiguration.ephemeral
+    config.timeoutIntervalForRequest = 3
+    config.timeoutIntervalForResource = desktopCheckDeadline
+    config.waitsForConnectivity = false
+    config.requestCachePolicy = .reloadIgnoringLocalCacheData
+    return URLSession(configuration: config)
+  }()
+
+  static func checkDesktopHTTP(_ base: String, completion: @escaping (Bool) -> Void) {
     guard let url = URL(string: base + "/health") else { completion(false); return }
-    let request = URLRequest(url: url, cachePolicy: .reloadIgnoringLocalCacheData, timeoutInterval: 3)
-    URLSession.shared.dataTask(with: request) { data, response, _ in
+    // Answer exactly once: the response, or "not reachable" at the deadline.
+    let lock = NSLock()
+    var answered = false
+    let answer: (Bool) -> Void = { reachable in
+      lock.lock(); defer { lock.unlock() }
+      guard !answered else { return }
+      answered = true
+      completion(reachable)
+    }
+    let task = desktopCheckSession.dataTask(with: url) { data, response, _ in
       let body = data.flatMap { try? JSONSerialization.jsonObject(with: $0) as? [String: Any] }
-      completion((response as? HTTPURLResponse)?.statusCode == 200 && (body?["status"] as? String).map { ["ok", "alive"].contains($0) } == true)
-    }.resume()
+      answer((response as? HTTPURLResponse)?.statusCode == 200 && (body?["status"] as? String).map { ["ok", "alive"].contains($0) } == true)
+    }
+    DispatchQueue.global().asyncAfter(deadline: .now() + desktopCheckDeadline + 0.5) {
+      task.cancel()
+      answer(false)
+    }
+    task.resume()
   }
 
   @objc(getApiBase:rejecter:)
@@ -625,42 +652,44 @@ final class PeerLinkModule: NSObject {
   ) {
     // Start discovery even when JS has not opened a WebSocket session.
     if state == .idle { start({ _ in }, rejecter: { _, _, _ in }) }
-    discoveryLock.lock()
-    let peers = Array(discoveredPeers.filter {
-      $0.method != "CLOUD" && Date().timeIntervalSince($0.seenAt) < 90
-    }.prefix(3))
-    discoveryLock.unlock()
-    guard let userId = OnboardingModule.persistedUserId(), !userId.isEmpty,
+    let cloud: [String: Any] = ["url": Self.cloudFallbackURL.absoluteString, "source": "cloud"]
+    // Social calls (location pings, consent, posts) carry the signed device
+    // token, so they go only to the desktop the user selected in Privacy.
+    // A discovery beacon is never enough: any machine on a shared Wi-Fi can
+    // broadcast one, and nothing pins the sender to the user's desktop.
+    guard let saved = UserDefaults.standard.string(forKey: Self.preferredDesktopKey),
+          let url = Self.validDesktopEndpoint(saved),
+          let userId = OnboardingModule.persistedUserId(), !userId.isEmpty,
           let key = PeerLinkCrypto.loadOrCreateIdentity(),
           let token = try? PeerLinkCrypto.deviceToken(userId: userId,
             username: UserDefaults.standard.string(forKey: OnboardingModule.studentNameDefaultsKey) ?? "",
             identity: key) else {
-      resolve(["url": Self.cloudFallbackURL.absoluteString, "source": "cloud"])
+      resolve(cloud)
       return
     }
-    if let saved = UserDefaults.standard.string(forKey: Self.preferredDesktopKey),
-       let url = Self.validDesktopEndpoint(saved) {
-      NSLog("[PeerLink] API source=lan endpoint=%@ (selected desktop)", url)
-      resolve(["url": url, "source": "lan", "credential": token])
-      return
-    }
-    // A beacon can come from another phone or a stopped backend. Probe the
-    // advertised HTTP service without credentials before selecting it.
-    func probe(_ index: Int) {
-      guard index < peers.count else {
-        NSLog("[PeerLink] API source=cloud; no reachable discovered HTTP backend")
-        resolve(["url": Self.cloudFallbackURL.absoluteString, "source": "cloud"])
-        return
-      }
-      let peer = peers[index]
-      Self.checkDesktopHTTP(peer.backendUrl) { reachable in
-        if reachable {
-          NSLog("[PeerLink] API source=lan endpoint=%@", peer.backendUrl)
-          resolve(["url": peer.backendUrl, "source": "lan", "credential": token])
-        } else { probe(index + 1) }
+    // The selected desktop may be on another network (user left home) or
+    // stopped. Probe without credentials; when it does not answer, use the
+    // cloud so social keeps working and the cloud token can refresh. JS
+    // caches this answer for 30 s, so this is one probe per 30 s.
+    Self.checkDesktopHTTP(url) { reachable in
+      if reachable {
+        NSLog("[PeerLink] API source=lan endpoint=%@ (selected desktop)", url)
+        resolve(["url": url, "source": "lan", "credential": token])
+      } else {
+        NSLog("[PeerLink] API source=cloud; selected desktop %@ not reachable", url)
+        resolve(cloud)
       }
     }
-    probe(0)
+  }
+
+  /// The desktop selected in Privacy, so the screen can show it ("" if none).
+  @objc(getDesktopEndpoint:rejecter:)
+  func getDesktopEndpoint(
+    _ resolve: @escaping RCTPromiseResolveBlock,
+    rejecter reject: @escaping RCTPromiseRejectBlock
+  ) {
+    let saved = UserDefaults.standard.string(forKey: Self.preferredDesktopKey)
+    resolve(saved.flatMap { Self.validDesktopEndpoint($0) } ?? "")
   }
 
   // MARK: — Test affordances (DEBUG-only — Release builds skip these)

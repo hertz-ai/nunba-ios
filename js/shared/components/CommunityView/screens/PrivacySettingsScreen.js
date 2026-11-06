@@ -113,6 +113,17 @@ const PrivacySettingsScreen = () => {
   const [desktopAddress, setDesktopAddress] = useState('');
   const [desktopStatus, setDesktopStatus] = useState('');
   const [connectingDesktop, setConnectingDesktop] = useState(false);
+  // Show the desktop social calls go to, so a saved one is never invisible.
+  useEffect(() => {
+    let live = true;
+    const getSaved = NativeModules.PeerLinkModule?.getDesktopEndpoint;
+    if (typeof getSaved === 'function') {
+      Promise.resolve(getSaved()).then(saved => {
+        if (live && saved) setDesktopAddress(current => current || saved);
+      }).catch(() => {});
+    }
+    return () => { live = false; };
+  }, []);
   const connectDesktop = async () => {
     setConnectingDesktop(true);
     setDesktopStatus('');
@@ -120,7 +131,7 @@ const PrivacySettingsScreen = () => {
       await NativeModules.PeerLinkModule.setDesktopEndpoint(desktopAddress);
       endpointResolver.invalidateCache();
       apiCache.bustAll();
-      setDesktopStatus(desktopAddress.trim() ? 'Desktop selected. Allow this iPhone on the desktop if asked, then return to Encounters.' : 'Automatic discovery restored.');
+      setDesktopStatus(desktopAddress.trim() ? 'Desktop selected. Allow this iPhone on the desktop if asked, then return to Encounters.' : 'Desktop disconnected. Social features use the cloud.');
       // Loading consent history must not keep the Connect button busy.
       void fetchConsents();
     } catch (e) { setDesktopStatus(e.message || 'Could not connect to desktop.'); }
@@ -236,14 +247,14 @@ const PrivacySettingsScreen = () => {
       {typeof NativeModules.PeerLinkModule?.setDesktopEndpoint === 'function' && (
         <View style={styles.scopeCard}>
           <Text style={styles.scopeLabel}>Connect to Nunba desktop</Text>
-          <Text style={styles.scopeDesc}>If nearby discovery is unavailable, enter your desktop address. The desktop will ask you to allow this iPhone.</Text>
+          <Text style={styles.scopeDesc}>Enter your desktop address to use it for Encounters and social. The desktop will ask you to allow this iPhone. When the desktop can't be reached, the cloud is used.</Text>
           <TextInput accessibilityLabel="Desktop address" value={desktopAddress} onChangeText={setDesktopAddress}
             autoCapitalize="none" autoCorrect={false} keyboardType="url" placeholder="http://your-desktop.local:5000"
             placeholderTextColor="#888" style={{color: '#FFF', borderColor: '#888', borderWidth: 1, padding: 10, marginBottom: 10}} />
           <TouchableOpacity style={[styles.button, styles.primaryButton]} disabled={connectingDesktop} onPress={connectDesktop} accessibilityRole="button" accessibilityLabel="Connect to desktop">
             <Text style={styles.primaryButtonText}>{connectingDesktop ? 'Connecting…' : 'Connect'}</Text>
           </TouchableOpacity>
-          <Text style={styles.subtle}>Leave the address empty and connect to restore automatic discovery.</Text>
+          <Text style={styles.subtle}>Leave the address empty and connect to stop using the desktop.</Text>
           {!!desktopStatus && <Text style={styles.scopeDesc} accessibilityLiveRegion="polite">{desktopStatus}</Text>}
         </View>
       )}
