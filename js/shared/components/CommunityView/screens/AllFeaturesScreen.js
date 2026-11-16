@@ -41,7 +41,7 @@ const ALL_FEATURES = [
   { icon: 'controller-classic', iconType: 'community', label: 'Games', color: '#FF6B6B', screen: 'GameHub' },
   { icon: 'trophy-variant', iconType: 'community', label: 'Seasons', color: '#EC4899', screen: 'Season' },
   { icon: 'view-dashboard', iconType: 'community', label: 'Dashboard', color: '#3B82F6', screen: 'AgentDashboard' },
-  { icon: 'cloud-cog-outline', iconType: 'community', label: 'Providers', color: '#4CAF50', screen: 'ProviderManagement' },
+  { icon: 'server-network', iconType: 'community', label: 'Providers', color: '#4CAF50', screen: 'ProviderManagement' },
   { icon: 'video-vintage', iconType: 'community', label: 'Mindstory', color: '#6C63FF', screen: 'Mindstory' },
   // NOTE: Agents Hub tile intentionally NOT registered here.  Android
   // already has a much richer native Java Agents tab (CustomBotsActivity

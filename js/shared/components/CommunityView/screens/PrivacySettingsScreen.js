@@ -33,6 +33,8 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import {
   ActivityIndicator,
+  NativeModules,
+  TextInput,
   Modal,
   ScrollView,
   StyleSheet,
@@ -46,6 +48,8 @@ import {
 } from 'react-native-responsive-screen';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 import { consentApi } from '../../../services/socialApi';
+import endpointResolver from '../../../services/endpointResolver';
+import apiCache from '../../../services/apiCache';
 
 const ACCENT = '#6C63FF';
 const ERR = '#ff6b6b';
@@ -106,6 +110,33 @@ const formatTs = (iso) => {
 };
 
 const PrivacySettingsScreen = () => {
+  const [desktopAddress, setDesktopAddress] = useState('');
+  const [desktopStatus, setDesktopStatus] = useState('');
+  const [connectingDesktop, setConnectingDesktop] = useState(false);
+  // Show the desktop social calls go to, so a saved one is never invisible.
+  useEffect(() => {
+    let live = true;
+    const getSaved = NativeModules.PeerLinkModule?.getDesktopEndpoint;
+    if (typeof getSaved === 'function') {
+      Promise.resolve(getSaved()).then(saved => {
+        if (live && saved) setDesktopAddress(current => current || saved);
+      }).catch(() => {});
+    }
+    return () => { live = false; };
+  }, []);
+  const connectDesktop = async () => {
+    setConnectingDesktop(true);
+    setDesktopStatus('');
+    try {
+      await NativeModules.PeerLinkModule.setDesktopEndpoint(desktopAddress);
+      endpointResolver.invalidateCache();
+      apiCache.bustAll();
+      setDesktopStatus(desktopAddress.trim() ? 'Desktop selected. Allow this iPhone on the desktop if asked, then return to Encounters.' : 'Desktop disconnected. Social features use the cloud.');
+      // Loading consent history must not keep the Connect button busy.
+      void fetchConsents();
+    } catch (e) { setDesktopStatus(e.message || 'Could not connect to desktop.'); }
+    finally { setConnectingDesktop(false); }
+  };
   const [consents, setConsents] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -212,6 +243,21 @@ const PrivacySettingsScreen = () => {
         Grant or revoke cloud-AI features. Every change is recorded — your
         audit history is shown below.
       </Text>
+
+      {typeof NativeModules.PeerLinkModule?.setDesktopEndpoint === 'function' && (
+        <View style={styles.scopeCard}>
+          <Text style={styles.scopeLabel}>Connect to Nunba desktop</Text>
+          <Text style={styles.scopeDesc}>Enter your desktop address to use it for Encounters and social. The desktop will ask you to allow this iPhone. When the desktop can't be reached, the cloud is used.</Text>
+          <TextInput accessibilityLabel="Desktop address" value={desktopAddress} onChangeText={setDesktopAddress}
+            autoCapitalize="none" autoCorrect={false} keyboardType="url" placeholder="http://your-desktop.local:5000"
+            placeholderTextColor="#888" style={{color: '#FFF', borderColor: '#888', borderWidth: 1, padding: 10, marginBottom: 10}} />
+          <TouchableOpacity style={[styles.button, styles.primaryButton]} disabled={connectingDesktop} onPress={connectDesktop} accessibilityRole="button" accessibilityLabel="Connect to desktop">
+            <Text style={styles.primaryButtonText}>{connectingDesktop ? 'Connecting…' : 'Connect'}</Text>
+          </TouchableOpacity>
+          <Text style={styles.subtle}>Leave the address empty and connect to stop using the desktop.</Text>
+          {!!desktopStatus && <Text style={styles.scopeDesc} accessibilityLiveRegion="polite">{desktopStatus}</Text>}
+        </View>
+      )}
 
       {loading && (
         <View style={styles.center}>

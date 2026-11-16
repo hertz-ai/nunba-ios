@@ -15,6 +15,7 @@
 #import <React/RCTBridge.h>
 #import <React/RCTUtils.h>
 #import <React/RCTLog.h>
+#import <React/RCTLinkingManager.h>
 
 // On-device LLM via llama.cpp — exposed to Swift only when the
 // xcframework is dropped under ios/Frameworks/.  The CI workflow

@@ -99,4 +99,31 @@ final class PeerLinkDiscoveryTests: XCTestCase {
         disco.injectBeaconForTesting(data: beacon, fromHost: "192.168.0.9")
         wait(for: [exp], timeout: 1.0)
     }
+    func test_repeatBeaconRefreshesTheAdvertisedBackend() {
+        let disco = PeerLinkDiscovery(ownNodeId: "listener")
+        let exp = expectation(description: "both announcements delivered")
+        exp.expectedFulfillmentCount = 2
+        var ports: [Int] = []
+        disco.onPeerDiscovered = { peer in ports.append(peer.backendPort); exp.fulfill() }
+        for port in [6777, 5000] {
+            let body: [String: Any] = ["type": "hevolve-discovery", "node_id": "desktop", "backend_port": port]
+            let packet = Data("HEVOLVE_DISCO_V1".utf8) + (try! JSONSerialization.data(withJSONObject: body))
+            disco.injectBeaconForTesting(data: packet, fromHost: "192.168.0.9")
+        }
+        wait(for: [exp], timeout: 1)
+        XCTAssertEqual(ports, [6777, 5000])
+    }
+
+    func test_hartosUrlBeaconUsesDesktopHttpPortAndSocketHost() {
+        let disco = PeerLinkDiscovery(ownNodeId: "listener")
+        let exp = expectation(description: "HARTOS URL beacon")
+        disco.onPeerDiscovered = { peer in
+            XCTAssertEqual(peer.backendUrl, "http://192.168.0.9:5000")
+            exp.fulfill()
+        }
+        let packet = Data("HEVOLVE_DISCO_V1".utf8) + Data(#"{"type":"hevolve-discovery","node_id":"desktop","url":"http://127.0.0.1:5000"}"#.utf8)
+        disco.injectBeaconForTesting(data: packet, fromHost: "192.168.0.9")
+        wait(for: [exp], timeout: 1)
+    }
+
 }

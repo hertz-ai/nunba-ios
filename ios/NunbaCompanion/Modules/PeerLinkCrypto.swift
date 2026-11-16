@@ -135,4 +135,59 @@ enum PeerLinkCrypto {
     }
     return out
   }
+  // Same short-lived, Ed25519-signed hive proof as Android PeerLinkDeviceToken.
+  // The wrapper key is process-local; the desktop verifies node_sig against
+  // the exact device key its owner approved, never this HS256 wrapper.
+  private static let deviceWrapperKey = SymmetricKey(size: .bits256)
+
+  static func canonicalDeviceClaims(_ claims: [String: Any]) throws -> Data {
+    func quoted(_ value: String) -> String {
+      var out = "\""
+      for unit in value.utf16 {
+        switch unit {
+        case 34: out += "\\\""
+        case 92: out += "\\\\"
+        case 8: out += "\\b"
+        case 9: out += "\\t"
+        case 10: out += "\\n"
+        case 12: out += "\\f"
+        case 13: out += "\\r"
+        case 32...126: out += String(UnicodeScalar(unit)!)
+        default: out += String(format: "\\u%04x", unit)
+        }
+      }
+      return out + "\""
+    }
+    let fields = try claims.keys.sorted().map { key -> String in
+      let value: String
+      if let text = claims[key] as? String { value = quoted(text) }
+      else if let number = claims[key] as? Int { value = String(number) }
+      else { throw NSError(domain: "PeerLink", code: 2) }
+      return quoted(key) + ":" + value
+    }
+    return Data(("{" + fields.joined(separator: ",") + "}").utf8)
+  }
+
+  static func deviceToken(userId: String, username: String,
+                          identity: Curve25519.Signing.PrivateKey,
+                          now: Int = Int(Date().timeIntervalSince1970)) throws -> String {
+    let publicHex = toHex(identity.publicKey.rawRepresentation)
+    var claims: [String: Any] = [
+      "user_id": userId, "username": username, "jti": UUID().uuidString,
+      "iat": now, "exp": now + 900, "type": "access", "scope": "hive",
+      "node_id": String(publicHex.prefix(16)), "iss": "hive:hevolve",
+      "node_public_key": publicHex,
+    ]
+    claims["node_sig"] = toHex(try identity.signature(for: canonicalDeviceClaims(claims)))
+    func b64(_ bytes: Data) -> String {
+      bytes.base64EncodedString().replacingOccurrences(of: "+", with: "-")
+        .replacingOccurrences(of: "/", with: "_").replacingOccurrences(of: "=", with: "")
+    }
+    let header = b64(Data("{\"alg\":\"HS256\",\"typ\":\"JWT\"}".utf8))
+    let payload = b64(try canonicalDeviceClaims(claims))
+    let input = header + "." + payload
+    let signature = HMAC<SHA256>.authenticationCode(for: Data(input.utf8), using: deviceWrapperKey)
+    return input + "." + b64(Data(signature))
+  }
+
 }

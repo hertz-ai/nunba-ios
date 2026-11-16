@@ -4,6 +4,8 @@ import Post from '../Post';
 import FeedHeader from '../FeedHeader';
 import useThemeStore from '../../../../colorThemeZustand';
 import { useNavigation } from '@react-navigation/native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { getCommunityPosts, deleteCommunityPost } from '../../../../services/communityFeedApi';
 import {
   widthPercentageToDP as wp,
   heightPercentageToDP as hp,
@@ -59,13 +61,36 @@ const Feed = () => {
   const [userId, setUserId] = useState(null);
   const [selectedPost, setSelectedPost] = useState(null);
   const navigation = useNavigation();
+  // The feed FlatList fills the screen from y=0, so its header (greeting +
+  // top icons) renders behind the iPhone status bar / notch and the icons
+  // can't be tapped. Inset the content by the safe-area top to clear it.
+  const insets = useSafeAreaInsets();
   const translateY = useRef(new Animated.Value(500)).current;
   const [postUserID, setPostUserId] = useState();
   
 
-  const fetchPosts = useCallback((page) => {
-    OnboardingModule.getAllPosts(10, page);
-  }, [OnboardingModule]);
+  // iOS port of Android's native getAllPosts: hit the same get-posts backend
+  // over HTTP (shared JS service) and merge the page into postsMap. Android
+  // emitted each row as an 'AddPostKey' event; here we set state directly.
+  const fetchPosts = useCallback(async (page) => {
+    try {
+      const posts = await getCommunityPosts({
+        pageNumber: page,
+        numRows: 10,
+        userId: userId ?? 0,
+      });
+      if (!posts.length) {
+        return;
+      }
+      setPostsMap((prevPostsMap) => {
+        const updatedPostsMap = new Map(prevPostsMap);
+        posts.forEach((p) => updatedPostsMap.set(p.id, p));
+        return updatedPostsMap;
+      });
+    } catch (error) {
+      console.error('Error fetching posts:', error?.message || error);
+    }
+  }, [userId]);
 
   useEffect(() => {
     const broadcastReceiver = (intent) => {
@@ -79,9 +104,11 @@ const Feed = () => {
           });
         }
       } catch (error) {
-        OnboardingModule.getTheme((fetchedTheme) => {
-          setTheme(fetchedTheme);
-        });
+        if (typeof OnboardingModule?.getTheme === 'function') {
+          OnboardingModule.getTheme((fetchedTheme) => {
+            setTheme(fetchedTheme);
+          });
+        }
         console.error('Error parsing AddPostKey intent:', error);
       }
     };
@@ -113,6 +140,12 @@ const Feed = () => {
   }, []);
 
   const getTheme = useCallback(() => {
+    // getTheme is an Android-native method with no iOS counterpart; calling it
+    // unguarded threw "getTheme is not a function" and crashed MainScreen.
+    // Guard it — without a native theme we keep the theme store's default.
+    if (typeof OnboardingModule?.getTheme !== 'function') {
+      return;
+    }
     OnboardingModule.getTheme((fetchedTheme) => {
       if (theme !== fetchedTheme) {
         setTheme(fetchedTheme);
@@ -152,7 +185,11 @@ const Feed = () => {
   }, []);
 
   const deletePost = (postId, reason) => {
-    OnboardingModule.deletePost(postId, reason);
+    // iOS port of Android's native deletePost — same delete_post backend
+    // over HTTP. Fire-and-forget; the local removal below updates the UI.
+    deleteCommunityPost(postId, reason).catch((error) =>
+      console.error('Error deleting post:', error?.message || error),
+    );
     closeBottomSheet();
     setPostsMap(prevPostsMap => {
       const updatedPostsMap = new Map(prevPostsMap);
@@ -234,10 +271,10 @@ const Feed = () => {
         renderItem={({ item }) => <Post openBottomSheet={() => toggleBottomSheet(item)} post={item} deletePost={deletePost}  />}
         keyExtractor={item => item.id.toString()}
         ListHeaderComponent={<FeedHeader />}
-        // 170 = NunbaFab (60) + bottom: 90 + 20 breathing room.
-        // Without this, the last post hides behind the FAB / Java
-        // bottom-nav on tablet landscape and portrait alike.
-        contentContainerStyle={{ paddingBottom: 170 }}
+        // paddingTop clears the status bar / notch so the header icons are
+        // tappable. 170 = NunbaFab (60) + bottom: 90 + 20 breathing room —
+        // without it the last post hides behind the FAB / bottom-nav.
+        contentContainerStyle={{ paddingTop: insets.top, paddingBottom: 170 }}
         showsVerticalScrollIndicator={false}
         onEndReached={loadMorePosts}
         onEndReachedThreshold={0.7}
