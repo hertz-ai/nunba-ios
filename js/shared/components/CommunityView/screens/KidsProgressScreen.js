@@ -1,8 +1,12 @@
 import React, {useMemo} from 'react';
 import {
-  View, Text, ScrollView, TouchableOpacity,
-  SafeAreaView, StyleSheet,
+  View,
+  Text,
+  ScrollView,
+  TouchableOpacity,
+  StyleSheet,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import {useNavigation} from '@react-navigation/native';
 import * as Animatable from 'react-native-animatable';

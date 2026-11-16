@@ -7,10 +7,12 @@ import {
   TouchableOpacity,
   FlatList,
   RefreshControl,
-  SafeAreaView,
   StatusBar,
   Image,
+  Modal,
+  Pressable,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import {
   widthPercentageToDP as wp,
   heightPercentageToDP as hp,
@@ -37,6 +39,13 @@ const SeasonScreen = () => {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [season, setSeason] = useState(null);
+  // Optional "between-seasons" data — both endpoints are best-effort.  If the
+  // server hasn't shipped them yet the catch keeps the state null and the
+  // sections render nothing.  Verified safe with /seasons/upcoming returning
+  // 404 against staging on 2026-06-20.
+  const [upcoming, setUpcoming] = useState(null);
+  const [pastSeason, setPastSeason] = useState(null);
+  const [infoVisible, setInfoVisible] = useState(false);
 
   const fetchData = async () => {
     setLoading(true);
@@ -44,6 +53,15 @@ const SeasonScreen = () => {
       const res = await seasonsApi.current();
       if (res.data) setSeason(res.data);
     } catch (e) { /* keep null */ }
+    // Best-effort: hide silently if either endpoint isn't live yet.
+    try {
+      const res = await seasonsApi.upcoming();
+      if (res && res.data) setUpcoming(res.data);
+    } catch (e) { /* hide section */ }
+    try {
+      const res = await seasonsApi.past();
+      if (res && res.data) setPastSeason(res.data);
+    } catch (e) { /* hide section */ }
     setLoading(false);
   };
 
@@ -90,16 +108,127 @@ const SeasonScreen = () => {
             <Ionicons name="arrow-back" size={24} color="#FFF" />
           </TouchableOpacity>
           <Text style={styles.headerTitle}>Season</Text>
-          <View style={styles.headerSpacer} />
+          <TouchableOpacity style={styles.infoButton} onPress={() => setInfoVisible(true)}>
+            <Ionicons name="information-circle-outline" size={22} color="#888" />
+          </TouchableOpacity>
         </View>
-        <View style={[styles.loadingContainer, { padding: 24, alignItems: 'center', justifyContent: 'center' }]}>
-          <Text style={{ color: '#FFF', fontSize: 16, fontWeight: '600', marginBottom: 8 }}>
-            No active season
-          </Text>
-          <Text style={{ color: '#9CA3AF', fontSize: 13, textAlign: 'center' }}>
-            Check back later — seasons unlock with community milestones.
-          </Text>
-        </View>
+        <ScrollView
+          showsVerticalScrollIndicator={false}
+          refreshControl={
+            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#6C63FF" />
+          }
+          contentContainerStyle={{ paddingHorizontal: wp('4%'), paddingTop: hp('1%'), paddingBottom: hp('5%') }}
+        >
+          {/* Hero — between seasons */}
+          <View style={styles.betweenHero}>
+            <MaterialCommunityIcons name="snowflake" size={48} color="#9D4EDD" />
+            <Text style={styles.betweenTitle}>No active season</Text>
+            <Text style={styles.betweenSubtitle}>
+              Seasons unlock with community milestones. Here's what's coming.
+            </Text>
+            {upcoming && typeof upcoming.daysUntilStart === 'number' && (
+              <View style={styles.countdownPill}>
+                <MaterialCommunityIcons name="timer-sand" size={14} color="#9D4EDD" />
+                <Text style={styles.countdownText}>
+                  Next season starts in {upcoming.daysUntilStart} {upcoming.daysUntilStart === 1 ? 'day' : 'days'}
+                </Text>
+              </View>
+            )}
+          </View>
+
+          {/* How seasons work */}
+          <View style={styles.explainerCard}>
+            <Text style={styles.explainerTitle}>How Seasons Work</Text>
+            {[
+              { icon: 'star-four-points', text: 'Earn Season Points by completing challenges and engaging with your community.' },
+              { icon: 'chevron-triple-up', text: 'Climb through four tiers — Bronze, Silver, Gold, and Platinum.' },
+              { icon: 'gift-outline', text: 'Each tier unlocks exclusive rewards, badges, and profile cosmetics.' },
+            ].map((item, i) => (
+              <View key={i} style={styles.explainerRow}>
+                <MaterialCommunityIcons name={item.icon} size={18} color="#9D4EDD" style={{ marginTop: 2 }} />
+                <Text style={styles.explainerText}>{item.text}</Text>
+              </View>
+            ))}
+          </View>
+
+          {/* Tier ladder preview */}
+          <Text style={[styles.sectionTitle, { marginTop: hp('2%') }]}>Tier Rewards Preview</Text>
+          <View style={styles.tierRewardsContainer}>
+            {TIERS.map((tier) => {
+              const config = TIER_CONFIG[tier];
+              return (
+                <View
+                  key={tier}
+                  style={[styles.tierRewardCard, { borderColor: config.color }]}
+                >
+                  <View style={[styles.tierRewardIcon, { backgroundColor: `${config.color}22` }]}>
+                    <MaterialCommunityIcons name={config.icon} size={24} color={config.color} />
+                  </View>
+                  <Text style={[styles.tierRewardName, { color: config.color }]}>
+                    {tier.charAt(0).toUpperCase() + tier.slice(1)}
+                  </Text>
+                  <Text style={styles.tierRewardThreshold}>
+                    {config.threshold.toLocaleString()} pts
+                  </Text>
+                  <View style={styles.tierRewardsList}>
+                    {config.rewards.map((reward, i) => (
+                      <Text key={i} style={styles.tierRewardItem}>
+                        {reward}
+                      </Text>
+                    ))}
+                  </View>
+                </View>
+              );
+            })}
+          </View>
+
+          {/* Last season recap — only render if server returned data */}
+          {pastSeason && pastSeason.name && (
+            <View style={{ marginTop: hp('2%') }}>
+              <Text style={styles.sectionTitle}>Last Season</Text>
+              <View style={styles.recapCard}>
+                <Text style={styles.recapName}>{pastSeason.name}</Text>
+                {pastSeason.theme ? (
+                  <Text style={styles.recapTheme}>{pastSeason.theme}</Text>
+                ) : null}
+                {typeof pastSeason.finalTier === 'string' && TIER_CONFIG[pastSeason.finalTier] ? (
+                  <View style={styles.recapTierRow}>
+                    <MaterialCommunityIcons
+                      name={TIER_CONFIG[pastSeason.finalTier].icon}
+                      size={20}
+                      color={TIER_CONFIG[pastSeason.finalTier].color}
+                    />
+                    <Text style={[styles.recapTierText, { color: TIER_CONFIG[pastSeason.finalTier].color }]}>
+                      Your finish: {pastSeason.finalTier.charAt(0).toUpperCase() + pastSeason.finalTier.slice(1)}
+                    </Text>
+                  </View>
+                ) : null}
+                {typeof pastSeason.finalPoints === 'number' ? (
+                  <Text style={styles.recapPoints}>
+                    {pastSeason.finalPoints.toLocaleString()} season points earned
+                  </Text>
+                ) : null}
+              </View>
+            </View>
+          )}
+        </ScrollView>
+
+        {/* Info modal — same explainer copy, also reachable from the active-season header */}
+        <Modal visible={infoVisible} transparent animationType="fade" onRequestClose={() => setInfoVisible(false)}>
+          <Pressable style={styles.modalBackdrop} onPress={() => setInfoVisible(false)}>
+            <Pressable style={styles.modalCard} onPress={(e) => e.stopPropagation && e.stopPropagation()}>
+              <Text style={styles.modalTitle}>How Seasons Work</Text>
+              <Text style={styles.modalBody}>
+                • Earn Season Points by completing challenges and engaging with your community.{'\n\n'}
+                • Climb through four tiers — Bronze, Silver, Gold, and Platinum.{'\n\n'}
+                • Each tier unlocks exclusive rewards, badges, and profile cosmetics.
+              </Text>
+              <TouchableOpacity style={styles.modalButton} onPress={() => setInfoVisible(false)}>
+                <Text style={styles.modalButtonText}>Got it</Text>
+              </TouchableOpacity>
+            </Pressable>
+          </Pressable>
+        </Modal>
       </SafeAreaView>
     );
   }
@@ -122,10 +251,27 @@ const SeasonScreen = () => {
           <Ionicons name="arrow-back" size={24} color="#FFF" />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Season</Text>
-        <TouchableOpacity style={styles.infoButton}>
+        <TouchableOpacity style={styles.infoButton} onPress={() => setInfoVisible(true)}>
           <Ionicons name="information-circle-outline" size={22} color="#888" />
         </TouchableOpacity>
       </View>
+
+      {/* Same explainer modal also reachable from the empty state. */}
+      <Modal visible={infoVisible} transparent animationType="fade" onRequestClose={() => setInfoVisible(false)}>
+        <Pressable style={styles.modalBackdrop} onPress={() => setInfoVisible(false)}>
+          <Pressable style={styles.modalCard} onPress={(e) => e.stopPropagation && e.stopPropagation()}>
+            <Text style={styles.modalTitle}>How Seasons Work</Text>
+            <Text style={styles.modalBody}>
+              • Earn Season Points by completing challenges and engaging with your community.{'\n\n'}
+              • Climb through four tiers — Bronze, Silver, Gold, and Platinum.{'\n\n'}
+              • Each tier unlocks exclusive rewards, badges, and profile cosmetics.
+            </Text>
+            <TouchableOpacity style={styles.modalButton} onPress={() => setInfoVisible(false)}>
+              <Text style={styles.modalButtonText}>Got it</Text>
+            </TouchableOpacity>
+          </Pressable>
+        </Pressable>
+      </Modal>
 
       <ScrollView
         showsVerticalScrollIndicator={false}
@@ -144,8 +290,8 @@ const SeasonScreen = () => {
                 <MaterialCommunityIcons name="snowflake" size={14} color="#9D4EDD" />
                 <Text style={styles.seasonBadgeText}>SEASON</Text>
               </View>
-              <Text style={styles.seasonName}>{season.name}</Text>
-              <Text style={styles.seasonTheme}>{season.theme}</Text>
+              <Text style={styles.seasonName} numberOfLines={1}>{season.name}</Text>
+              <Text style={styles.seasonTheme} numberOfLines={1}>{season.theme}</Text>
               <View style={styles.daysRemaining}>
                 <View style={styles.daysBox}>
                   <Text style={styles.daysNumber}>{season.daysRemaining}</Text>
@@ -272,7 +418,16 @@ const SeasonScreen = () => {
                 </View>
                 <View style={styles.userAvatar}>
                   {user.avatar ? (
-                    <Image source={{ uri: user.avatar }} style={styles.avatarImage} />
+                    <Image
+                      source={{ uri: user.avatar }}
+                      style={styles.avatarImage}
+                      onError={() => {
+                        // #417 fix: swallow Image errors so a stale avatar
+                        // URL doesn't surface a red-screen via the RCTImage
+                        // bridge.  Fallback icon kicks in next render if the
+                        // caller refetches user.avatar = null.
+                      }}
+                    />
                   ) : (
                     <Ionicons name="person" size={18} color="#888" />
                   )}
@@ -602,6 +757,137 @@ const styles = StyleSheet.create({
   },
   bottomSpacer: {
     height: hp('5%'),
+  },
+  // Between-seasons UI.  Renders only when seasonsApi.current() returns no
+  // active season — replaces the previous two-line "Check back later" stub
+  // with a real schedule preview, tier ladder, and recap.  Closes the
+  // "seasons-schedule" gap (2026-06-20).
+  betweenHero: {
+    alignItems: 'center',
+    paddingVertical: hp('3%'),
+  },
+  betweenTitle: {
+    color: '#FFF',
+    fontSize: wp('5.5%'),
+    fontWeight: '700',
+    marginTop: hp('1%'),
+  },
+  betweenSubtitle: {
+    color: '#9CA3AF',
+    fontSize: wp('3.4%'),
+    textAlign: 'center',
+    marginTop: 6,
+    paddingHorizontal: wp('6%'),
+  },
+  countdownPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#9D4EDD22',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 14,
+    marginTop: hp('1.5%'),
+  },
+  countdownText: {
+    color: '#9D4EDD',
+    fontSize: wp('3.2%'),
+    fontWeight: '600',
+    marginLeft: 6,
+  },
+  explainerCard: {
+    backgroundColor: '#141225',
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: '#2A2A2A',
+    padding: wp('4%'),
+  },
+  explainerTitle: {
+    color: '#FFF',
+    fontSize: wp('4%'),
+    fontWeight: '700',
+    marginBottom: hp('1%'),
+  },
+  explainerRow: {
+    flexDirection: 'row',
+    marginTop: hp('1%'),
+    paddingRight: wp('2%'),
+  },
+  explainerText: {
+    color: '#9CA3AF',
+    fontSize: wp('3.2%'),
+    marginLeft: 10,
+    flex: 1,
+    lineHeight: 18,
+  },
+  recapCard: {
+    backgroundColor: '#141225',
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: '#2A2A2A',
+    padding: wp('4%'),
+  },
+  recapName: {
+    color: '#FFF',
+    fontSize: wp('4.5%'),
+    fontWeight: '700',
+  },
+  recapTheme: {
+    color: '#9D4EDD',
+    fontSize: wp('3.4%'),
+    marginTop: 2,
+  },
+  recapTierRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: hp('1.2%'),
+  },
+  recapTierText: {
+    fontSize: wp('3.4%'),
+    fontWeight: '600',
+    marginLeft: 6,
+  },
+  recapPoints: {
+    color: '#FFD700',
+    fontSize: wp('3.2%'),
+    marginTop: 4,
+  },
+  modalBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.7)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: wp('6%'),
+  },
+  modalCard: {
+    backgroundColor: '#141225',
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: '#2A2A2A',
+    padding: wp('5%'),
+    width: '100%',
+  },
+  modalTitle: {
+    color: '#FFF',
+    fontSize: wp('4.5%'),
+    fontWeight: '700',
+    marginBottom: hp('1.5%'),
+  },
+  modalBody: {
+    color: '#9CA3AF',
+    fontSize: wp('3.4%'),
+    lineHeight: 20,
+  },
+  modalButton: {
+    backgroundColor: '#9D4EDD',
+    borderRadius: 12,
+    paddingVertical: hp('1.5%'),
+    alignItems: 'center',
+    marginTop: hp('2%'),
+  },
+  modalButtonText: {
+    color: '#FFF',
+    fontSize: wp('3.6%'),
+    fontWeight: '700',
   },
 });
 

@@ -397,6 +397,16 @@ const startPolling = () => {
 
     try {
       const result = await pollFleetCommands(deviceId);
+      if (result && result.unsupported) {
+        // The current API base answers 404: it does not serve the poll
+        // route (none does yet, 2026-10-14).  Commands still arrive over
+        // WAMP and FCM; stop asking this base.  The next foreground
+        // (AppState 'active' below) polls once more, in case the base
+        // changed.
+        console.warn('FleetCommand: poll route not served by the current API base; polling paused until next foreground');
+        stopPolling();
+        return;
+      }
       if (result && result.success && Array.isArray(result.data)) {
         result.data.forEach(dispatchCommand);
       }
@@ -490,26 +500,23 @@ export const initFleetCommandHandler = () => {
 };
 
 export const stopFleetCommandHandler = () => {
-  if (fleetListener) {
-    fleetListener.remove();
-    fleetListener = null;
+  // Tear down defensively.  A listener whose remove() throws must NOT abort
+  // teardown and leave the handler half-initialized: if `initialized` stayed
+  // true, a later initFleetCommandHandler() would no-op and silently wire up
+  // nothing — polling never starts and no listeners fire.  (Under test this
+  // surfaces as a whole-suite failure where every assertion sees "0 calls".)
+  // So guard each remove and reset `initialized` in a finally, unconditionally.
+  const safeRemove = (listener) => {
+    try { if (listener) listener.remove(); } catch (_) { /* best-effort */ }
+  };
+  try {
+    safeRemove(fleetListener); fleetListener = null;
+    safeRemove(wearCallActionListener); wearCallActionListener = null;
+    safeRemove(callKitAnswerListener); callKitAnswerListener = null;
+    safeRemove(callKitEndListener); callKitEndListener = null;
+    stopPolling();
+    safeRemove(appStateListener); appStateListener = null;
+  } finally {
+    initialized = false;
   }
-  if (wearCallActionListener) {
-    wearCallActionListener.remove();
-    wearCallActionListener = null;
-  }
-  if (callKitAnswerListener) {
-    callKitAnswerListener.remove();
-    callKitAnswerListener = null;
-  }
-  if (callKitEndListener) {
-    callKitEndListener.remove();
-    callKitEndListener = null;
-  }
-  stopPolling();
-  if (appStateListener) {
-    appStateListener.remove();
-    appStateListener = null;
-  }
-  initialized = false;
 };

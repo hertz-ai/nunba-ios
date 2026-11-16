@@ -7,11 +7,11 @@ import {
   TouchableOpacity,
   FlatList,
   RefreshControl,
-  SafeAreaView,
   StatusBar,
   Dimensions,
   Share,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import {
   widthPercentageToDP as wp,
   heightPercentageToDP as hp,

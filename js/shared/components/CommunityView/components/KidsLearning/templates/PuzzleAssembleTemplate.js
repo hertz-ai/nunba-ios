@@ -1,4 +1,4 @@
-import React, {useState, useEffect, useRef, useCallback} from 'react';
+import React, {useState, useEffect, useRef, useCallback, useMemo} from 'react';
 import {
   View,
   Text,
@@ -21,20 +21,23 @@ import ProgressDots from '../shared/ProgressDots';
 import FeedbackOverlay from '../shared/FeedbackOverlay';
 import TimerBar from '../shared/TimerBar';
 import {SPRINGS} from '../shared/gameThemes';
+import {STEP, LEVEL, puzzleAssemble as guide} from '../shared/gameGuide';
+import holdUntilSpoken from '../shared/holdUntilSpoken';
 
 /**
  * PuzzleAssembleTemplate - Drag/tap puzzle pieces to correct positions.
  *
  * Shows labeled empty slots and puzzle pieces. Child taps a piece then taps
  * a slot to place it. Green glow for correct placement. Tracks time and
- * correctness. Adapts with hints after consecutive mistakes.
+ * correctness. At the shell's lowest level an arrow shows where the chosen
+ * piece goes; the agent says what each numbered slot is for.
  *
  * Props:
  * - config: { content: { puzzles: [...] } }
  * - onAnswer: (isCorrect, concept, responseTimeMs) => void
  * - onComplete: () => void
  */
-const PuzzleAssembleTemplate = ({config, onAnswer, onComplete}) => {
+const PuzzleAssembleTemplate = ({config, onAnswer, onComplete, onStep, level = LEVEL.START}) => {
   const content = config?.content || {};
   const puzzles = content.puzzles || [];
 
@@ -47,11 +50,11 @@ const PuzzleAssembleTemplate = ({config, onAnswer, onComplete}) => {
   const [puzzleComplete, setPuzzleComplete] = useState(false);
   const [allComplete, setAllComplete] = useState(false);
   const [results, setResults] = useState([]); // [true, false, ...]
-  const [showHint, setShowHint] = useState(false);
-  const [hintPieceId, setHintPieceId] = useState(null);
+  // The shell's one ladder (shared/gameGuide): at LEVEL.MIN the chosen
+  // piece's slot is marked.  This template's own three-misses rule is gone.
+  const showHint = level <= LEVEL.MIN && selectedPiece != null;
+  const hintPieceId = showHint ? selectedPiece : null;
 
-  // Adaptive state
-  const consecutiveWrong = useRef(0);
   const puzzleStartTime = useRef(Date.now());
   const moveStartTime = useRef(Date.now());
   const totalMistakes = useRef(0);
@@ -67,7 +70,24 @@ const PuzzleAssembleTemplate = ({config, onAnswer, onComplete}) => {
   const titleAnim = useRef(new Animated.Value(1)).current;
 
   const currentPuzzle = puzzles[currentPuzzleIndex] || null;
-  const pieces = currentPuzzle?.pieces || [];
+
+  // Each piece names the slot it belongs in, via correctPosition. No shipped
+  // puzzle authors one -- the key appears nowhere in gameConfigs.js -- so
+  // `piece.correctPosition === slotIndex` compared undefined against a number
+  // and was false for EVERY tap: no piece could be placed, every placement was
+  // scored wrong, and all five puzzle games were unwinnable for a real child.
+  //
+  // Fall back to the authored order, the convention SequenceOrderTemplate
+  // already uses for exactly this. A puzzle that does name its positions keeps
+  // them, so this fills a gap rather than overriding intent.
+  const pieces = useMemo(() => (
+    (currentPuzzle?.pieces || []).map((piece, idx) => (
+      typeof piece.correctPosition === 'number'
+        ? piece
+        : {...piece, correctPosition: idx}
+    ))
+  ), [currentPuzzle]);
+
   const totalSlots = pieces.length;
 
   // Initialize animations for pieces
@@ -100,14 +120,27 @@ const PuzzleAssembleTemplate = ({config, onAnswer, onComplete}) => {
     setSelectedPiece(null);
     setPuzzleComplete(false);
     setIncorrectSlot(null);
-    setShowHint(false);
-    setHintPieceId(null);
-    consecutiveWrong.current = 0;
     totalMistakes.current = 0;
+    if (onStep && currentPuzzle) {
+      onStep({kind: STEP.ASKED, itemId: currentPuzzle.concept || currentPuzzle.title,
+        say: guide.ask(currentPuzzle, pieces)});
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentPuzzleIndex]);
 
-  // Check puzzle completion
+  // Check puzzle completion.
+  //
+  // Not on the render a new puzzle arrives in: the reset above only queues
+  // correctSlots = {}, so this effect still sees the LAST puzzle's full set in
+  // that commit, and a next puzzle with as many pieces opened already marked
+  // "Puzzle Complete!" with its slots empty - every puzzle after the first
+  // could be skipped.  The following render, with the slots reset, checks.
+  const checkedPuzzleRef = useRef(currentPuzzleIndex);
   useEffect(() => {
+    if (checkedPuzzleRef.current !== currentPuzzleIndex) {
+      checkedPuzzleRef.current = currentPuzzleIndex;
+      return;
+    }
     if (
       currentPuzzle &&
       correctSlots.size === totalSlots &&
@@ -119,7 +152,7 @@ const PuzzleAssembleTemplate = ({config, onAnswer, onComplete}) => {
         ...SPRINGS.bouncy,
       }).start();
     }
-  }, [correctSlots, totalSlots, currentPuzzle]);
+  }, [correctSlots, totalSlots, currentPuzzle, currentPuzzleIndex]);
 
   // Get available (unplaced) pieces
   const getAvailablePieces = useCallback(() => {
@@ -174,9 +207,21 @@ const PuzzleAssembleTemplate = ({config, onAnswer, onComplete}) => {
         setPlacedPieces(prev => ({...prev, [slotIndex]: piece.id}));
         setCorrectSlots(prev => new Set([...prev, slotIndex]));
         setSelectedPiece(null);
-        consecutiveWrong.current = 0;
-        setShowHint(false);
-        setHintPieceId(null);
+        if (onStep) {
+          const filled = new Set([...correctSlots, slotIndex]);
+          const spoken = onStep({kind: STEP.RIGHT, itemId: piece.id, concept: currentPuzzle.concept,
+            say: filled.size >= totalSlots
+              ? guide.done(currentPuzzle, pieces)
+              : guide.right(piece, guide.next(pieces, filled))});
+          // Guided, a finished picture moves on once the voice has said what
+          // it shows; no "Next" tap is needed (the button stays).
+          if (filled.size >= totalSlots) {
+            const index = currentPuzzleIndex;
+            holdUntilSpoken(spoken, () => {
+              if (indexRef.current === index) nextRef.current();
+            }, () => mountedRef.current);
+          }
+        }
 
         // Animate green glow
         const glowAnim = slotGlowAnims.current[slotIndex];
@@ -210,27 +255,24 @@ const PuzzleAssembleTemplate = ({config, onAnswer, onComplete}) => {
       } else {
         // Wrong placement
         setIncorrectSlot(slotIndex);
-        consecutiveWrong.current += 1;
         totalMistakes.current += 1;
+        if (onStep) {
+          const wanted = pieces.find((p) => p.correctPosition === slotIndex);
+          onStep({kind: STEP.WRONG, itemId: piece.id, chosen: piece.label, wanted: wanted && wanted.label,
+            say: guide.explainMiss(piece, pieces, slotIndex)});
+        }
 
         // Shake the slot
         setTimeout(() => {
           if (mountedRef.current) setIncorrectSlot(null);
         }, 500);
 
-        // Adapt: show hints after 3 wrong in a row
-        if (consecutiveWrong.current >= 3) {
-          setShowHint(true);
-          // Show which slot is correct for the selected piece
-          setHintPieceId(piece.id);
-        }
-
         if (onAnswer) {
           onAnswer(false, currentPuzzle.concept, responseTimeMs);
         }
       }
     },
-    [selectedPiece, puzzleComplete, correctSlots, pieces, currentPuzzle, onAnswer],
+    [selectedPiece, puzzleComplete, correctSlots, pieces, currentPuzzle, onAnswer, onStep, totalSlots],
   );
 
   // Next puzzle or complete
@@ -255,6 +297,17 @@ const PuzzleAssembleTemplate = ({config, onAnswer, onComplete}) => {
       onComplete();
     }
   }, [onComplete]);
+  const nextRef = useRef(null);
+  nextRef.current = handleNext;
+  const indexRef = useRef(0);
+  indexRef.current = currentPuzzleIndex;
+
+  // Guided, the summary is shown long enough to see, then the shell's own
+  // completion screen takes over; no "Finish" tap is needed (it stays).
+  useEffect(() => {
+    if (!allComplete || !onStep) return;
+    holdUntilSpoken(undefined, handleFinish, () => mountedRef.current);
+  }, [allComplete]);   // eslint-disable-line react-hooks/exhaustive-deps
 
   // All puzzles completed screen
   if (allComplete) {
@@ -318,7 +371,7 @@ const PuzzleAssembleTemplate = ({config, onAnswer, onComplete}) => {
         <View style={styles.hintBanner}>
           <Icon name="lightbulb-on" size={18} color={kidsColors.star} />
           <Text style={styles.hintText}>
-            Hint: Look at the labels on the slots carefully!
+            Hint: the arrow shows where your piece goes!
           </Text>
         </View>
       )}

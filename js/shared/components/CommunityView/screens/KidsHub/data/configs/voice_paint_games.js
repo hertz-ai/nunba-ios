@@ -1,3 +1,4 @@
+/* istanbul ignore file — pure data export (no executable branches); consumed by KidsHub templates at render time, not by any test */
 const VOICE_PAINT_GAMES = [
   {
     id: 'voice-paint-letters-01',

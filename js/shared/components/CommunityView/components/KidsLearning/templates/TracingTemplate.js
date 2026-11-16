@@ -19,7 +19,11 @@ import {
 } from '../../../../../theme/kidsColors';
 import ProgressDots from '../shared/ProgressDots';
 import FeedbackOverlay from '../shared/FeedbackOverlay';
+import {STEP, LEVEL, tracing as guide} from '../shared/gameGuide';
+import holdUntilSpoken from '../shared/holdUntilSpoken';
 
+// How long the finger stays off the screen before a guided trace is scored.
+const TRACE_SETTLE_MS = 1200;
 const {width: SCREEN_WIDTH} = Dimensions.get('window');
 const CANVAS_SIZE = Math.min(SCREEN_WIDTH - kidsSpacing.md * 2, 340);
 const TRACE_LINE_WIDTH = 12;
@@ -102,6 +106,56 @@ const generateGuidePath = (type, value, canvasSize) => {
           x: cx + Math.cos(angle) * r,
           y: cy + Math.sin(angle) * r,
         });
+      }
+    } else if (value === 'rectangle') {
+      // Wider than it is tall, so it does not just read as the square again.
+      const halfW = size / 2.2;
+      const halfH = size / 3.6;
+      const left = cx - halfW;
+      const right = cx + halfW;
+      const top = cy - halfH;
+      const bottom = cy + halfH;
+      for (let i = 0; i <= 10; i++) points.push({x: left + (right - left) * (i / 10), y: top});
+      for (let i = 1; i <= 10; i++) points.push({x: right, y: top + (bottom - top) * (i / 10)});
+      for (let i = 1; i <= 10; i++) points.push({x: right - (right - left) * (i / 10), y: bottom});
+      for (let i = 1; i <= 10; i++) points.push({x: left, y: bottom - (bottom - top) * (i / 10)});
+    } else if (value === 'oval') {
+      const rx = size / 2.4;
+      const ry = size / 3.4;
+      for (let i = 0; i <= 60; i++) {
+        const angle = (i / 60) * Math.PI * 2 - Math.PI / 2;
+        points.push({
+          x: cx + Math.cos(angle) * rx,
+          y: cy + Math.sin(angle) * ry,
+        });
+      }
+    } else if (value === 'diamond') {
+      const half = size / 2.6;
+      const corners = [
+        {x: cx, y: cy - half},
+        {x: cx + half, y: cy},
+        {x: cx, y: cy + half},
+        {x: cx - half, y: cy},
+      ];
+      corners.forEach((from, c) => {
+        const to = corners[(c + 1) % corners.length];
+        for (let i = c === 0 ? 0 : 1; i <= 10; i++) {
+          points.push({
+            x: from.x + (to.x - from.x) * (i / 10),
+            y: from.y + (to.y - from.y) * (i / 10),
+          });
+        }
+      });
+    } else if (value === 'heart') {
+      // The classic parametric heart, scaled to the canvas. Screen y grows
+      // downward, so the curve is flipped to stand the right way up.
+      const scale = size / 36;
+      for (let i = 0; i <= 60; i++) {
+        const t = (i / 60) * Math.PI * 2;
+        const hx = 16 * Math.pow(Math.sin(t), 3);
+        const hy = 13 * Math.cos(t) - 5 * Math.cos(2 * t)
+          - 2 * Math.cos(3 * t) - Math.cos(4 * t);
+        points.push({x: cx + hx * scale, y: cy - hy * scale});
       }
     }
     return points;
@@ -347,7 +401,12 @@ const calculateScore = (tracePath, guidePath, threshold) => {
   return Math.round((closePoints / Math.ceil(tracePath.length / step)) * 100);
 };
 
-const TracingTemplate = ({config, onAnswer, onComplete}) => {
+// How far from the dots a traced point may be, by the shell's level
+// (shared/gameGuide LEVEL): wider at 0, where this template's own
+// three-misses rule used to widen it, narrower as the child climbs.
+const TOLERANCE = [1.6, 1, 0.9, 0.8];
+
+const TracingTemplate = ({config, onAnswer, onComplete, onStep, level = LEVEL.START}) => {
   const items = config?.content?.items || [];
   const [currentIndex, setCurrentIndex] = useState(0);
   const [tracePath, setTracePath] = useState([]);
@@ -355,8 +414,8 @@ const TracingTemplate = ({config, onAnswer, onComplete}) => {
   const [scored, setScored] = useState(false);
   const [score, setScore] = useState(0);
   const [results, setResults] = useState([]);
-  const [consecutiveWrong, setConsecutiveWrong] = useState(0);
-  const [toleranceMultiplier, setToleranceMultiplier] = useState(1);
+  const toleranceMultiplier = TOLERANCE[level] ?? 1;
+  const struggling = level <= LEVEL.MIN;
 
   // Animations
   const guideAnim = useRef(new Animated.Value(1)).current;
@@ -414,23 +473,26 @@ const TracingTemplate = ({config, onAnswer, onComplete}) => {
     pulse.start();
 
     itemStartTime.current = Date.now();
+    if (onStep && currentItem.value != null) {
+      onStep({kind: STEP.ASKED, itemId: currentItem.concept || String(currentItem.value), say: guide.ask(currentItem)});
+    }
 
     return () => pulse.stop();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentIndex]);
 
-  // Adaptive: increase tolerance when struggling
-  useEffect(() => {
-    if (consecutiveWrong >= 3) {
-      setToleranceMultiplier(1.6);
-    } else if (consecutiveWrong >= 2) {
-      setToleranceMultiplier(1.3);
-    } else {
-      setToleranceMultiplier(1);
-    }
-  }, [consecutiveWrong]);
+  // Guided, a trace is scored once the finger has been off the screen this
+  // long (a letter drawn in two strokes lifts in between), and the game moves
+  // on, or clears the line for another go, once the voice has said why.  No
+  // "Done!" or "Next" tap is needed; the buttons stay for a child who wants
+  // them.  Each attempt is numbered so a tapped button and the voice never
+  // both act on one trace.
+  const attemptRef = useRef(0);
+  const afterLineRef = useRef({});
 
   const submitTrace = useCallback(() => {
     if (scored || tracePath.length < 5) return;
+    const attempt = ++attemptRef.current;
 
     const responseTimeMs = Date.now() - itemStartTime.current;
     const traceScore = calculateScore(tracePath, guidePath, threshold);
@@ -439,18 +501,21 @@ const TracingTemplate = ({config, onAnswer, onComplete}) => {
     setScore(traceScore);
     setScored(true);
 
-    // Adaptive tracking
-    if (isCorrect) {
-      setConsecutiveWrong(0);
-    } else {
-      setConsecutiveWrong(prev => prev + 1);
+    if (onStep) {
+      const spoken = onStep(isCorrect
+        ? {kind: STEP.RIGHT, itemId: currentItem.concept, concept: currentItem.concept, say: guide.right(currentItem)}
+        : {kind: STEP.WRONG, itemId: currentItem.concept, chosen: traceScore, say: guide.explainMiss(currentItem, traceScore)});
+      holdUntilSpoken(spoken, () => {
+        if (attemptRef.current !== attempt) return;   // a button already acted
+        (isCorrect ? afterLineRef.current.next : afterLineRef.current.retry)();
+      }, () => mountedRef.current);
     }
 
     setResults(prev => [...prev, isCorrect]);
 
-    // Feedback
+    // Feedback (guided, the score card and the voice are the feedback)
     setFeedbackCorrect(isCorrect);
-    setFeedbackVisible(true);
+    if (!onStep) setFeedbackVisible(true);
 
     // Report
     onAnswer(isCorrect, currentItem.concept, responseTimeMs);
@@ -461,7 +526,7 @@ const TracingTemplate = ({config, onAnswer, onComplete}) => {
       duration: 500,
       useNativeDriver: true,
     }).start();
-  }, [scored, tracePath, guidePath, threshold, currentItem, onAnswer]);
+  }, [scored, tracePath, guidePath, threshold, currentItem, onAnswer, onStep]);
 
   // PanResponder for tracing - re-created when scored/currentIndex change
   const [panVersion, setPanVersion] = useState(0);
@@ -496,6 +561,7 @@ const TracingTemplate = ({config, onAnswer, onComplete}) => {
   }, [scored, currentIndex]);
 
   const handleRetry = useCallback(() => {
+    attemptRef.current += 1;
     setTracePath([]);
     setScored(false);
     setScore(0);
@@ -505,6 +571,7 @@ const TracingTemplate = ({config, onAnswer, onComplete}) => {
   }, []);
 
   const handleNext = useCallback(() => {
+    attemptRef.current += 1;
     if (currentIndex < items.length - 1) {
       setCurrentIndex(prev => prev + 1);
     } else if (mountedRef.current && onComplete) {
@@ -515,6 +582,16 @@ const TracingTemplate = ({config, onAnswer, onComplete}) => {
   const handleFeedbackDismiss = useCallback(() => {
     setFeedbackVisible(false);
   }, []);
+  afterLineRef.current = {next: handleNext, retry: handleRetry};
+
+  // Guided: score the trace once the finger has stayed off the screen.
+  const submitRef = useRef(null);
+  submitRef.current = submitTrace;
+  useEffect(() => {
+    if (!onStep || scored || isTracing || tracePath.length <= 10) return undefined;
+    const t = setTimeout(() => { if (mountedRef.current) submitRef.current(); }, TRACE_SETTLE_MS);
+    return () => clearTimeout(t);
+  }, [onStep, scored, isTracing, tracePath.length]);
 
   // Get the display text for the guide
   const getGuideDisplay = () => {
@@ -569,7 +646,7 @@ const TracingTemplate = ({config, onAnswer, onComplete}) => {
         <View style={styles.targetBadge}>
           <Text style={styles.targetText}>{getGuideDisplay()}</Text>
         </View>
-        {consecutiveWrong >= 3 && (
+        {struggling && (
           <View style={styles.hintBadge}>
             <Icon name="lightbulb-on-outline" size={16} color={kidsColors.star} />
             <Text style={styles.hintBadgeText}>Wider tolerance to help you!</Text>

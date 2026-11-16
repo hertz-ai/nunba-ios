@@ -6,6 +6,9 @@ import DynamicGameRenderer from './DynamicGameRenderer';
 import FeedbackOverlay from './shared/FeedbackOverlay';
 import ProgressDots from './shared/ProgressDots';
 import {getTemplateComponent} from './data/gameRegistry';
+import {GameShellContext} from './shared/gameShellContext';
+import useGuidedSteps from './shared/useGuidedSteps';
+import {getGameTheme, resolveTemplateType} from './shared/gameThemes';
 import {
   kidsColors,
   kidsSpacing,
@@ -257,6 +260,15 @@ const DynamicTemplateEngine = ({
   // For server-driven and dynamic-template modes
   const {state, handleAction} = useServerDrivenGameState(config, onAnswer, onComplete);
 
+  // A server-composed game that names a local template is guided exactly as
+  // a catalogue game is -- the same hook GameShell uses, so its steps are
+  // spoken, sounded and laddered by one implementation (#30).
+  const gameTheme = React.useMemo(() => getGameTheme(resolveTemplateType(config)), [config]);
+  const steps = useGuidedSteps({config, gameTheme});
+  const guidedContext = React.useMemo(() => ({
+    guided: steps.guided, level: steps.level, feedbackStyle: gameTheme?.feedbackStyle,
+  }), [steps.guided, steps.level, gameTheme]);
+
   // Load dynamic template from cache if needed
   useEffect(() => {
     if (renderMode === 'dynamic-template' && config.dynamicTemplate) {
@@ -300,7 +312,12 @@ const DynamicTemplateEngine = ({
         </View>
       );
     }
-    return <TemplateComponent config={config} onAnswer={onAnswer} onComplete={onComplete} />;
+    return (
+      <GameShellContext.Provider value={guidedContext}>
+        <TemplateComponent config={config} onAnswer={onAnswer} onComplete={onComplete}
+          onStep={steps.onStep} level={steps.level} />
+      </GameShellContext.Provider>
+    );
   }
 
   // ── Mode 3: HTML5 WebView ──

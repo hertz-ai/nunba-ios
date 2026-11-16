@@ -29,9 +29,9 @@ async function requestMicPermission() {
 }
 
 /**
- * Determine whether the given language should use native (on-device) STT.
- * English variants use the native Android SpeechRecognizer; all others
- * fall back to the HARTOS server STT endpoint via PeerLink/fetch.
+ * Determine whether the given language takes the English recognizer path.
+ * English variants use the native Android SpeechRecognizer directly; all
+ * others go through startLocaleSTT, the recognizer for their own locale.
  */
 function shouldUseNativeSTT(language) {
   if (!language) return true;
@@ -247,8 +247,8 @@ export default function useSpeechRecognition(config = {}) {
             if (onErrorRef.current) onErrorRef.current(msg);
           }
         } else {
-          // No native STT available — try server
-          await startServerSTT(lang);
+          // No native STT available — the locale recognizer path
+          await startLocaleSTT(lang);
         }
       }
     } else if (shouldUseNativeSTT(lang) && !SpeechRecognizerModule) {
@@ -260,70 +260,30 @@ export default function useSpeechRecognition(config = {}) {
           ActivityStarterModule.startSpeechListening();
           if (mountedRef.current) setIsListening(true);
         } catch (legacyErr) {
-          await startServerSTT(lang);
+          await startLocaleSTT(lang);
         }
       } else {
-        await startServerSTT(lang);
+        await startLocaleSTT(lang);
       }
     } else {
-      // Non-English — always use server STT
-      await startServerSTT(lang);
+      // Non-English: the recognizer for that locale
+      await startLocaleSTT(lang);
     }
   }, [defaultLanguage, subscribeNativeEvents]);
 
   /**
-   * Start server-side STT by sending a "listen" request.
-   * Since we cannot stream raw audio from JS easily, this uses a
-   * request-based approach: the native MicAmplitudeModule captures
-   * audio and we send it to the server endpoint.
+   * Hear a language the English path does not take: Android's own
+   * SpeechRecognizer for that locale (Android supports many).
    *
-   * For now, this triggers native recording via the legacy module and
-   * routes the result through the server STT endpoint. If native
-   * recording is unavailable, we set an appropriate error.
+   * This used to send a PeerLink 'stt_start' on 'compute' first and wait for
+   * an 'stt_result' event.  Nothing answers that frame -- a desktop drops
+   * every device frame on 'compute' and no node handles stt_start -- so with
+   * a link up the mic showed "listening" and never returned a transcript.
+   * A desktop STT, if one is wanted, comes as a mobile-adapter call.
    */
-  const startServerSTT = useCallback(async (lang) => {
+  const startLocaleSTT = useCallback(async (lang) => {
     if (!mountedRef.current) return;
 
-    // Try using PeerLink for server compute
-    try {
-      const { sendOnChannel } = require('../services/peerLinkService');
-      subscribeNativeEvents();
-
-      // Request server-side STT session via PeerLink compute channel
-      const sent = await sendOnChannel('compute', {
-        type: 'stt_start',
-        language: lang,
-        engine: 'whisper',
-      });
-
-      if (sent) {
-        if (mountedRef.current) setIsListening(true);
-
-        // Listen for PeerLink STT responses
-        const peerSub = DeviceEventEmitter.addListener('onPeerLinkEvent', (event) => {
-          if (!mountedRef.current) return;
-          if (event.type === 'stt_result') {
-            const text = (event.text || '').trim();
-            const conf = event.confidence ?? -1;
-            setTranscript(text);
-            setConfidence(conf);
-            if (event.isFinal) {
-              setIsListening(false);
-              if (text && onResultRef.current) onResultRef.current(text);
-            } else if (onPartialResultRef.current) {
-              onPartialResultRef.current(text);
-            }
-          }
-        });
-        listenersRef.current.push(peerSub);
-        return;
-      }
-    } catch (_) {
-      // PeerLink not available, fall through to direct API
-    }
-
-    // Direct server STT — we need audio data.
-    // Use native SpeechRecognizer even for non-English (Android supports many locales)
     if (SpeechRecognizerModule) {
       subscribeNativeEvents();
       try {
@@ -334,7 +294,7 @@ export default function useSpeechRecognition(config = {}) {
         });
         if (mountedRef.current) setIsListening(true);
       } catch (e) {
-        const msg = `Server STT unavailable for language: ${lang}`;
+        const msg = `Speech recognition unavailable for language: ${lang}`;
         if (mountedRef.current) setError(msg);
         if (onErrorRef.current) onErrorRef.current(msg);
       }
@@ -361,12 +321,6 @@ export default function useSpeechRecognition(config = {}) {
       // Legacy module toggles on repeated calls — only call if it was the one listening
       // We don't call it here to avoid toggling; the native side will stop on its own.
     }
-
-    // Stop PeerLink STT session
-    try {
-      const { sendOnChannel } = require('../services/peerLinkService');
-      await sendOnChannel('compute', { type: 'stt_stop' });
-    } catch (_) {}
 
     unsubscribeNativeEvents();
 

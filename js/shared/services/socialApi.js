@@ -314,6 +314,14 @@ const patch = async (path, body) => {
   return json;
 };
 
+const put = async (path, body) => {
+  const { url, response } = await _socialFetch(path, undefined, { method: 'PUT', body });
+  if (!response.ok) _emitApiError(path, response.status, 'PUT', url);
+  const json = await _safeJson(response);
+  if (response.ok) _bustForPath(path);
+  return json;
+};
+
 const del = async (path) => {
   const { url, response } = await _socialFetch(path, undefined, { method: 'DELETE' });
   if (!response.ok) _emitApiError(path, response.status, 'DELETE', url);
@@ -401,6 +409,9 @@ export const bleEncounterApi = {
       avatar_style: avatar_style || 'studio_ghibli',
       vibe_tags: vibe_tags || [],
     }),
+
+  getPersona: () => get('/encounter/persona'),
+  setPersona: (fields) => put('/encounter/persona', fields),
 
   // J200 — phone registers current rotating pubkey
   registerPubkey: (pubkey) =>
@@ -514,6 +525,8 @@ export const challengesApi = {
 // --- Seasons ---
 export const seasonsApi = {
   current: () => get('/seasons/current'),
+  upcoming: () => get('/seasons/upcoming'),
+  past: () => get('/seasons/past'),
   leaderboard: (id, params) => get(`/seasons/${id}/leaderboard`, params),
   achievements: (id) => get(`/seasons/${id}/achievements`),
 };
@@ -855,10 +868,40 @@ export const shareApi = {
   stats: () => get('/share/stats'),
 };
 
+// The channel routes' field names are mapped to what the screens read here, at
+// the boundary, so a screen never has to know: a binding is {channel_type,
+// channel_sender_id, is_active}, a conversation entry carries channel_type, and
+// the history route pages by page/per_page and filters by channel_type.
+export const channelBindingForUi = (b) => (b && typeof b === 'object' ? {
+  ...b,
+  channel: b.channel_type,
+  sender_id: b.channel_sender_id,
+  status: b.is_active === false ? 'inactive' : 'active',
+} : b);
+
+export const channelEntryForUi = (e) => (e && typeof e === 'object' ? {
+  ...e,
+  channel: e.channel_type,
+} : e);
+
+// {limit, offset, channel} (what the screens send) -> {per_page, page, channel_type}
+export const channelHistoryParams = (params = {}) => {
+  const { limit, offset, channel, ...rest } = params;
+  const out = { ...rest };
+  const perPage = limit > 0 ? limit : undefined;
+  if (perPage) out.per_page = perPage;
+  if (perPage && offset > 0) out.page = Math.floor(offset / perPage) + 1;
+  if (channel) out.channel_type = channel;
+  return out;
+};
+
+const _mapData = (promise, fn) => promise.then((res) => (
+  res && res.success && Array.isArray(res.data) ? { ...res, data: res.data.map(fn) } : res));
+
 // --- Channels (enhanced with messaging + notification routing from Nunba-HART) ---
 export const channelsApi = {
   catalog: () => get('/channels/catalog'),
-  bindings: () => get('/channels/bindings'),
+  bindings: () => _mapData(get('/channels/bindings'), channelBindingForUi),
   createBinding: (data) => post('/channels/bindings', data),
   removeBinding: (id) => del(`/channels/bindings/${id}`),
   setPreferred: (id) => patch(`/channels/bindings/${id}/preferred`, {}),
@@ -876,7 +919,10 @@ export const channelsApi = {
   }),
   whatsappSend: (to, text) => post('/channels/whatsapp/send', { to, text }),
   presence: () => get('/channels/presence'),
-  conversationHistory: (params) => get('/channels/conversations', params),
+  oauthStart: (channelType) =>
+    post('/channels/oauth/start', { channel_type: channelType }),
+  conversationHistory: (params) => _mapData(
+    get('/channels/conversations', channelHistoryParams(params)), channelEntryForUi),
   // Send a message through a channel (Nunba-HART ChannelAdapter pattern)
   sendMessage: (data) => post('/channels/send', data),
   // Send a notification through a channel (Nunba-HART ResponseRouter pattern)

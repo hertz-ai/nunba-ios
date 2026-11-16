@@ -1,5 +1,6 @@
 import React, { useEffect, useRef } from 'react';
-import { useNavigation, useIsFocused } from '@react-navigation/native';
+import { InteractionManager } from 'react-native';
+import { useNavigation } from '@react-navigation/native';
 import Feed from '../../components/feed';
 import { onboardingApi } from '../../../../services/socialApi';
 import useNotificationStore from '../../../../notificationStore';
@@ -7,39 +8,47 @@ import useNotificationStore from '../../../../notificationStore';
 const MainScreen = () => {
   const navigation = useNavigation();
   const initNotifications = useNotificationStore((s) => s.init);
-  // Guards user-reported bug: tapping QuickAccessBar tiles (Games / More
-  // / etc.) BEFORE the async onboarding check resolves caused MainScreen
-  // to forcibly navigate('Onboarding') AFTER the user had already left
-  // — they saw a transition flash back to the feed.  Only run the
-  // onboarding navigate while the screen is still focused, and only if
-  // the user hasn't navigated away during the await.
-  const userNavigatedAwayRef = useRef(false);
-  const isFocused = useIsFocused();
 
+  // 2026-06-16 race fix (recurring): the previous guard used a state-
+  // derived ref (`userNavigatedAwayRef` driven by `useIsFocused()`)
+  // that updated ASYNC after a tap moved the user away.  Sequence
+  // that lost the race: t=0 mount → t=50 user taps More → t=80
+  // navigation.navigate('AllFeatures') → t=200 onboarding API
+  // resolves → useEffect for isFocused HAS NOT yet flipped the ref
+  // → guard reads false → navigate('Onboarding') fires → user is
+  // POPPED back to People feed.  React-navigation exposes
+  // `navigation.isFocused()` which queries the live focus state at
+  // call time — race-free.  Also defer the API call past first
+  // interaction so taps win the JS thread.
   useEffect(() => {
-    if (!isFocused) userNavigatedAwayRef.current = true;
-  }, [isFocused]);
-
-  useEffect(() => {
-    let mounted = true;
-    const checkOnboarding = async () => {
-      try {
-        const res = await onboardingApi.getProgress();
-        if (!mounted) return;
-        if (userNavigatedAwayRef.current) return;
-        if (res.data && !res.data.dismissed && !res.data.completed) {
-          navigation.navigate('Onboarding');
+    let cancelled = false;
+    const handle = InteractionManager.runAfterInteractions(() => {
+      if (cancelled) return;
+      (async () => {
+        try {
+          const res = await onboardingApi.getProgress();
+          if (cancelled) return;
+          // Live query — true ONLY if we're STILL on People tab right
+          // now.  If the user tapped away in the meantime, this returns
+          // false and we silently bail.
+          if (!navigation.isFocused()) return;
+          // HARTOS OnboardingService.get_progress: tutorial_dismissed is set
+          // once the tour is closed or finished, completed_at once every
+          // server step is done.
+          if (res.data && !res.data.tutorial_dismissed && !res.data.completed_at) {
+            navigation.navigate('Onboarding');
+          }
+        } catch (e) {
+          // Onboarding check failed — silent
         }
-      } catch (e) {
-        // Onboarding check failed, skip silently
-      }
-    };
-    checkOnboarding();
-
-    // Initialize real-time listener via native WAMP/crossbar bridge
+      })();
+    });
+    // initNotifications is cheap; let it run on mount.
     initNotifications();
-
-    return () => { mounted = false; };
+    return () => {
+      cancelled = true;
+      try { handle?.cancel?.(); } catch (_) {}
+    };
   }, []);
 
   return (

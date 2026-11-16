@@ -39,8 +39,31 @@ const getExtension = (mediaType, url) => {
 let cacheIndex = {};
 let initialized = false;
 
+// In-flight download dedup: cache-key → Promise.
+// Without this, two concurrent download() calls for the same URL both
+// write to the same targetPath and race — when navigation interrupts a
+// feed-row mid-download and the row re-mounts, the corrupt half-written
+// file gets registered as "cached" and every future mount of the URL
+// hands a broken file:// to MediaPlayer.
+const inFlight = new Map();
+
+// Minimum size we will register as a valid cache entry.  Anything smaller
+// is treated as a partial / failed download and discarded.  Videos under
+// 4 KB are not videos.
+const MIN_VALID_BYTES = 4096;
+
 const MediaCacheManager = {
-  // Initialize cache directory and load index
+  // Initialize cache directory and load index.
+  //
+  // Self-heal: the previous build wrote download bytes directly to the
+  // final target path with no atomic-rename, so a navigation that
+  // interrupted a mid-flight RNFetchBlob fetch could leave a
+  // half-written file registered in the index with size > 0.  Every
+  // subsequent mount of that URL then handed a corrupt file:// to
+  // MediaPlayer, fired onError, and hid the post forever.  On init we
+  // verify each entry's on-disk file is still present and at least
+  // MIN_VALID_BYTES; orphaned / partial entries get dropped so the next
+  // mount can re-download cleanly.
   init: async () => {
     if (initialized) return;
     try {
@@ -50,9 +73,13 @@ const MediaCacheManager = {
       }
       const indexStr = await AsyncStorage.getItem(CACHE_INDEX_KEY);
       if (indexStr) {
-        cacheIndex = JSON.parse(indexStr);
-        // Prune expired entries on load
+        try {
+          cacheIndex = JSON.parse(indexStr) || {};
+        } catch (_) {
+          cacheIndex = {};
+        }
         await MediaCacheManager._pruneExpired();
+        await MediaCacheManager._pruneInvalid();
       }
       initialized = true;
     } catch (e) {
@@ -86,47 +113,85 @@ const MediaCacheManager = {
     return entry.path;
   },
 
-  // Download and cache a file from URL
-  download: async (mediaType, params, url, {onProgress} = {}) => {
+  // Download and cache a file from URL.
+  //
+  // Two correctness properties matter here:
+  //
+  //   1. Concurrent calls for the same (mediaType, params) share ONE
+  //      download.  Without this, FlatList row recycle + tap-during-load
+  //      navigation triggers a second download to the same targetPath
+  //      while the first is still writing, the two race, and the cache
+  //      ends up indexing a half-written file (#386 follow-up).
+  //
+  //   2. We write to a `.tmp` path and only rename to the final path
+  //      after a size sanity check.  Aborted / partial downloads never
+  //      become indexed cache entries.
+  download: async (mediaType, params, url, {onProgress, headers} = {}) => {
     if (!initialized) await MediaCacheManager.init();
 
     const key = generateCacheKey(mediaType, params);
+
+    const existing = inFlight.get(key);
+    if (existing) return existing;
+
     const ext = getExtension(mediaType, url);
     const targetPath = `${CACHE_DIR}/${key}${ext}`;
+    const tmpPath = `${targetPath}.tmp`;
 
-    try {
-      const res = await RNFetchBlob.config({path: targetPath})
-        .fetch('GET', url, {})
-        .progress((received, total) => {
-          if (onProgress && total > 0) {
-            onProgress(received / total);
-          }
-        });
-
-      const stat = await RNFetchBlob.fs.stat(res.path());
-
-      cacheIndex[key] = {
-        path: res.path(),
-        mediaType,
-        params,
-        size: parseInt(stat.size, 10),
-        createdAt: Date.now(),
-        lastAccessed: Date.now(),
-      };
-
-      await MediaCacheManager._persistIndex();
-
-      // Check if eviction needed
-      await MediaCacheManager._maybeEvict();
-
-      return res.path();
-    } catch (error) {
-      // Clean up partial download
+    const job = (async () => {
       try {
-        await RNFetchBlob.fs.unlink(targetPath);
-      } catch (_) {}
-      throw error;
-    }
+        // Clean any leftover tmp from a previous interrupted run.
+        try { await RNFetchBlob.fs.unlink(tmpPath); } catch (_) {}
+
+        const res = await RNFetchBlob.config({path: tmpPath})
+          .fetch('GET', url, headers || {})
+          .progress((received, total) => {
+            if (onProgress && total > 0) {
+              onProgress(received / total);
+            }
+          });
+
+        const stat = await RNFetchBlob.fs.stat(res.path());
+        const size = parseInt(stat.size, 10);
+        if (!size || size < MIN_VALID_BYTES) {
+          try { await RNFetchBlob.fs.unlink(tmpPath); } catch (_) {}
+          throw new Error(`partial-download:${size || 0}`);
+        }
+
+        // Atomic-ish swap: remove any prior final file, then rename tmp.
+        try { await RNFetchBlob.fs.unlink(targetPath); } catch (_) {}
+        try {
+          await RNFetchBlob.fs.mv(tmpPath, targetPath);
+        } catch (_) {
+          // mv unavailable on this platform — fall back to read+write.
+          const data = await RNFetchBlob.fs.readFile(tmpPath, 'base64');
+          await RNFetchBlob.fs.writeFile(targetPath, data, 'base64');
+          try { await RNFetchBlob.fs.unlink(tmpPath); } catch (__) {}
+        }
+
+        cacheIndex[key] = {
+          path: targetPath,
+          mediaType,
+          params,
+          size,
+          createdAt: Date.now(),
+          lastAccessed: Date.now(),
+        };
+
+        await MediaCacheManager._persistIndex();
+        await MediaCacheManager._maybeEvict();
+
+        return targetPath;
+      } catch (error) {
+        try { await RNFetchBlob.fs.unlink(tmpPath); } catch (_) {}
+        throw error;
+      } finally {
+        inFlight.delete(key);
+      }
+    })();
+
+    inFlight.set(key, job);
+    return job;
   },
 
   // Store base64-encoded data to cache
@@ -271,6 +336,30 @@ const MediaCacheManager = {
     try {
       await AsyncStorage.setItem(CACHE_INDEX_KEY, JSON.stringify(cacheIndex));
     } catch (_) {}
+  },
+
+  // Internal: drop entries whose on-disk file is missing or too small.
+  // Recovers users stuck on partial-file index entries written by the
+  // previous build's racy download path.
+  _pruneInvalid: async () => {
+    let changed = false;
+    for (const key of Object.keys(cacheIndex)) {
+      const entry = cacheIndex[key];
+      let valid = false;
+      try {
+        const stat = await RNFetchBlob.fs.stat(entry.path);
+        const size = parseInt(stat.size, 10);
+        valid = size && size >= MIN_VALID_BYTES;
+      } catch (_) {
+        valid = false;
+      }
+      if (!valid) {
+        try { await RNFetchBlob.fs.unlink(entry.path); } catch (_) {}
+        delete cacheIndex[key];
+        changed = true;
+      }
+    }
+    if (changed) await MediaCacheManager._persistIndex();
   },
 
   // Internal: prune expired entries

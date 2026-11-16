@@ -1,8 +1,15 @@
 import React, { useState, useCallback, useEffect } from 'react';
 import {
-  View, Text, StyleSheet, FlatList, TouchableOpacity,
-  SafeAreaView, StatusBar, RefreshControl, ActivityIndicator,
+  View,
+  Text,
+  StyleSheet,
+  FlatList,
+  TouchableOpacity,
+  StatusBar,
+  RefreshControl,
+  ActivityIndicator,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import {
   widthPercentageToDP as wp,
   heightPercentageToDP as hp,
@@ -99,6 +106,17 @@ const NotificationsScreen = () => {
       } catch {
         // silent
       }
+    }
+
+    // A notification that names a target takes you to it.  Until now every
+    // row was inert -- tapping only marked it read -- so a notification
+    // could tell you something had happened and give you no way to act on
+    // it.  Measured 2026-09-21 on the game-sound review offer, which
+    // reached the person and then stranded them.  Routing on target_type
+    // is the schema's own mechanism, so every future type gets this for
+    // free rather than growing its own branch here.
+    if (notification.target_type === 'agent' && notification.target_id) {
+      navigation.navigate('AgentDashboard');
     }
   };
 

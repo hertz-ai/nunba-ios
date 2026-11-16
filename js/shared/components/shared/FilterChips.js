@@ -13,9 +13,15 @@ import {
 import { colors, spacing, borderRadius } from '../../theme/colors';
 
 const FilterChips = ({ items = [], value, onChange }) => (
+  // 2026-06-20: explicit style with flexGrow:0 — without it, a
+  // horizontal ScrollView used in a column-flex parent (InboxScreen,
+  // CommunitiesScreen, FriendsScreen) stretched vertically to fill
+  // remaining height, turning each pill into a tall narrow column.
+  // Verified on Xiaomi tablet portrait screenshot.
   <ScrollView
     horizontal
     showsHorizontalScrollIndicator={false}
+    style={styles.scroll}
     contentContainerStyle={styles.row}
   >
     {items.map((item) => {
@@ -52,9 +58,14 @@ const FilterChips = ({ items = [], value, onChange }) => (
 );
 
 const styles = StyleSheet.create({
+  scroll: {
+    flexGrow: 0,
+    flexShrink: 0,
+  },
   row: {
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.sm,
+    alignItems: 'center',
   },
   chip: {
     flexDirection: 'row',

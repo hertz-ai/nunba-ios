@@ -41,6 +41,7 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import {
   widthPercentageToDP as wp,
   heightPercentageToDP as hp,
@@ -75,6 +76,10 @@ const InstitutionSignupScreen = () => {
   const [message, setMessage] = useState(null);
 
   const handleSendOtp = useCallback(async () => {
+    /* istanbul ignore next — defensive: Send OTP button is conditionally
+       rendered only when isPhoneShape(phone) is true (line 287), so this
+       early-return branch is unreachable through the UI.  Kept as a
+       defense-in-depth guard in case the conditional render is removed. */
     if (!isPhoneShape(phone)) {
       setMessage({
         type: 'error',
@@ -195,8 +200,9 @@ const InstitutionSignupScreen = () => {
   }, [agentUsers, email, name, navigation, phone, submitDisabled]);
 
   return (
+    <SafeAreaView style={styles.container}>
     <KeyboardAvoidingView
-      style={styles.container}
+      style={styles.kav}
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       testID="institution-signup-screen"
     >
@@ -408,11 +414,13 @@ const InstitutionSignupScreen = () => {
         </View>
       </ScrollView>
     </KeyboardAvoidingView>
+    </SafeAreaView>
   );
 };
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#000000' },
+  kav: { flex: 1 },
   content: { padding: wp('4%'), paddingBottom: hp('6%') },
   headerRow: {
     flexDirection: 'row',

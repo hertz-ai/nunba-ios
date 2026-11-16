@@ -14,6 +14,7 @@ import OptionButton from '../shared/OptionButton';
 import ProgressDots from '../shared/ProgressDots';
 import FeedbackOverlay from '../shared/FeedbackOverlay';
 import TimerBar from '../shared/TimerBar';
+import {STEP, LEVEL, timedRush as guide} from '../shared/gameGuide';
 
 /**
  * TimedRushTemplate - Speed challenge game template.
@@ -84,7 +85,7 @@ function generateArithmeticQuestion(difficulty, adaptedDifficulty) {
   };
 }
 
-const TimedRushTemplate = ({config, onAnswer, onComplete}) => {
+const TimedRushTemplate = ({config, onAnswer, onComplete, onStep, level = LEVEL.START}) => {
   const content = config?.content || {};
   const timeLimit = content.timeLimit || 60;
   const isArithmetic = content.questionGenerator === 'arithmetic';
@@ -110,13 +111,18 @@ const TimedRushTemplate = ({config, onAnswer, onComplete}) => {
     'default',
     'default',
   ]);
-  const [showHint, setShowHint] = useState(false);
+  // The shell's one ladder (shared/gameGuide): at LEVEL.MIN the hint shows.
+  const showHint = level <= LEVEL.MIN;
   const [streak, setStreak] = useState(0); // positive = correct streak, negative = wrong streak
 
-  // Adaptive difficulty
-  const [adaptedDifficulty, setAdaptedDifficulty] = useState(1.0);
-  const consecutiveWrong = useRef(0);
-  const consecutiveCorrect = useRef(0);
+  // Number range for generated sums, from the shell's level: 0.5 (easiest)
+  // to 2.0 (hardest).  This template's own streak ladder is gone.
+  const adaptedDifficulty = 0.5 + level * 0.5;
+  // What was missed this round, read back when the timer ends.
+  const missedRef = useRef([]);
+  // A miss is corrected aloud ("8 + 7 is 15."); the next question is shown but
+  // not read, so the correction is heard to the end (a new line cuts the old).
+  const justMissedRef = useRef(false);
   const questionStartTime = useRef(Date.now());
   const staticIndex = useRef(0);
   const mountedRef = useRef(true);
@@ -194,6 +200,19 @@ const TimedRushTemplate = ({config, onAnswer, onComplete}) => {
       }
       setOptionStates(newStates);
 
+      if (onStep) {
+        const itemId = currentQuestion.concept || currentQuestion.question;
+        onStep(isCorrect
+          ? {kind: STEP.RIGHT, itemId, concept: currentQuestion.concept, say: guide.right(currentQuestion)}
+          : {kind: STEP.WRONG, itemId, chosen: currentQuestion.options[selectedIndex],
+             wanted: currentQuestion.options[currentQuestion.correctIndex],
+             say: guide.explainMiss(selectedIndex, currentQuestion)});
+      }
+      if (!isCorrect) {
+        missedRef.current.push(currentQuestion);
+        justMissedRef.current = true;
+      }
+
       // Report answer
       if (onAnswer) {
         onAnswer(isCorrect, currentQuestion.concept, responseTimeMs);
@@ -204,25 +223,10 @@ const TimedRushTemplate = ({config, onAnswer, onComplete}) => {
       if (isCorrect) {
         setScore(prev => prev + 1);
         setCorrectCount(prev => prev + 1);
-        consecutiveCorrect.current += 1;
-        consecutiveWrong.current = 0;
         setStreak(prev => (prev >= 0 ? prev + 1 : 1));
         animateScore();
       } else {
-        consecutiveWrong.current += 1;
-        consecutiveCorrect.current = 0;
         setStreak(prev => (prev <= 0 ? prev - 1 : -1));
-      }
-
-      // Adapt difficulty
-      if (consecutiveWrong.current >= 3) {
-        setAdaptedDifficulty(prev => Math.max(0.5, prev - 0.2));
-        setShowHint(true);
-      } else if (consecutiveCorrect.current >= 3 && responseTimeMs < 3000) {
-        setAdaptedDifficulty(prev => Math.min(2.0, prev + 0.15));
-        setShowHint(false);
-      } else {
-        setShowHint(false);
       }
 
       // Quick transition to next question
@@ -235,13 +239,26 @@ const TimedRushTemplate = ({config, onAnswer, onComplete}) => {
         animateQuestionIn();
       }, 350);
     },
-    [currentQuestion, gameOver, onAnswer, getNextQuestion, animateQuestionIn, animateScore],
+    [currentQuestion, gameOver, onAnswer, getNextQuestion, animateQuestionIn, animateScore, onStep],
   );
+
+  // Each question read on entry, as every guided game does.
+  useEffect(() => {
+    if (!currentQuestion || !onStep || gameOver) return;
+    const itemId = currentQuestion.concept || currentQuestion.question;
+    onStep(justMissedRef.current
+      ? {kind: STEP.ASKED, itemId}
+      : {kind: STEP.ASKED, itemId, say: guide.ask(currentQuestion)});
+    justMissedRef.current = false;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentQuestion]);
 
   // Timer finished
   const handleTimeUp = useCallback(() => {
     setGameOver(true);
-  }, []);
+    // The teaching moment for a sprint: the misses, read back.
+    if (onStep) onStep({kind: STEP.ASKED, itemId: 'rush:review', say: guide.review(missedRef.current)});
+  }, [onStep]);
 
   // Final complete
   const handleFinish = useCallback(() => {
@@ -401,14 +418,14 @@ const TimedRushTemplate = ({config, onAnswer, onComplete}) => {
             : 'Normal'}
         </Text>
         <View style={styles.difficultyDots}>
-          {[0.5, 0.8, 1.0, 1.3, 1.6].map((level, i) => (
+          {[0.5, 0.8, 1.0, 1.3, 1.6].map((mark, i) => (
             <View
               key={i}
               style={[
                 styles.difficultyDot,
                 {
                   backgroundColor:
-                    adaptedDifficulty >= level
+                    adaptedDifficulty >= mark
                       ? kidsColors.accent
                       : kidsColors.border,
                 },

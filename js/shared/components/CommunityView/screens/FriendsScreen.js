@@ -19,10 +19,17 @@
  */
 import React, { useState, useCallback, useEffect } from 'react';
 import {
-  View, Text, StyleSheet, FlatList, TouchableOpacity,
-  SafeAreaView, StatusBar, RefreshControl, ActivityIndicator,
+  View,
+  Text,
+  StyleSheet,
+  FlatList,
+  TouchableOpacity,
+  StatusBar,
+  RefreshControl,
+  ActivityIndicator,
   Alert,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import {
   widthPercentageToDP as wp,
   heightPercentageToDP as hp,
@@ -30,7 +37,7 @@ import {
 import * as Animatable from 'react-native-animatable';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useRoute } from '@react-navigation/native';
 import { friendsApi, conversationsApi } from '../../../services/socialApi';
 import EmptyState from '../../shared/EmptyState';
 import { emptyStatePreset } from '../../shared/emptyStatePresets';
@@ -57,7 +64,15 @@ const TABS = [
 
 const FriendsScreen = () => {
   const navigation = useNavigation();
-  const [activeTab, setActiveTab] = useState('friends');
+  const route = useRoute();
+  // inbox-compose-fab gap: when launched from InboxScreen's compose FAB
+  // with `pickMode: 'dm'`, the Friends tab becomes a peer-picker that
+  // starts (or reuses) a DM conversation on tap.  conversationsApi.create
+  // is idempotent on (kind, sorted member_ids) so re-tapping reopens the
+  // existing thread.
+  const pickMode = route && route.params && route.params.pickMode;
+  const isDmPicker = pickMode === 'dm';
+  const [activeTab, setActiveTab] = useState(isDmPicker ? 'friends' : 'friends');
   const [friends, setFriends] = useState([]);
   const [pending, setPending] = useState([]);
   const [blocked, setBlocked] = useState([]);
@@ -180,18 +195,33 @@ const FriendsScreen = () => {
     });
 
   const handleMessage = (userId, name, avatarUrl) => {
-    // Conversation auto-dedups on (kind='dm', sorted member_hash)
-    // so re-tapping just opens the existing thread. There is no
-    // ConversationDetail route: create the DM, then open DirectChat.
+    // Conversation auto-dedups server-side on (kind='dm', sorted
+    // member_hash) so re-tapping just opens the existing thread.
+    // Create-then-navigate to DirectChat with the resolved conversation_id
+    // (ConversationHistory is the external-channel log and ignores it).
+    // When this screen was
+    // launched as a DM peer-picker (pickMode === 'dm'), use replace() so
+    // back-press returns the user to Inbox instead of the picker.
     withBusy(userId, async () => {
-      const res = await conversationsApi
-        .create({ kind: 'dm', member_ids: [userId] })
-        .catch((e) => ({ success: false, error: e.message }));
-      const convId = res?.data?.id || res?.data?.conversation_id;
-      if (res?.success && convId) {
-        navigation.navigate('DirectChat', { conversation_id: convId, name, avatar_url: avatarUrl });
-      } else {
-        Alert.alert("Couldn't start chat", res?.error || 'Please try again.');
+      try {
+        const res = await conversationsApi.create({
+          kind: 'dm',
+          member_ids: [userId],
+        });
+        const data = (res && res.data) || res || {};
+        const convId = data.id || data.conversation_id;
+        if (!convId) {
+          Alert.alert('Could not start chat', 'No conversation id returned.');
+          return;
+        }
+        const chat = { conversation_id: convId, name, avatar_url: avatarUrl };
+        if (isDmPicker) {
+          navigation.replace('DirectChat', chat);
+        } else {
+          navigation.navigate('DirectChat', chat);
+        }
+      } catch (e) {
+        Alert.alert('Could not start chat', e?.message || 'Try again later.');
       }
     });
   };
@@ -217,10 +247,10 @@ const FriendsScreen = () => {
         <View style={styles.card}>
           <View style={styles.row}>
             {renderAvatar(initialsFor(name))}
-            <View style={{ flex: 1, marginLeft: 12 }}>
-              <Text style={styles.name}>{name}</Text>
+            <View style={{ flex: 1, marginLeft: 12, minWidth: 0 }}>
+              <Text style={styles.name} numberOfLines={1}>{name}</Text>
               {other.username ? (
-                <Text style={styles.handle}>@{other.username}</Text>
+                <Text style={styles.handle} numberOfLines={1}>@{other.username}</Text>
               ) : null}
             </View>
           </View>
@@ -229,6 +259,7 @@ const FriendsScreen = () => {
               style={styles.primaryBtn}
               onPress={() => handleMessage(other.id, name, other.avatar_url)}
               disabled={busyId === other.id}
+              accessibilityLabel={`Message ${name}`}
             >
               <Ionicons name="chatbubble-outline" size={16} color="#000000" />
               <Text style={styles.primaryBtnText}>Message</Text>
@@ -244,6 +275,7 @@ const FriendsScreen = () => {
               style={styles.iconGhost}
               onPress={() => handleBlock(other.id, name)}
               disabled={busyId === other.id}
+              accessibilityLabel={`Block ${name}`}
             >
               <MaterialCommunityIcons name="block-helper" size={18} color="#888" />
             </TouchableOpacity>
@@ -262,9 +294,9 @@ const FriendsScreen = () => {
         <View style={styles.card}>
           <View style={styles.row}>
             {renderAvatar(initialsFor(name))}
-            <View style={{ flex: 1, marginLeft: 12 }}>
-              <Text style={styles.name}>{name}</Text>
-              <Text style={styles.handle}>
+            <View style={{ flex: 1, marginLeft: 12, minWidth: 0 }}>
+              <Text style={styles.name} numberOfLines={1}>{name}</Text>
+              <Text style={styles.handle} numberOfLines={1}>
                 {isIncoming ? 'wants to be friends' : 'request sent'}
               </Text>
             </View>
@@ -311,10 +343,10 @@ const FriendsScreen = () => {
         <View style={styles.card}>
           <View style={styles.row}>
             {renderAvatar(initialsFor(name))}
-            <View style={{ flex: 1, marginLeft: 12 }}>
-              <Text style={styles.name}>{name}</Text>
+            <View style={{ flex: 1, marginLeft: 12, minWidth: 0 }}>
+              <Text style={styles.name} numberOfLines={1}>{name}</Text>
               {blockedUser.username ? (
-                <Text style={styles.handle}>@{blockedUser.username}</Text>
+                <Text style={styles.handle} numberOfLines={1}>@{blockedUser.username}</Text>
               ) : null}
               {item.reason ? (
                 <Text style={styles.reason} numberOfLines={1}>
@@ -371,7 +403,7 @@ const FriendsScreen = () => {
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
           <Ionicons name="arrow-back" size={24} color="#FFF" />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Friends</Text>
+        <Text style={styles.headerTitle}>{isDmPicker ? 'New message' : 'Friends'}</Text>
         <View style={styles.headerSpacer} />
       </View>
 
@@ -407,24 +439,24 @@ const FriendsScreen = () => {
         <View style={styles.centerContainer}>
           <ActivityIndicator size="large" color="#6C63FF" />
         </View>
+      ) : dataForTab.length === 0 ? (
+        // #418-followup: FlatList ListEmptyComponent eats CTA tap.
+        // Render as sibling.
+        <View style={styles.centerContainer}>
+          <EmptyState
+            {...emptyStatePreset(EMPTY_PRESET_FOR_TAB[activeTab] || 'inbox-empty')}
+            onCta={
+              activeTab === 'friends'
+                ? () => navigation.navigate('Invites')
+                : null
+            }
+          />
+        </View>
       ) : (
         <FlatList
           data={dataForTab}
           keyExtractor={(item) => String(item.id || (item.blocked_user || {}).id)}
           renderItem={renderForTab}
-          // UX-AUDIT 2026-05-19 P7 wire: empty state via curated preset.
-          // Replaces inline `<MaterialCommunityIcons + Text>` with the
-          // single source of truth (3 preset keys for 3 tabs).
-          ListEmptyComponent={
-            <EmptyState
-              {...emptyStatePreset(EMPTY_PRESET_FOR_TAB[activeTab] || 'inbox-empty')}
-              onCta={
-                activeTab === 'friends'
-                  ? () => navigation.navigate('Invites')
-                  : null
-              }
-            />
-          }
           // UX-AUDIT 2026-05-19 P10 wire: virtualization (fixed row
           // height = FRIEND_ROW_HEIGHT) → 60fps scroll on 100+ friends.
           {...flatListVirtualizationProps(FRIEND_ROW_HEIGHT)}

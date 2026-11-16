@@ -20,10 +20,10 @@
  * existing Java surface.
  */
 
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useCallback, useEffect, useRef } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput,
-  SafeAreaView, StatusBar, FlatList, Image, ActivityIndicator,
+  SafeAreaView, StatusBar, FlatList, Image, ActivityIndicator, RefreshControl,
 } from 'react-native';
 import {
   widthPercentageToDP as wp,
@@ -155,6 +155,25 @@ const AgentsHubScreen = () => {
 
   useEffect(() => { loadCustomBots(); }, [loadCustomBots]);
 
+  // #463 (2026-06-22): pull-to-refresh on the AgentsHub outer
+  // ScrollView re-pulls the customBots list.  Browse Goals + builtins
+  // are static catalog data, so refresh only re-fires loadCustomBots.
+  const [refreshing, setRefreshing] = useState(false);
+  const refreshTimerRef = useRef(null);
+  const handleRefresh = useCallback(() => {
+    if (refreshing) return;
+    setRefreshing(true);
+    loadCustomBots();
+    if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current);
+    refreshTimerRef.current = setTimeout(() => {
+      setRefreshing(false);
+      refreshTimerRef.current = null;
+    }, 1500);
+  }, [refreshing, loadCustomBots]);
+  useEffect(() => () => {
+    if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current);
+  }, []);
+
   const openBuiltin = (agent) => {
     navigation.navigate('CustomBotChat', {
       botId: agent.id,
@@ -190,7 +209,11 @@ const AgentsHubScreen = () => {
     <SafeAreaView style={styles.container}>
       <StatusBar barStyle="light-content" backgroundColor={BG} />
 
-      <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+      <ScrollView
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />}
+      >
         {/* Search */}
         <View style={styles.searchWrap}>
           <Ionicons name="search" size={18} color={BLUE} style={{ marginRight: 8 }} />
