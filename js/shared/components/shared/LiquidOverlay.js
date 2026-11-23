@@ -52,6 +52,7 @@ import {
   GRADIENTS,
   getAgentPalette,
 } from '../../theme/colors';
+import { playAgentGameSound } from '../CommunityView/components/KidsLearning/shared/agentGameSound';
 
 // Attempt to import SocialLiquidUI -- it may not exist yet.
 let SocialLiquidUI = null;
@@ -346,6 +347,18 @@ const LiquidOverlay = () => {
         assistantMsg.isDraft = true;
       }
       pushMessage(assistantMsg);
+
+      // 3a-ii. The agent's sound for this turn, if it asked for one.  It
+      // rides the reply's dynamic_data — the map this overlay already
+      // reads — so guidance needs no second channel.
+      if (res?.dynamic_data) {
+        playAgentGameSound(res.dynamic_data, {
+          promptId: agentPromptId,
+          gameId: layoutData?.game_id || layoutData?.brief_id,
+          category: layoutData?.category || layoutData?.theme,
+          mood: layoutData?.mood,
+        });
+      }
 
       // 3b. Agent-driven secret request — open SecureInputOverlay
       if (res?.secret_request) {

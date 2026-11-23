@@ -22,7 +22,8 @@ import VisualHint from '../shared/VisualHint';
 import {getEmojiForText} from '../shared/emojiMap';
 import FeedbackOverlay from '../shared/FeedbackOverlay';
 import usePressAnimation from '../../../../../hooks/usePressAnimation';
-import {GameSounds} from '../shared/SoundManager';
+import {STEP, LEVEL, memoryFlip as guide} from '../shared/gameGuide';
+import holdUntilSpoken from '../shared/holdUntilSpoken';
 import {SPRINGS} from '../shared/gameThemes';
 
 const {width: SCREEN_WIDTH} = Dimensions.get('window');
@@ -156,7 +157,7 @@ const MemoryCard = ({card, isFlipped, isMatched, onPress, onPressIn, onPressOut,
   );
 };
 
-const MemoryFlipTemplate = ({config, onAnswer, onComplete}) => {
+const MemoryFlipTemplate = ({config, onAnswer, onComplete, onStep, level = LEVEL.START}) => {
   const {onPressIn, onPressOut, animatedStyle: pressStyle} = usePressAnimation(0.96);
   const pairs = config?.content?.pairs || [];
   const gridColumns = config?.content?.gridColumns || 4;
@@ -168,12 +169,14 @@ const MemoryFlipTemplate = ({config, onAnswer, onComplete}) => {
       deck.push({
         id: `${pair.id}-front`,
         pairId: pair.id,
+        side: 'front',
         displayText: pair.front,
         concept: pair.concept,
       });
       deck.push({
         id: `${pair.id}-match`,
         pairId: pair.id,
+        side: 'match',
         displayText: pair.match,
         concept: pair.concept,
       });
@@ -188,9 +191,17 @@ const MemoryFlipTemplate = ({config, onAnswer, onComplete}) => {
 
   const [deck, setDeck] = useState([]);
   const [flippedIds, setFlippedIds] = useState([]);
-  const [matchedPairIds, setMatchedPairIds] = useState(new Set());
+  // Matched CARDS, not matched pairs. Several decks print the same answer on
+  // more than one card -- three cards read "12" in the addition deck (6+6, 7+5
+  // and 8+4) and two read "11" -- so the card a child turns over need not be
+  // the one built from the same pair, and retiring "the pair" retired a card
+  // still face-down on the board.
+  const [matchedCardIds, setMatchedCardIds] = useState(new Set());
   const [attempts, setAttempts] = useState(0);
-  const [consecutiveWrong, setConsecutiveWrong] = useState(0);
+  // The shell's one ladder (shared/gameGuide): at LEVEL.MIN every miss
+  // flashes a pair.  This template's own three-misses count is gone.
+  const struggling = level <= LEVEL.MIN;
+  const [misses, setMisses] = useState(0);
   const [showHint, setShowHint] = useState(false);
   const [hintPairId, setHintPairId] = useState(null);
   const [isChecking, setIsChecking] = useState(false);
@@ -213,24 +224,54 @@ const MemoryFlipTemplate = ({config, onAnswer, onComplete}) => {
   const headerAnim = useRef(new Animated.Value(1)).current;
 
   useEffect(() => {
-    setDeck(buildDeck());
     Animated.timing(headerAnim, {
       toValue: 1,
       duration: 500,
       useNativeDriver: true,
     }).start();
+    if (onStep) onStep({kind: STEP.ASKED, itemId: 'memory:start', say: guide.ask()});
     return () => {
       mountedRef.current = false;
     };
   }, []);
 
-  // Adaptive: show hint when struggling
+  // Deal the deck when the pairs arrive, not only on the first render.
+  //
+  // This used to sit in the mount-only effect above, so a template rendered
+  // before its content landed dealt from an empty pair list and never dealt
+  // again: the board stayed permanently empty, with no card to turn over,
+  // while the header still counted "0 / 8". Same stale-derived-state defect
+  // already fixed in FillBlank, SpotDifference and StoryBuilder.
+  //
+  // Keyed on the pairs from config, NOT on the `|| []` fallback above — that
+  // allocates a fresh array every render, which would re-deal the board on
+  // every render and wipe a game in progress.
+  //
+  // The unmount cleanup stays in the effect above on purpose: moving it here
+  // would set mountedRef false on every content change and silence the
+  // component for the rest of its life.
+  const pairsFromConfig = config?.content?.pairs;
   useEffect(() => {
-    if (consecutiveWrong >= 3 && !showHint) {
+    setDeck(buildDeck());
+    // buildDeck is intentionally omitted: it is rebuilt on every render
+    // because `pairs` is a fresh array, and depending on it would re-deal
+    // continuously.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pairsFromConfig]);
+
+  // Adaptive: after a miss at the lowest level, flash a pair
+  useEffect(() => {
+    if (misses > 0 && struggling && !showHint) {
       setShowHint(true);
       setIsChecking(true); // Block user interaction during hint
       // Briefly flash an unmatched pair
-      const unmatchedPair = pairs.find(p => !matchedPairIds.has(p.id));
+      // Flash a pair whose cards are BOTH still face-down, so the hint never
+      // points at a card already taken by an equal-looking answer.
+      const unmatchedPair = pairs.find(
+        (p) =>
+          !matchedCardIds.has(`${p.id}-front`) &&
+          !matchedCardIds.has(`${p.id}-match`),
+      );
       if (unmatchedPair) {
         setHintPairId(unmatchedPair.id);
         // Show hint cards for 1.5 seconds
@@ -248,7 +289,7 @@ const MemoryFlipTemplate = ({config, onAnswer, onComplete}) => {
         return () => clearTimeout(timeout);
       }
     }
-  }, [consecutiveWrong]);
+  }, [misses]);
 
   // Check for match when 2 cards are flipped
   useEffect(() => {
@@ -258,26 +299,42 @@ const MemoryFlipTemplate = ({config, onAnswer, onComplete}) => {
       const firstCard = deck.find(c => c.id === firstId);
       const secondCard = deck.find(c => c.id === secondId);
 
+      // A turn is a match when the two faces GO TOGETHER, not when they came
+      // from the same index. "6 + 6" and any card reading "12" is a match;
+      // requiring the same pairId called two thirds of the correct answers
+      // wrong on a deck where three cards read "12".
+      const sides = [firstCard, secondCard];
+      const frontCard = sides.find((c) => c && c.side === 'front');
+      const matchCard = sides.find((c) => c && c.side === 'match');
       const isMatch =
-        firstCard &&
-        secondCard &&
-        firstCard.pairId === secondCard.pairId &&
-        firstCard.id !== secondCard.id;
+        Boolean(frontCard && matchCard) &&
+        firstCard.id !== secondCard.id &&
+        pairs.some(
+          (p) =>
+            String(p.front) === String(frontCard.displayText) &&
+            String(p.match) === String(matchCard.displayText),
+        );
 
       const responseTimeMs = Date.now() - flipStartTime.current;
 
       setAttempts(prev => prev + 1);
 
       if (isMatch) {
-        // Match found
-        GameSounds.matchFound();
-        setConsecutiveWrong(0);
-        const newMatched = new Set(matchedPairIds);
-        newMatched.add(firstCard.pairId);
-        setMatchedPairIds(newMatched);
+        // Match found: both cards named together, with the match sound
+        let spoken;
+        if (onStep) {
+          spoken = onStep({kind: STEP.RIGHT, itemId: frontCard.pairId, concept: frontCard.concept, cue: 'matchFound',
+            say: guide.right(frontCard.displayText, matchCard.displayText)});
+        }
+        const newMatched = new Set(matchedCardIds);
+        newMatched.add(firstCard.id);
+        newMatched.add(secondCard.id);
+        setMatchedCardIds(newMatched);
 
+        // Guided, the board and the voice are the feedback; the overlay
+        // covered the cards on every turn.  Unguided keeps it.
         setFeedbackCorrect(true);
-        setFeedbackVisible(true);
+        if (!onStep) setFeedbackVisible(true);
 
         // Animate character on match
         setCharState('celebrate');
@@ -292,20 +349,26 @@ const MemoryFlipTemplate = ({config, onAnswer, onComplete}) => {
           setFlippedIds([]);
           setIsChecking(false);
 
-          // Check if all pairs matched
-          if (newMatched.size === pairs.length && !completedRef.current) {
+          // Every card turned over - two per pair.  Guided, the game ends once
+          // the last pair has been named, not 1.1s in.
+          if (newMatched.size >= pairs.length * 2 && !completedRef.current) {
             completedRef.current = true;
-            setTimeout(() => {
-              if (mountedRef.current) onComplete();
-            }, 500);
+            const finish = () => { if (mountedRef.current) onComplete(); };
+            if (onStep) holdUntilSpoken(spoken, finish, () => mountedRef.current);
+            else setTimeout(finish, 500);
           }
         }, 600);
       } else {
         // No match - flip back after delay
-        setConsecutiveWrong(prev => prev + 1);
+        let spoken;
+        if (onStep && firstCard && secondCard) {
+          spoken = onStep({kind: STEP.WRONG, itemId: firstCard.pairId, chosen: secondCard.displayText,
+            say: guide.explainMiss(firstCard.displayText, secondCard.displayText)});
+        }
+        setMisses(prev => prev + 1);
 
         setFeedbackCorrect(false);
-        setFeedbackVisible(true);
+        if (!onStep) setFeedbackVisible(true);
 
         // Animate character on miss and lose a life
         setCharState('encourage');
@@ -318,11 +381,15 @@ const MemoryFlipTemplate = ({config, onAnswer, onComplete}) => {
           onAnswer(false, firstCard.concept, responseTimeMs);
         }
 
-        setTimeout(() => {
+        // Guided, both cards stay face up while the voice says why they do
+        // not go together; they flipped back 1s in, mid-sentence.
+        const flipBack = () => {
           if (!mountedRef.current) return;
           setFlippedIds([]);
           setIsChecking(false);
-        }, 1000);
+        };
+        if (onStep) holdUntilSpoken(spoken, flipBack, () => mountedRef.current);
+        else setTimeout(flipBack, 1000);
       }
     }
   }, [flippedIds]);
@@ -332,9 +399,15 @@ const MemoryFlipTemplate = ({config, onAnswer, onComplete}) => {
       if (isChecking) return;
       if (flippedIds.length >= 2) return;
       if (flippedIds.includes(cardId)) return;
-      if (matchedPairIds.has(deck.find(c => c.id === cardId)?.pairId)) return;
+      if (matchedCardIds.has(cardId)) return;
 
-      GameSounds.cardFlip();
+      // The first card is read aloud; the second waits for the turn's line.
+      const card = deck.find(c => c.id === cardId);
+      if (onStep) {
+        onStep(flippedIds.length === 0 && card
+          ? {kind: STEP.TOUCH, itemId: cardId, cue: 'cardFlip', say: guide.card(card.displayText)}
+          : {kind: STEP.TOUCH, itemId: cardId, cue: 'cardFlip'});
+      }
 
       if (flippedIds.length === 0) {
         flipStartTime.current = Date.now();
@@ -342,7 +415,7 @@ const MemoryFlipTemplate = ({config, onAnswer, onComplete}) => {
 
       setFlippedIds(prev => [...prev, cardId]);
     },
-    [isChecking, flippedIds, matchedPairIds, deck],
+    [isChecking, flippedIds, matchedCardIds, deck, onStep],
   );
 
   const handleFeedbackDismiss = useCallback(() => {
@@ -371,8 +444,8 @@ const MemoryFlipTemplate = ({config, onAnswer, onComplete}) => {
       {/* Game lives bar */}
       <GameLivesBar
         lives={lives}
-        score={matchedPairIds.size}
-        currentLevel={matchedPairIds.size + 1}
+        score={matchedCardIds.size / 2}
+        currentLevel={matchedCardIds.size / 2 + 1}
         totalLevels={pairs.length}
         streak={0}
       />
@@ -385,7 +458,7 @@ const MemoryFlipTemplate = ({config, onAnswer, onComplete}) => {
       {/* Visual hint for first-time players */}
       <VisualHint
         type="flip"
-        visible={showVisualHint && matchedPairIds.size === 0}
+        visible={showVisualHint && matchedCardIds.size === 0}
         onDismiss={() => setShowVisualHint(false)}
       />
 
@@ -394,7 +467,7 @@ const MemoryFlipTemplate = ({config, onAnswer, onComplete}) => {
         <View style={styles.statItem}>
           <Text style={{fontSize: 20}}>{'\u{1F9E9}'}</Text>
           <Text style={styles.statText}>
-            {matchedPairIds.size}/{pairs.length}
+            {matchedCardIds.size / 2}/{pairs.length}
           </Text>
         </View>
         <View style={styles.statItem}>
@@ -404,7 +477,7 @@ const MemoryFlipTemplate = ({config, onAnswer, onComplete}) => {
       </View>
 
       {/* Adaptive hint indicator */}
-      {consecutiveWrong >= 3 && (
+      {struggling && misses > 0 && (
         <View style={styles.hintBanner}>
           <Icon
             name="lightbulb-on-outline"
@@ -431,8 +504,8 @@ const MemoryFlipTemplate = ({config, onAnswer, onComplete}) => {
           ]}>
           {deck.map((card, index) => {
             const isFlipped =
-              flippedIds.includes(card.id) || matchedPairIds.has(card.pairId);
-            const isMatched = matchedPairIds.has(card.pairId);
+              flippedIds.includes(card.id) || matchedCardIds.has(card.id);
+            const isMatched = matchedCardIds.has(card.id);
             const isHinted = hintPairId === card.pairId;
 
             return (

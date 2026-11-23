@@ -100,6 +100,9 @@ const StoryWeaverTemplate = ({config, onComplete, onAnswer}) => {
       }
     } else {
       // Reset if voice drops
+      /* istanbul ignore next — effect cleanup (line 112-117) always runs
+         BEFORE this else branch on deps change, so holdTimerRef.current is
+         always null here. Defensive guard only. */
       if (holdTimerRef.current) {
         clearInterval(holdTimerRef.current);
         holdTimerRef.current = null;

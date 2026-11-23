@@ -1,9 +1,20 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
-  View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput,
-  SafeAreaView, StatusBar, ActivityIndicator, Alert, KeyboardAvoidingView,
+  View,
+  Text,
+  StyleSheet,
+  ScrollView,
+  TouchableOpacity,
+  TextInput,
+  StatusBar,
+  ActivityIndicator,
+  Alert,
+  KeyboardAvoidingView,
   Platform,
+  Linking,
+  DeviceEventEmitter,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import {
   widthPercentageToDP as wp,
   heightPercentageToDP as hp,
@@ -132,6 +143,8 @@ const ChannelSetupScreen = () => {
   const catalogLoading = useChannelStore((s) => s.catalogLoading);
   const fetchCatalog = useChannelStore((s) => s.fetchCatalog);
   const createBinding = useChannelStore((s) => s.createBinding);
+  const bindings = useChannelStore((s) => s.bindings);
+  const fetchBindings = useChannelStore((s) => s.fetchBindings);
 
   const [step, setStep] = useState(1);
   const [selectedChannel, setSelectedChannel] = useState(null);
@@ -143,7 +156,13 @@ const ChannelSetupScreen = () => {
 
   useEffect(() => {
     fetchCatalog();
-  }, [fetchCatalog]);
+    fetchBindings();
+  }, [fetchCatalog, fetchBindings]);
+
+  // Set of channel_types the user already has an active binding for.
+  const connectedTypes = new Set(
+    (bindings || []).filter((b) => b.is_active).map((b) => b.channel_type),
+  );
 
   const handleSelectChannel = (channelKey, channelDef) => {
     setSelectedChannel({ key: channelKey, ...channelDef });
@@ -208,6 +227,7 @@ const ChannelSetupScreen = () => {
       };
       const res = await createBinding(payload);
       if (res.success) {
+        await fetchBindings();
         Alert.alert('Connected', `${selectedChannel.name || selectedChannel.key} has been connected.`, [
           { text: 'OK', onPress: () => navigation.goBack() },
         ]);
@@ -262,6 +282,7 @@ const ChannelSetupScreen = () => {
               {channels.map((ch) => {
                 const color = getColor(ch.key);
                 const icon = getIcon(ch.key);
+                const isConnected = connectedTypes.has(ch.key);
                 return (
                   <TouchableOpacity
                     key={ch.key}
@@ -275,7 +296,12 @@ const ChannelSetupScreen = () => {
                     <Text style={styles.channelName} numberOfLines={1}>
                       {ch.name || ch.key}
                     </Text>
-                    {ch.description ? (
+                    {isConnected ? (
+                      <View style={styles.connectedRow}>
+                        <Ionicons name="checkmark-circle" size={14} color="#25D366" />
+                        <Text style={styles.connectedLabel}>Connected</Text>
+                      </View>
+                    ) : ch.description ? (
                       <Text style={styles.channelDesc} numberOfLines={2}>
                         {ch.description}
                       </Text>
@@ -549,6 +575,8 @@ const styles = StyleSheet.create({
   },
   channelName: { color: '#FFF', fontSize: wp('3.5%'), fontWeight: '700' },
   channelDesc: { color: '#888', fontSize: wp('2.8%'), marginTop: 4 },
+  connectedRow: { flexDirection: 'row', alignItems: 'center', marginTop: 4 },
+  connectedLabel: { color: '#25D366', fontSize: wp('2.8%'), fontWeight: '600', marginLeft: 4 },
   selectedHeader: { alignItems: 'center', marginBottom: hp('3%') },
   selectedIconBg: {
     width: 64, height: 64, borderRadius: 32,

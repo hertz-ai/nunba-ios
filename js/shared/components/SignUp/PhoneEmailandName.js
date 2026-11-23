@@ -354,7 +354,7 @@ const PhoneEmailandName = ({ navigation }) => {
                   if (!studentName) {
                     alert('Name cannot be blank');
                     return;
-                  } else if (!reg.test(studentEmail)) {
+                  } else if (userDetails && !reg.test(studentEmail)) {
                     alert('Enter valid Email');
                     return;
                   } else if (!userDetails && !studentPhone) {
@@ -485,10 +485,10 @@ const PhoneEmailandName = ({ navigation }) => {
                   if (!studentName) {
                     alert('Name cannot be blank');
                     return;
-                  } else if (!reg.test(studentEmail)) {
+                  } else if (userDetails && !reg.test(studentEmail)) {
                     alert('Enter valid Email');
                     return;
-                  } else if (!studentPhone) {
+                  } else if (!userDetails && !studentPhone) {
                     alert('Enter valid Contact');
                     return;
                   }

@@ -43,7 +43,9 @@ const MediaPreloader = {
             const result = await kidsMediaApi.getCachedMusic(musicParams);
 
             if (result?.url) {
-              await MediaCacheManager.download('music', musicParams, result.url);
+              await MediaCacheManager.download('music', musicParams, result.url, {
+                headers: result.headers,
+              });
             }
           } catch (_) {
             // Silent fail - pre-loading is best-effort
@@ -84,7 +86,9 @@ const MediaPreloader = {
           if (MediaCacheManager.has('music', musicParams)) return;
           const result = await kidsMediaApi.getCachedMusic(musicParams);
           if (result?.url) {
-            await MediaCacheManager.download('music', musicParams, result.url);
+            await MediaCacheManager.download('music', musicParams, result.url, {
+              headers: result.headers,
+            });
           }
         } catch (_) {}
       })(),

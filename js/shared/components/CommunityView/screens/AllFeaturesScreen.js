@@ -1,7 +1,13 @@
 import React from 'react';
 import {
-  View, Text, TouchableOpacity, StyleSheet, SafeAreaView, StatusBar, ScrollView,
+  View,
+  Text,
+  TouchableOpacity,
+  StyleSheet,
+  StatusBar,
+  ScrollView,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 import { useNavigation } from '@react-navigation/native';
 import { CommonActions } from '@react-navigation/native';
@@ -21,6 +27,12 @@ import { colors, borderRadius, spacing, fontSize, fontWeight } from '../../../th
 const ALL_FEATURES = [
   { icon: 'search', iconType: 'ion', label: 'Search', color: '#CCCCCC', screen: 'Search' },
   { icon: 'notifications', iconType: 'ion', label: 'Alerts', color: '#FF6B35', screen: 'Notifications' },
+  // 2026-06-19: Inbox + Friends + Invites were reachable only from
+  // FeedHeader's small NavPills strip on the People feed.  Surfacing
+  // them here so users who land on AllFeatures can find them.
+  { icon: 'inbox-multiple', iconType: 'community', label: 'Inbox', color: '#FD1D1D', screen: 'Inbox' },
+  { icon: 'account-multiple', iconType: 'community', label: 'Friends', color: '#4FC3F7', screen: 'Friends' },
+  { icon: 'email-send-outline', iconType: 'community', label: 'Invites', color: '#FFB74D', screen: 'Invites' },
   // User-requested 2026-06-03: surface ChannelSetup in AllFeatures
   // so all 13+ connected adapters are discoverable.
   { icon: 'link-variant', iconType: 'community', label: 'Channels', color: '#25D366', screen: 'ChannelSetup' },
@@ -59,7 +71,12 @@ const AllFeaturesScreen = () => {
     <SafeAreaView style={styles.container}>
       <StatusBar barStyle="light-content" translucent backgroundColor="transparent" />
       <View style={styles.topBar}>
-        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
+        <TouchableOpacity
+          onPress={() => navigation.goBack()}
+          style={styles.backBtn}
+          accessibilityLabel="Back"
+          accessibilityRole="button"
+        >
           <MaterialIcons name="arrow-back" size={24} color={colors.textPrimary} />
         </TouchableOpacity>
         <Text style={styles.topBarTitle}>All Features</Text>
@@ -73,6 +90,8 @@ const AllFeaturesScreen = () => {
               key={item.screen}
               style={styles.featureCard}
               activeOpacity={0.7}
+              accessibilityLabel={item.label}
+              accessibilityRole="button"
               onPress={() => {
                 navigation.dispatch(
                   CommonActions.navigate({ name: item.screen })

@@ -8,7 +8,8 @@ import GameLivesBar from '../shared/GameLivesBar';
 import KidsCharacter from '../shared/KidsCharacter';
 import VisualHint from '../shared/VisualHint';
 import {getEmojiForText} from '../shared/emojiMap';
-import {GameSounds} from '../shared/SoundManager';
+import {STEP, LEVEL, dragToZone as guide} from '../shared/gameGuide';
+import holdUntilSpoken from '../shared/holdUntilSpoken';
 import {SPRINGS} from '../shared/gameThemes';
 
 /**
@@ -21,11 +22,18 @@ import {SPRINGS} from '../shared/gameThemes';
  *
  * Intelligence features:
  * - Tracks response time per item drag
- * - After 3+ consecutive wrong: highlights the correct zone with a glow
+ * - At the shell's easiest level: the correct zone glows
  * - After fast correct streak: shuffles remaining items for extra challenge
  * - Shows per-item feedback overlay on each drop
  */
-const DragToZoneTemplate = ({config, onAnswer, onComplete}) => {
+// How many answers in a row were right, for the lives bar's streak.
+const trailingRight = (results) => {
+  let n = 0;
+  for (let i = results.length - 1; i >= 0 && results[i]; i--) n++;
+  return n;
+};
+
+const DragToZoneTemplate = ({config, onAnswer, onComplete, onStep, level = LEVEL.START}) => {
   const [items, setItems] = useState([]);
   const [zones, setZones] = useState([]);
   const [placedItems, setPlacedItems] = useState({});
@@ -38,13 +46,20 @@ const DragToZoneTemplate = ({config, onAnswer, onComplete}) => {
   const [feedbackMessage, setFeedbackMessage] = useState('');
 
   // Adaptive difficulty state
-  const [consecutiveWrong, setConsecutiveWrong] = useState(0);
-  const [consecutiveCorrect, setConsecutiveCorrect] = useState(0);
-  const [adaptiveMode, setAdaptiveMode] = useState('normal');
+  // Difficulty is the shell's one ladder (shared/gameGuide): at LEVEL.MIN the
+  // right zone glows.  This template's own ladder is gone.
+  const difficulty = level <= LEVEL.MIN ? 'easy' : level >= LEVEL.MAX ? 'hard' : 'normal';
   const [highlightedZone, setHighlightedZone] = useState(null);
 
   // Visual overhaul state
   const [lives, setLives] = useState(3);
+  // True while a tile is held. The board scrolls (it does not fit a phone),
+  // and a NATIVE Android ScrollView intercepts a vertical drag through
+  // onInterceptTouchEvent - outside the JS responder system, so
+  // onPanResponderTerminationRequest cannot stop it. Measured: the tile
+  // lifted and the BOARD scrolled instead, tray sliding 2056 -> 1528, and
+  // nothing could be dropped. Scrolling is switched off while dragging.
+  const [isDragging, setIsDragging] = useState(false);
   const [charState, setCharState] = useState('idle');
   const [showVisualHint, setShowVisualHint] = useState(true);
 
@@ -54,6 +69,23 @@ const DragToZoneTemplate = ({config, onAnswer, onComplete}) => {
   const startTimeRef = useRef(Date.now());
   const currentItemRef = useRef(null);
   const completedRef = useRef(false);
+  // The placements as they stand RIGHT NOW, for the completion check below.
+  //
+  // Nothing locks this board while the feedback overlay is up: a child can
+  // drop the next item before the last "Correct!" has faded. That second drop
+  // only sets an already-true showFeedback, so FeedbackOverlay - whose dismiss
+  // is armed in an effect keyed on `visible` alone - does not re-arm, and the
+  // one standing timeout calls the handleFeedbackDismiss captured when the
+  // overlay first appeared. That closure holds placedItems from the FIRST
+  // drop. Since that handler is what reports completion, a child who placed
+  // the last item while the previous message was still showing finished the
+  // board and the game never ended.
+  //
+  // Fixed here rather than in FeedbackOverlay: making the overlay call the
+  // latest callback was measured and REVERTED - it cost multiple-choice 0 -> 1
+  // to 5 games failing to complete across three runs, because fourteen other
+  // templates depend on that dismiss running the handler it was armed with.
+  const placedRef = useRef({});
   const mountedRef = useRef(true);
 
   useEffect(() => () => { mountedRef.current = false; }, []);
@@ -74,19 +106,16 @@ const DragToZoneTemplate = ({config, onAnswer, onComplete}) => {
       }).start();
 
       startTimeRef.current = Date.now();
+      if (onStep) {
+        // Each item's "goes in" line is prepared up front, so a drop is named at once.
+        const zones = config.content.zones || [];
+        const zoneLabel = (id) => zones.find((z) => z.id === id)?.label || '';
+        onStep({kind: STEP.ASKED, itemId: `drag:${config.id || 'board'}`,
+                say: guide.ask(zones),
+                prepare: (config.content.items || []).map((it) => guide.right(it.label, zoneLabel(it.zone)))});
+      }
     }
   }, [config]);
-
-  // Update adaptive mode
-  useEffect(() => {
-    if (consecutiveWrong >= 3) {
-      setAdaptiveMode('easy');
-    } else if (consecutiveCorrect >= 4) {
-      setAdaptiveMode('hard');
-    } else {
-      setAdaptiveMode('normal');
-    }
-  }, [consecutiveWrong, consecutiveCorrect]);
 
   // Highlight pulse animation in easy mode
   useEffect(() => {
@@ -108,7 +137,7 @@ const DragToZoneTemplate = ({config, onAnswer, onComplete}) => {
 
   // In easy mode, when a new item is being considered, highlight its correct zone
   const updateHintHighlight = useCallback((itemId) => {
-    if (adaptiveMode === 'easy' && itemId) {
+    if (difficulty === 'easy' && itemId) {
       const item = items.find(i => i.id === itemId);
       if (item) {
         setHighlightedZone(item.zone);
@@ -116,7 +145,7 @@ const DragToZoneTemplate = ({config, onAnswer, onComplete}) => {
     } else {
       setHighlightedZone(null);
     }
-  }, [adaptiveMode, items]);
+  }, [difficulty, items]);
 
   const buildCorrectMapping = useCallback(() => {
     const mapping = {};
@@ -142,22 +171,34 @@ const DragToZoneTemplate = ({config, onAnswer, onComplete}) => {
     } else {
       setFeedbackMessage('');
     }
-    setShowFeedback(true);
+    // Guided, the board stays in view (and playable) while the voice names
+    // the drop; the overlay covered it on every drop and the last one ended
+    // the game when the card closed.  Unguided keeps the overlay.
+    if (!onStep) setShowFeedback(true);
 
-    // Update adaptive tracking + character animation
+    if (onStep) {
+      const zones = config?.content?.zones || [];
+      const zoneLabel = (id) => zones.find((z) => z.id === id)?.label || '';
+      const spoken = onStep(isCorrect
+        ? {kind: STEP.RIGHT, itemId: concept, concept, cue: 'dragDrop',
+           say: guide.right(item?.label, zoneLabel(zoneId))}
+        : {kind: STEP.WRONG, itemId: concept, chosen: zoneLabel(zoneId),
+           wanted: zoneLabel(item?.zone),
+           say: guide.explainMiss(item?.label, zoneLabel(zoneId))});
+      holdUntilSpoken(spoken, () => advanceRef.current(), () => mountedRef.current);
+    }
     if (isCorrect) {
-      GameSounds.dragDrop();
-      setConsecutiveWrong(0);
-      setConsecutiveCorrect(prev => prev + 1);
-      setPlacedItems(prev => ({...prev, [itemId]: zoneId}));
+      setPlacedItems(prev => {
+        const next = {...prev, [itemId]: zoneId};
+        placedRef.current = next;
+        return next;
+      });
       setHighlightedZone(null);
       setCharState('celebrate');
       setTimeout(() => {
         if (mountedRef.current) setCharState('idle');
       }, 1500);
     } else {
-      setConsecutiveCorrect(0);
-      setConsecutiveWrong(prev => prev + 1);
       setCharState('encourage');
       setTimeout(() => {
         if (mountedRef.current) setCharState('idle');
@@ -174,23 +215,27 @@ const DragToZoneTemplate = ({config, onAnswer, onComplete}) => {
 
     // Reset timer for next item
     startTimeRef.current = Date.now();
-  }, [items, onAnswer]);
+  }, [items, onAnswer, onStep, config]);
 
   const handleAllPlaced = useCallback((placements) => {
     // Completion is handled by handleFeedbackDismiss to avoid double-call
   }, []);
 
+  const advanceRef = useRef(null);
   const handleFeedbackDismiss = useCallback(() => {
     setShowFeedback(false);
 
     // Check if all items correctly placed
-    if (Object.keys(placedItems).length >= totalItems && totalItems > 0 && !completedRef.current) {
+    // Read through the ref so the count is what is on the board now, not what
+    // it was when this particular closure was made.
+    if (Object.keys(placedRef.current).length >= totalItems && totalItems > 0 && !completedRef.current) {
       completedRef.current = true;
       setTimeout(() => {
         if (mountedRef.current && onComplete) onComplete();
       }, 300);
     }
   }, [placedItems, totalItems, onComplete]);
+  advanceRef.current = handleFeedbackDismiss;
 
   // Remaining items (not placed correctly yet)
   const remainingItems = items.filter(item => !placedItems[item.id]);
@@ -223,7 +268,7 @@ const DragToZoneTemplate = ({config, onAnswer, onComplete}) => {
         score={correctCount}
         currentLevel={correctCount + 1}
         totalLevels={totalItems}
-        streak={consecutiveCorrect}
+        streak={trailingRight(results)}
       />
 
       {/* Character */}
@@ -235,13 +280,13 @@ const DragToZoneTemplate = ({config, onAnswer, onComplete}) => {
       <VisualHint type="drag" visible={showVisualHint && correctCount === 0} onDismiss={() => setShowVisualHint(false)} />
 
       {/* Adaptive mode indicator */}
-      {adaptiveMode === 'easy' && (
+      {difficulty === 'easy' && (
         <View style={styles.adaptiveBanner}>
           <Icon name="lightbulb-on-outline" size={16} color={kidsColors.star} />
           <Text style={styles.adaptiveText}>Look for the glowing zone!</Text>
         </View>
       )}
-      {adaptiveMode === 'hard' && (
+      {difficulty === 'hard' && (
         <View style={[styles.adaptiveBanner, {backgroundColor: kidsColors.accentLight + '20'}]}>
           <Icon name="fire" size={16} color={kidsColors.streak} />
           <Text style={[styles.adaptiveText, {color: kidsColors.streak}]}>You are on fire!</Text>
@@ -254,65 +299,43 @@ const DragToZoneTemplate = ({config, onAnswer, onComplete}) => {
         <Text style={styles.scoreText}>{correctCount} / {totalItems}</Text>
       </View>
 
+      {/* The board SCROLLS.
+        *
+        * It does not fit a phone. At 1080x2340 the content needs about 550dp
+        * below the character - a row of display zones, the drop zones, and
+        * three rows of tiles - against roughly 443dp of room, so the third row
+        * of tiles starts BELOW the screen on the very first render. It then
+        * gets worse: each chip that lands grows its zone and pushes the tray
+        * down again. Measured on a device: with six of twelve items placed the
+        * remaining tiles sat half off the bottom with their centres inside the
+        * system gesture strip, where a swipe is taken by the navigation
+        * gesture and never reaches the game. A child could not finish it.
+        *
+        * A ScrollView is safe around the draggables: DraggableItem grants the
+        * responder on touch START (onStartShouldSetPanResponder), so it holds
+        * the gesture and the ScrollView cannot steal it mid-drag.
+        */}
+      <ScrollView
+        style={styles.gameScroll}
+        contentContainerStyle={styles.gameScrollContent}
+        keyboardShouldPersistTaps="handled"
+        // scrollEnabled is deliberately NOT tied to isDragging. Flipping it
+        // mid-gesture makes Android cancel the touch stream, which fires the
+        // tile's own onPanResponderTerminate and springs it home - measured,
+        // three items placed per run before, ZERO after.
+      >
       <Animated.View
         style={[
           styles.gameArea,
           {transform: [{scale: containerScale}], opacity: containerAnim},
         ]}
       >
-        {/* Drop Zones with optional highlighting */}
-        <View style={styles.zonesRow}>
-          {zones.map(zone => {
-            const isHighlighted = highlightedZone === zone.id;
-            const placedHere = Object.entries(placedItems)
-              .filter(([_, zId]) => zId === zone.id)
-              .map(([itemId]) => items.find(i => i.id === itemId))
-              .filter(Boolean);
-
-            return (
-              <View
-                key={zone.id}
-                style={[
-                  styles.zone,
-                  {borderColor: zone.color || kidsColors.accent},
-                  isHighlighted && {
-                    borderWidth: 5,
-                    borderColor: kidsColors.star,
-                    backgroundColor: kidsColors.star + '15',
-                  },
-                ]}
-              >
-                <Text style={{fontSize: 28, textAlign: 'center', marginBottom: 4}}>
-                  {getEmojiForText(zone.label) || '📦'}
-                </Text>
-                <Text style={[styles.zoneLabel, {color: zone.color || kidsColors.accent}]}>
-                  {zone.label}
-                </Text>
-                {/* Placed items badges */}
-                <View style={styles.placedItems}>
-                  {placedHere.map(item => (
-                    <View
-                      key={item.id}
-                      style={[styles.placedBadge, {backgroundColor: zone.color || kidsColors.correct}]}
-                    >
-                      <Text style={{fontSize: 16}}>{getEmojiForText(item.label) || ''}</Text>
-                      <Text style={styles.placedBadgeText}>{item.label}</Text>
-                    </View>
-                  ))}
-                </View>
-                {isHighlighted && (
-                  <Icon
-                    name="arrow-down-bold"
-                    size={24}
-                    color={kidsColors.star}
-                    style={styles.hintArrow}
-                  />
-                )}
-              </View>
-            );
-          })}
-        </View>
-
+        {/* The zones are drawn by DragDropArea, which owns the drop targets.
+          * This template used to draw a SECOND, identical row above them: the
+          * same two labels, only one of which took a drop, and about 120dp
+          * that GREW with every chip. That is what pushed the board past the
+          * height of a phone and forced in the ScrollView. Placed items are
+          * shown inside the real zones instead. */}
         {/* Remaining draggable items */}
         {remainingItems.length > 0 ? (
           <DragDropArea
@@ -326,6 +349,10 @@ const DragToZoneTemplate = ({config, onAnswer, onComplete}) => {
             correctMapping={buildCorrectMapping()}
             onItemDropped={handleItemDropped}
             onAllPlaced={handleAllPlaced}
+            onDragActive={setIsDragging}
+            placedItems={placedItems}
+            allItems={items}
+            highlightedZone={highlightedZone}
           />
         ) : (
           <View style={styles.completeMessage}>
@@ -334,6 +361,7 @@ const DragToZoneTemplate = ({config, onAnswer, onComplete}) => {
           </View>
         )}
       </Animated.View>
+      </ScrollView>
 
       {/* Feedback Overlay */}
       <FeedbackOverlay
@@ -387,30 +415,16 @@ const styles = StyleSheet.create({
     color: kidsColors.textPrimary,
   },
   gameArea: {
+    // NOT flex:1 - inside a ScrollView that collapses to zero height. The
+    // board sizes to its content and the ScrollView provides the reach.
+    flexGrow: 1,
+  },
+  gameScroll: {
     flex: 1,
   },
-  zonesRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-evenly',
-    paddingHorizontal: kidsSpacing.md,
-    marginBottom: kidsSpacing.md,
-  },
-  zone: {
-    width: 140,
-    minHeight: 120,
-    borderWidth: 3,
-    borderStyle: 'dashed',
-    borderRadius: kidsBorderRadius.lg,
-    justifyContent: 'flex-start',
-    alignItems: 'center',
-    backgroundColor: kidsColors.card,
-    padding: kidsSpacing.sm,
-  },
-  zoneLabel: {
-    fontSize: kidsFontSize.md,
-    fontWeight: kidsFontWeight.bold,
-    textAlign: 'center',
-    marginBottom: kidsSpacing.xs,
+  gameScrollContent: {
+    flexGrow: 1,
+    paddingBottom: kidsSpacing.xxl,
   },
   placedItems: {
     gap: kidsSpacing.xs,

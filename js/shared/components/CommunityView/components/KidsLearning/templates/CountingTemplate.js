@@ -1,5 +1,5 @@
 import React, {useState, useEffect, useRef, useCallback} from 'react';
-import {View, Text, Animated, StyleSheet, Dimensions} from 'react-native';
+import {View, Text, Animated, StyleSheet, Dimensions, Pressable} from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import {
   kidsColors,
@@ -9,13 +9,14 @@ import {
   kidsFontWeight,
   kidsShadows,
 } from '../../../../../theme/kidsColors';
-import NumberPad from '../shared/NumberPad';
 import FeedbackOverlay from '../shared/FeedbackOverlay';
 import GameLivesBar from '../shared/GameLivesBar';
 import KidsCharacter from '../shared/KidsCharacter';
 import VisualHint from '../shared/VisualHint';
 import {getEmojiForText} from '../shared/emojiMap';
 import {SPRINGS} from '../shared/gameThemes';
+import {STEP, LEVEL, counting as guide} from '../shared/gameGuide';
+import holdUntilSpoken from '../shared/holdUntilSpoken';
 
 const {width: SCREEN_WIDTH} = Dimensions.get('window');
 const ICON_AREA_HEIGHT = 260;
@@ -24,13 +25,16 @@ const ICON_AREA_HEIGHT = 260;
  * CountingTemplate - Count objects on screen game.
  *
  * Shows scattered emoji/icons in the upper area. The child counts them and
- * enters the number using the NumberPad. Icons animate in one by one with a
+ * taps one of a few numbers (choicesFor). Icons animate in one by one with a
  * staggered bounce. Implements real-time difficulty adaptation.
  *
  * Props:
  * - config: { content: { rounds: [{ count, icon, color, concept, label }] } }
  * - onAnswer: (isCorrect, concept, responseTimeMs) => void
  * - onComplete: () => void
+ * - onStep: (step) => void   GameShell speaks it and plays its cue (gameGuide)
+ * - level: number            the shell's ladder; LEVEL.MIN puts a number on
+ *                            every object to count
  */
 
 // Map icon names to MaterialCommunityIcons names
@@ -167,14 +171,40 @@ const CountIcon = ({iconName, color, position, delay, size, showNumber, number})
   );
 };
 
-const CountingTemplate = ({config, onAnswer, onComplete}) => {
+/**
+ * The numbers a child picks from: the answer and its neighbours.  One tap
+ * answers, as in the owner's Number Meadow; the old number pad asked for a
+ * typed number and a separate tick, and on a tablet its last row sat under
+ * the app's tab bar.  The ladder decides how hard the choice is: three
+ * numbers two apart, then three close ones, then four close ones.  The tap's
+ * sound is the step's cue (useGuidedSteps): one sound per tap, not two.
+ */
+export const choicesFor = (count, level = LEVEL.START, roundIndex = 0) => {
+  const gap = level >= LEVEL.START + 1 ? 1 : 2;
+  const want = level >= LEVEL.MAX ? 4 : 3;
+  const picks = [count];
+  for (const step of [gap, -gap, 2 * gap, -2 * gap, 3 * gap]) {
+    const n = count + step;
+    if (n >= 1 && !picks.includes(n)) picks.push(n);
+    if (picks.length === want) break;
+  }
+  picks.sort((a, b) => a - b);
+  // Rotate by round so the answer is not always in the same place, without
+  // randomness a test (or a replay) could not reproduce.
+  const k = roundIndex % picks.length;
+  return picks.slice(k).concat(picks.slice(0, k));
+};
+
+const CountingTemplate = ({config, onAnswer, onComplete, onStep, level = LEVEL.START}) => {
   const rounds = config?.content?.rounds || [];
   const [currentRound, setCurrentRound] = useState(0);
-  const [inputValue, setInputValue] = useState('');
   const [answered, setAnswered] = useState(false);
   const [results, setResults] = useState([]);
-  const [consecutiveWrong, setConsecutiveWrong] = useState(0);
-  const [showCountLabels, setShowCountLabels] = useState(false);
+  // After a right answer the numbers appear on each object while the voice
+  // counts them: the teaching moment.  At the easiest level they are always
+  // there.  (This template's own "3 misses" ladder is the shell's now.)
+  const [teaching, setTeaching] = useState(false);
+  const showCountLabels = teaching || level <= LEVEL.MIN;
   const [positions, setPositions] = useState([]);
 
   // New state for visual overhaul
@@ -205,9 +235,23 @@ const CountingTemplate = ({config, onAnswer, onComplete}) => {
   useEffect(() => {
     const areaWidth = SCREEN_WIDTH - kidsSpacing.md * 2;
     setPositions(generatePositions(round.count || 0, areaWidth, ICON_AREA_HEIGHT, iconSize));
-    setInputValue('');
     setAnswered(false);
-    setShowCountLabels(false);
+    setTeaching(false);
+    if (onStep && round.count != null) {
+      // With one-tap choices every line this round can need is known now:
+      // the right answer's, each wrong choice's, and the next question.
+      // Prepared while the question plays, a miss is explained at once, not
+      // ~12 s later (seen on a tablet whose node was busy speaking).
+      const next = rounds[currentRound + 1];
+      const prepare = [
+        guide.right(round),
+        ...choicesFor(round.count, level, currentRound)
+          .filter((n) => n !== round.count)
+          .map((n) => guide.explainMiss(n, round)),
+        ...(next && next.count != null ? [guide.ask(next)] : []),
+      ];
+      onStep({kind: STEP.ASKED, itemId: round.concept || `round-${currentRound}`, say: guide.ask(round), prepare});
+    }
     resultAnim.setValue(1);
 
     titleAnim.setValue(1);
@@ -220,13 +264,6 @@ const CountingTemplate = ({config, onAnswer, onComplete}) => {
     roundStartTime.current = Date.now();
   }, [currentRound]);
 
-  // Adaptive: show count numbers on icons when struggling
-  useEffect(() => {
-    if (consecutiveWrong >= 3 && !showCountLabels) {
-      setShowCountLabels(true);
-    }
-  }, [consecutiveWrong]);
-
   const handleSubmit = useCallback(
     value => {
       if (answered) return;
@@ -236,16 +273,22 @@ const CountingTemplate = ({config, onAnswer, onComplete}) => {
 
       setAnswered(true);
 
-      // Track adaptive state
+      const itemId = round.concept || `round-${currentRound}`;
+      let spoken;
+      if (onStep) {
+        spoken = onStep(isCorrect
+          ? {kind: STEP.RIGHT, itemId, concept: round.concept, say: guide.right(round)}
+          : {kind: STEP.WRONG, itemId, chosen: value, wanted: round.count,
+             say: guide.explainMiss(value, round)});
+      }
       if (isCorrect) {
-        setConsecutiveWrong(0);
+        setTeaching(true);
         // Animate character celebration
         setCharState('celebrate');
         setTimeout(() => {
           if (mountedRef.current) setCharState('idle');
         }, 1500);
       } else {
-        setConsecutiveWrong(prev => prev + 1);
         // Animate character encouragement and deduct a life
         setCharState('encourage');
         setTimeout(() => {
@@ -256,9 +299,17 @@ const CountingTemplate = ({config, onAnswer, onComplete}) => {
 
       setResults(prev => [...prev, isCorrect]);
 
-      // Feedback
+      // Feedback.  Guided, the answer stays on screen over the objects (the
+      // result card and, when right, a number on each one) until the voice
+      // has explained it; then the next round.  The full-screen overlay used
+      // to cover the objects at exactly that moment and move on after 1.5s,
+      // so the next question cut the explanation off (seen on a tablet).
       setFeedbackCorrect(isCorrect);
-      setFeedbackVisible(true);
+      if (onStep) {
+        holdUntilSpoken(spoken, () => advanceRef.current(), () => mountedRef.current);
+      } else {
+        setFeedbackVisible(true);
+      }
 
       // Report
       onAnswer(isCorrect, round.concept, responseTimeMs);
@@ -270,9 +321,10 @@ const CountingTemplate = ({config, onAnswer, onComplete}) => {
         useNativeDriver: true,
       }).start();
     },
-    [answered, round, onAnswer],
+    [answered, round, onAnswer, onStep, currentRound],
   );
 
+  const advanceRef = useRef(null);
   const handleFeedbackDismiss = useCallback(() => {
     setFeedbackVisible(false);
 
@@ -285,6 +337,7 @@ const CountingTemplate = ({config, onAnswer, onComplete}) => {
       }
     }, 500);
   }, [currentRound, rounds.length, onComplete]);
+  advanceRef.current = handleFeedbackDismiss;
 
   if (rounds.length === 0) {
     return (
@@ -334,7 +387,7 @@ const CountingTemplate = ({config, onAnswer, onComplete}) => {
         ]}>
         <Icon name="counter" size={24} color={kidsColors.accent} />
         <Text style={styles.titleText}>
-          How many {round.label || 'items'} can you count?
+          {guide.title(round)}
         </Text>
       </Animated.View>
 
@@ -343,8 +396,8 @@ const CountingTemplate = ({config, onAnswer, onComplete}) => {
         <Text style={{fontSize: 48}}>{emojiForLabel}</Text>
       </View>
 
-      {/* Adaptive helper */}
-      {consecutiveWrong >= 3 && (
+      {/* Easiest level: a number on every object */}
+      {level <= LEVEL.MIN && !teaching && (
         <View style={styles.hintBanner}>
           <Icon name="lightbulb-on-outline" size={18} color={kidsColors.star} />
           <Text style={styles.hintBannerText}>
@@ -419,15 +472,25 @@ const CountingTemplate = ({config, onAnswer, onComplete}) => {
         </Animated.View>
       )}
 
-      {/* Number pad input (colorful) */}
+      {/* One tap answers */}
       {!answered && (
-        <NumberPad
-          value={inputValue}
-          onValueChange={setInputValue}
-          onSubmit={handleSubmit}
-          maxDigits={3}
-          colorful
-        />
+        <View style={styles.choiceRow}>
+          {choicesFor(round.count || 0, level, currentRound).map((n, i) => (
+            <Pressable
+              key={n}
+              testID={`count-choice-${n}`}
+              accessibilityRole="button"
+              accessibilityLabel={String(n)}
+              onPress={() => handleSubmit(n)}
+              style={({pressed}) => [
+                styles.choice,
+                {backgroundColor: kidsColors.palette[i % kidsColors.palette.length]},
+                pressed && styles.choicePressed,
+              ]}>
+              <Text style={styles.choiceText}>{n}</Text>
+            </Pressable>
+          ))}
+        </View>
       )}
 
       {/* Feedback overlay */}
@@ -515,6 +578,30 @@ const styles = StyleSheet.create({
     fontSize: 10,
     fontWeight: kidsFontWeight.bold,
     color: kidsColors.textOnDark,
+  },
+  choiceRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'center',
+    marginTop: kidsSpacing.md,
+  },
+  choice: {
+    width: 96,
+    height: 96,
+    maxWidth: '22%',
+    aspectRatio: 1,
+    borderRadius: 28,
+    margin: kidsSpacing.sm,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  choicePressed: {
+    transform: [{scale: 0.92}],
+  },
+  choiceText: {
+    fontSize: 44,
+    fontWeight: '800',
+    color: '#FFFFFF',
   },
   resultCard: {
     flexDirection: 'row',

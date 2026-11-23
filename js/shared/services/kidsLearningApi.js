@@ -25,20 +25,21 @@ const generateConversationId = () => {
 };
 
 export const kidsLearningApi = {
-  // Get adaptive question from TeachMe API
-  getAdaptiveQuestion: async ({category, topic, age, difficulty, threeRType}) => {
-    const userId = await getUserId();
-    return post('chat/teachme2', {
-      text: [`Generate a ${category} question about ${topic} for age ${age}, difficulty ${difficulty}, focus on ${threeRType}`],
-      raw_text: `${category} question: ${topic}`,
-      user_id: userId,
-      goals: {
-        name: 'kids_learning',
-        text: `${category} - ${topic}`,
-        scope: 'kids_game',
-      },
-      conversation_id: generateConversationId(),
+  // Recommended games from Nunba's existing kids recommender
+  // (routes/kids_game_recommendation.py /api/kids/recommendations).  This used
+  // to post to chat/teachme2 -- the Teach Yourself tutor -- which never
+  // returned `games`.  The recommender answers template stubs without
+  // `content`; only games the client can actually render are passed on.
+  getAdaptiveQuestion: async ({category, age}) => {
+    const r = await post('api/kids/recommendations', {
+      age: Number(age) || 8,
+      ...(category && category !== 'all' ? {focusArea: category} : {}),
+      recentGameIds: [],
     });
+    const games = ((r && r.recommendations) || [])
+      .map((rec) => rec && rec.game)
+      .filter((game) => game && game.content);
+    return {games, engagement: r && r.engagement};
   },
 
   // Get assessment-style question
@@ -79,37 +80,13 @@ export const kidsLearningApi = {
     });
   },
 
-  // Report game completion for server-side tracking
-  reportGameCompletion: async (result) => {
-    const userId = await getUserId();
-    return post('chat/teachme2', {
-      text: [`Game completed: ${JSON.stringify(result)}`],
-      raw_text: 'game_completion',
-      user_id: userId,
-      goals: {
-        name: 'kids_learning_progress',
-        text: `Completed ${result.gameTitle} - Score: ${result.score}`,
-        scope: 'progress_report',
-      },
-      conversation_id: generateConversationId(),
-    });
-  },
-
-  // Sync pending offline results
-  syncResults: async (results) => {
-    const userId = await getUserId();
-    return post('chat/teachme2', {
-      text: [`Batch sync: ${JSON.stringify(results)}`],
-      raw_text: 'batch_sync',
-      user_id: userId,
-      goals: {
-        name: 'kids_learning_sync',
-        text: `Syncing ${results.length} game results`,
-        scope: 'batch_sync',
-      },
-      conversation_id: generateConversationId(),
-    });
-  },
+  // Report game completion / sync offline results.  No node stores kids
+  // results yet: these used to post to chat/teachme2, which is the Teach
+  // Yourself tutor, so a report started a tutoring turn about
+  // "kids_learning_progress" instead of being recorded anywhere.  Progress
+  // stays in kidsLearningStore until a store route exists.
+  reportGameCompletion: async () => ({stored: false}),
+  syncResults: async () => ({stored: false}),
 
   // ── Dynamic Backend Compute ──
 

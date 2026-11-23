@@ -6,9 +6,39 @@ import GameLivesBar from '../shared/GameLivesBar';
 import KidsCharacter from '../shared/KidsCharacter';
 import VisualHint from '../shared/VisualHint';
 import {getEmojiForText} from '../shared/emojiMap';
+
+/**
+ * The picture above a match card's word, when there is one.
+ *
+ * Many of these words have no picture. The emoji map holds 209 entries and the
+ * match games use 276 labels between them, so 176 of those labels -- "1/2",
+ * "half of a whole", brave, furious, France, Percussion -- fell through to a
+ * fallback black square, and most of them have no sensible picture to add. On a child's matching board that reads as a broken tile, not
+ * as "no picture for this one", and it sat directly beside words that did have
+ * one, which made those items look like they had failed to load.
+ *
+ * The band keeps its height whether or not a picture is found, so both columns
+ * stay aligned exactly as they were; only the meaningless square goes.
+ */
+function MatchGlyph({label}) {
+  const emoji = getEmojiForText(label);
+  return (
+    <Text
+      style={{
+        fontSize: 32,
+        lineHeight: 38,
+        height: 38,
+        textAlign: 'center',
+        marginBottom: 4,
+      }}>
+      {emoji || ''}
+    </Text>
+  );
+}
 import FeedbackOverlay from '../shared/FeedbackOverlay';
 import usePressAnimation from '../../../../../hooks/usePressAnimation';
-import {GameSounds} from '../shared/SoundManager';
+import {STEP, LEVEL, matchPairs as guide} from '../shared/gameGuide';
+import holdUntilSpoken from '../shared/holdUntilSpoken';
 import {SPRINGS} from '../shared/gameThemes';
 
 /**
@@ -27,18 +57,31 @@ import {SPRINGS} from '../shared/gameThemes';
  *
  * Intelligence features:
  * - Tracks response time per match attempt
- * - After 3+ consecutive wrong: dims non-matching right options to narrow choices
+ * - At the shell's easiest level: the partner of the picked card is highlighted
  * - After fast correct streak: adds visual complexity (no color coding)
  * - Records concept per matched pair
  */
-const MatchPairsTemplate = ({config, onAnswer, onComplete}) => {
+// How many answers in a row were right, for the lives bar's streak.
+const trailingRight = (results) => {
+  let n = 0;
+  for (let i = results.length - 1; i >= 0 && results[i]; i--) n++;
+  return n;
+};
+
+const MatchPairsTemplate = ({config, onAnswer, onComplete, onStep, level = LEVEL.START}) => {
   const {onPressIn: pressIn, onPressOut: pressOut, animatedStyle: pressStyle} = usePressAnimation(0.96);
   const [pairs, setPairs] = useState([]);
   const [leftItems, setLeftItems] = useState([]);
   const [rightItems, setRightItems] = useState([]);
   const [selectedLeft, setSelectedLeft] = useState(null);
   const [selectedRight, setSelectedRight] = useState(null);
-  const [matchedPairs, setMatchedPairs] = useState(new Set());
+  // Two sets, not one: a card clears on its OWN side. Several decks put the
+  // same word on two cards -- three of the instrument answers read "Strings",
+  // three "Percussion", and the seasons deck asks "Spring" twice -- so the left
+  // card a child taps and the right card they pair it with need not share an
+  // index, and clearing both sides by one id wiped two cards untouched.
+  const [matchedLeft, setMatchedLeft] = useState(new Set());
+  const [matchedRight, setMatchedRight] = useState(new Set());
   const [results, setResults] = useState([]);
   const [isLocked, setIsLocked] = useState(false);
 
@@ -47,10 +90,9 @@ const MatchPairsTemplate = ({config, onAnswer, onComplete}) => {
   const [feedbackCorrect, setFeedbackCorrect] = useState(false);
   const [feedbackMessage, setFeedbackMessage] = useState('');
 
-  // Adaptive difficulty state
-  const [consecutiveWrong, setConsecutiveWrong] = useState(0);
-  const [consecutiveCorrect, setConsecutiveCorrect] = useState(0);
-  const [adaptiveMode, setAdaptiveMode] = useState('normal');
+  // Difficulty is the shell's one ladder (shared/gameGuide): at LEVEL.MIN the
+  // partner of the card you picked is highlighted.  Own ladder removed.
+  const difficulty = level <= LEVEL.MIN ? 'easy' : level >= LEVEL.MAX ? 'hard' : 'normal';
 
   // New visual overhaul state
   const [lives, setLives] = useState(3);
@@ -113,19 +155,13 @@ const MatchPairsTemplate = ({config, onAnswer, onComplete}) => {
       }).start();
 
       startTimeRef.current = Date.now();
+      // Each pair's line is prepared up front, so a match is named at once.
+      if (onStep) {
+        onStep({kind: STEP.ASKED, itemId: `match:${config.id || 'deck'}`, say: guide.ask(),
+                prepare: (config?.content?.pairs || []).map((p) => guide.right(p.left, p.right))});
+      }
     }
   }, [config]);
-
-  // Update adaptive mode
-  useEffect(() => {
-    if (consecutiveWrong >= 3) {
-      setAdaptiveMode('easy');
-    } else if (consecutiveCorrect >= 4) {
-      setAdaptiveMode('hard');
-    } else {
-      setAdaptiveMode('normal');
-    }
-  }, [consecutiveWrong, consecutiveCorrect]);
 
   const triggerShake = useCallback((leftId, rightId) => {
     const leftKey = `left-${leftId}`;
@@ -147,22 +183,26 @@ const MatchPairsTemplate = ({config, onAnswer, onComplete}) => {
     }
   }, []);
 
-  const triggerFadeOut = useCallback((pairId) => {
-    const leftKey = `left-${pairId}`;
-    const rightKey = `right-${pairId}`;
-    const leftFade = fadeAnims.current[leftKey];
-    const rightFade = fadeAnims.current[rightKey];
+  // Takes both ids because the two cards being cleared can come from different
+  // pairs whenever a deck repeats a label; fading `left-${id}` and
+  // `right-${id}` together faded a right card that is still in play.
+  const triggerFadeOut = useCallback((leftId, rightId) => {
+    const fades = [
+      fadeAnims.current[`left-${leftId}`],
+      fadeAnims.current[`right-${rightId}`],
+    ]
+      .filter(Boolean)
+      .map((anim) =>
+        Animated.timing(anim, {toValue: 0.2, duration: 400, useNativeDriver: true}),
+      );
 
-    if (leftFade && rightFade) {
-      Animated.parallel([
-        Animated.timing(leftFade, {toValue: 0.2, duration: 400, useNativeDriver: true}),
-        Animated.timing(rightFade, {toValue: 0.2, duration: 400, useNativeDriver: true}),
-      ]).start();
+    if (fades.length) {
+      Animated.parallel(fades).start();
     }
   }, []);
 
   const handleLeftSelect = useCallback((item) => {
-    if (isLocked || matchedPairs.has(item.id)) return;
+    if (isLocked || matchedLeft.has(item.id)) return;
 
     if (selectedLeft?.id === item.id) {
       setSelectedLeft(null);
@@ -175,10 +215,10 @@ const MatchPairsTemplate = ({config, onAnswer, onComplete}) => {
     if (selectedRight) {
       attemptMatch(item, selectedRight);
     }
-  }, [isLocked, matchedPairs, selectedLeft, selectedRight]);
+  }, [isLocked, matchedLeft, selectedLeft, selectedRight]);
 
   const handleRightSelect = useCallback((item) => {
-    if (isLocked || matchedPairs.has(item.id)) return;
+    if (isLocked || matchedRight.has(item.id)) return;
 
     if (selectedRight?.id === item.id) {
       setSelectedRight(null);
@@ -191,35 +231,48 @@ const MatchPairsTemplate = ({config, onAnswer, onComplete}) => {
     if (selectedLeft) {
       attemptMatch(selectedLeft, item);
     }
-  }, [isLocked, matchedPairs, selectedLeft, selectedRight]);
+  }, [isLocked, matchedRight, selectedLeft, selectedRight]);
 
   const attemptMatch = useCallback((leftItem, rightItem) => {
     setIsLocked(true);
     const responseTimeMs = Date.now() - startTimeRef.current;
-    const isCorrect = leftItem.id === rightItem.id;
-    const pair = pairs.find(p => p.id === leftItem.id);
-    const concept = pair?.concept || `match:${leftItem.id}`;
+    // Scored on what the two cards SAY, not on the index they were built from.
+    // Both "Guitar" and "Violin" are answered by a card reading "Strings", and
+    // pairing Guitar with the second of those is musically right; the index
+    // test called it wrong, shook the cards and took one of three lives for it.
+    const pair = pairs.find(
+      (p) => p.left === leftItem.label && p.right === rightItem.label,
+    );
+    const isCorrect = Boolean(pair);
+    const concept =
+      pair?.concept ||
+      pairs.find((p) => p.id === leftItem.id)?.concept ||
+      `match:${leftItem.id}`;
 
     setFeedbackCorrect(isCorrect);
 
+    let spoken;
+    if (onStep) {
+      spoken = onStep(isCorrect
+        ? {kind: STEP.RIGHT, itemId: concept, concept, cue: 'matchFound',
+           say: guide.right(leftItem.label, rightItem.label)}
+        : {kind: STEP.WRONG, itemId: concept, chosen: rightItem.label,
+           wanted: pairs.find((p) => p.left === leftItem.label)?.right,
+           say: guide.explainMiss(leftItem.label, rightItem.label)});
+    }
     if (isCorrect) {
-      GameSounds.matchFound();
       setFeedbackMessage(responseTimeMs < 2000 ? 'Quick match!' : '');
-      triggerFadeOut(leftItem.id);
-      setMatchedPairs(prev => new Set([...prev, leftItem.id]));
-      setConsecutiveWrong(0);
-      setConsecutiveCorrect(prev => prev + 1);
+      triggerFadeOut(leftItem.id, rightItem.id);
+      setMatchedLeft(prev => new Set([...prev, leftItem.id]));
+      setMatchedRight(prev => new Set([...prev, rightItem.id]));
       // Animate character on correct
       setCharState('celebrate');
       setTimeout(() => {
         if (mountedRef.current) setCharState('idle');
       }, 1500);
     } else {
-      GameSounds.wrong();
       setFeedbackMessage('');
       triggerShake(leftItem.id, rightItem.id);
-      setConsecutiveCorrect(0);
-      setConsecutiveWrong(prev => prev + 1);
       // Animate character on wrong + lose a life
       setCharState('encourage');
       setTimeout(() => {
@@ -229,15 +282,23 @@ const MatchPairsTemplate = ({config, onAnswer, onComplete}) => {
     }
 
     setResults(prev => [...prev, isCorrect]);
-    setShowFeedback(true);
+    // Guided, the pair stays in view while the voice names it (or says why
+    // it does not go together); the overlay covered the board on every tap.
+    // Unguided keeps the overlay.
+    if (onStep) {
+      holdUntilSpoken(spoken, () => advanceRef.current(), () => mountedRef.current);
+    } else {
+      setShowFeedback(true);
+    }
 
     if (onAnswer) {
       onAnswer(isCorrect, concept, responseTimeMs);
     }
 
     startTimeRef.current = Date.now();
-  }, [pairs, onAnswer, triggerFadeOut, triggerShake]);
+  }, [pairs, onAnswer, triggerFadeOut, triggerShake, onStep]);
 
+  const advanceRef = useRef(null);
   const handleFeedbackDismiss = useCallback(() => {
     setShowFeedback(false);
     setSelectedLeft(null);
@@ -245,18 +306,19 @@ const MatchPairsTemplate = ({config, onAnswer, onComplete}) => {
     setIsLocked(false);
 
     // Check if all pairs matched
-    if (matchedPairs.size >= pairs.length && pairs.length > 0) {
+    if (matchedLeft.size >= pairs.length && pairs.length > 0) {
       setTimeout(() => {
         if (mountedRef.current && onComplete) onComplete();
       }, 300);
     }
-  }, [matchedPairs, pairs, onComplete]);
+  }, [matchedLeft, pairs, onComplete]);
+  advanceRef.current = handleFeedbackDismiss;
 
   // Get hint: in easy mode, which right items could match the selected left
   const getHintedRight = useCallback(() => {
-    if (adaptiveMode !== 'easy' || !selectedLeft) return null;
+    if (difficulty !== 'easy' || !selectedLeft) return null;
     return selectedLeft.id; // The correct right item id
-  }, [adaptiveMode, selectedLeft]);
+  }, [difficulty, selectedLeft]);
 
   const hintedRightId = getHintedRight();
 
@@ -279,10 +341,10 @@ const MatchPairsTemplate = ({config, onAnswer, onComplete}) => {
       {/* Game Lives Bar */}
       <GameLivesBar
         lives={lives}
-        score={matchedPairs.size}
-        currentLevel={matchedPairs.size + 1}
+        score={matchedLeft.size}
+        currentLevel={matchedLeft.size + 1}
         totalLevels={pairs.length}
-        streak={consecutiveCorrect}
+        streak={trailingRight(results)}
       />
 
       {/* Kids Character */}
@@ -291,16 +353,16 @@ const MatchPairsTemplate = ({config, onAnswer, onComplete}) => {
       </View>
 
       {/* Visual Hint */}
-      <VisualHint type="match" visible={showVisualHint && matchedPairs.size === 0} onDismiss={() => setShowVisualHint(false)} />
+      <VisualHint type="match" visible={showVisualHint && matchedLeft.size === 0} onDismiss={() => setShowVisualHint(false)} />
 
       {/* Adaptive mode indicator */}
-      {adaptiveMode === 'easy' && (
+      {difficulty === 'easy' && (
         <View style={styles.adaptiveBanner}>
           <Icon name="lightbulb-on-outline" size={16} color={kidsColors.star} />
           <Text style={styles.adaptiveText}>Watch for the highlighted match!</Text>
         </View>
       )}
-      {adaptiveMode === 'hard' && (
+      {difficulty === 'hard' && (
         <View style={[styles.adaptiveBanner, {backgroundColor: kidsColors.accentLight + '20'}]}>
           <Icon name="fire" size={16} color={kidsColors.streak} />
           <Text style={[styles.adaptiveText, {color: kidsColors.streak}]}>Matching master!</Text>
@@ -322,7 +384,7 @@ const MatchPairsTemplate = ({config, onAnswer, onComplete}) => {
                 Items
               </Text>
               {leftItems.map((item, idx) => {
-                const isMatched = matchedPairs.has(item.id);
+                const isMatched = matchedLeft.has(item.id);
                 const isSelected = selectedLeft?.id === item.id;
                 const leftKey = `left-${item.id}`;
                 const shake = shakeAnims.current[leftKey] || new Animated.Value(1);
@@ -349,9 +411,7 @@ const MatchPairsTemplate = ({config, onAnswer, onComplete}) => {
                       disabled={isMatched || isLocked}
                       activeOpacity={0.85}
                     >
-                      <Text style={{fontSize: 32, textAlign: 'center', marginBottom: 4}}>
-                        {getEmojiForText(item.label) || '\u25aa\ufe0f'}
-                      </Text>
+                      <MatchGlyph label={item.label} />
                       <Text
                         style={[
                           styles.matchItemText,
@@ -382,7 +442,7 @@ const MatchPairsTemplate = ({config, onAnswer, onComplete}) => {
                 Matches
               </Text>
               {rightItems.map((item, idx) => {
-                const isMatched = matchedPairs.has(item.id);
+                const isMatched = matchedRight.has(item.id);
                 const isSelected = selectedRight?.id === item.id;
                 const isHinted = hintedRightId === item.id;
                 const rightKey = `right-${item.id}`;
@@ -390,7 +450,7 @@ const MatchPairsTemplate = ({config, onAnswer, onComplete}) => {
                 const fade = fadeAnims.current[rightKey] || new Animated.Value(1);
 
                 // In easy mode, dim non-hinted, non-matched items when a left is selected
-                const isDimmed = adaptiveMode === 'easy' &&
+                const isDimmed = difficulty === 'easy' &&
                   selectedLeft &&
                   !isMatched &&
                   hintedRightId !== null &&
@@ -419,9 +479,7 @@ const MatchPairsTemplate = ({config, onAnswer, onComplete}) => {
                       disabled={isMatched || isLocked}
                       activeOpacity={0.85}
                     >
-                      <Text style={{fontSize: 32, textAlign: 'center', marginBottom: 4}}>
-                        {getEmojiForText(item.label) || '\u25aa\ufe0f'}
-                      </Text>
+                      <MatchGlyph label={item.label} />
                       <Text
                         style={[
                           styles.matchItemText,
@@ -450,7 +508,7 @@ const MatchPairsTemplate = ({config, onAnswer, onComplete}) => {
       <View style={styles.matchCount}>
         <Text style={{fontSize: 20}}>{'\ud83e\udde9'}</Text>
         <Text style={styles.matchCountText}>
-          {matchedPairs.size} / {pairs.length}
+          {matchedLeft.size} / {pairs.length}
         </Text>
       </View>
 

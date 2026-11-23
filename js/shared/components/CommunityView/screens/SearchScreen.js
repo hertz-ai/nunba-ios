@@ -1,8 +1,17 @@
 import React, { useState, useCallback, useRef, useEffect } from 'react';
 import {
-  View, Text, StyleSheet, FlatList, TouchableOpacity, TextInput,
-  SafeAreaView, StatusBar, ActivityIndicator, Animated,
+  View,
+  Text,
+  StyleSheet,
+  FlatList,
+  TouchableOpacity,
+  TextInput,
+  StatusBar,
+  ActivityIndicator,
+  Animated,
+  RefreshControl,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import {
   widthPercentageToDP as wp,
   heightPercentageToDP as hp,
@@ -44,6 +53,24 @@ const SearchScreen = () => {
       setLoading(false);
     }
   }, [activeTab]);
+
+  // #463 (2026-06-22): pull-to-refresh re-runs the current search.
+  // No-op if the user hasn't typed anything yet (empty query).
+  const [refreshing, setRefreshing] = useState(false);
+  const refreshTimerRef = useRef(null);
+  const handleRefresh = useCallback(() => {
+    if (refreshing) return;
+    setRefreshing(true);
+    if (query && query.length >= 2) doSearch(query);
+    if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current);
+    refreshTimerRef.current = setTimeout(() => {
+      setRefreshing(false);
+      refreshTimerRef.current = null;
+    }, 1500);
+  }, [refreshing, query, doSearch]);
+  useEffect(() => () => {
+    if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current);
+  }, []);
 
   // DRY 2026-05-19: same hook DebouncedSearch primitive uses internally.
   // SearchScreen has special-chrome (Nunba-keyboard icon) so it can't
@@ -180,6 +207,7 @@ const SearchScreen = () => {
       ) : (
         <FlatList
           data={results}
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />}
           keyExtractor={(item) => String(item.id)}
           renderItem={renderItem}
           contentContainerStyle={styles.listContent}

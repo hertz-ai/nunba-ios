@@ -28,8 +28,15 @@
  */
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
-  View, Text, StyleSheet, TouchableOpacity, SafeAreaView,
-  StatusBar, ActivityIndicator, Alert,
+  View,
+  Text,
+  StyleSheet,
+  TouchableOpacity,
+  StatusBar,
+  ActivityIndicator,
+  Alert,
+  FlatList,
+  Modal,
   // NativeModules + DeviceEventEmitter are pulled with optional access
   // because the jest mock of `react-native` doesn't define them — the
   // `NativeModules?.CallNative` chain returns null in tests but the
@@ -38,6 +45,7 @@ import {
   DeviceEventEmitter,
   Platform,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import {
   widthPercentageToDP as wp,
   heightPercentageToDP as hp,
@@ -46,22 +54,14 @@ import Ionicons from 'react-native-vector-icons/Ionicons';
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { callsApi } from '../../../services/socialApi';
+import chatApi from '../../../services/chatApi';
 
-// Lazy-load LiveKit so the screen works in builds without the pod.
-let LiveKitRoom = null;
-let LKRoom = null;
-let LKRoomEvent = null;
-let LKTrack = null;
-try {
-  // eslint-disable-next-line global-require
-  const livekit = require('@livekit/react-native');
-  LiveKitRoom  = livekit?.LiveKitRoom  || null;
-  LKRoom       = livekit?.Room         || null;
-  LKRoomEvent  = livekit?.RoomEvent    || null;
-  LKTrack      = livekit?.Track        || null;
-} catch (_) {
-  // No LiveKit pod — degrade gracefully (tests + dev builds without pods).
-}
+import {
+  LiveKitRoom,
+  Room as LKRoom,
+  RoomEvent as LKRoomEvent,
+  Track as LKTrack,
+} from '../../../services/livekitSdk';
 
 // Native bridge for the Phase-7d foreground service + screen-capture
 // permission relay (CallNativeModule.java).  Optional-chain so the jest
@@ -94,6 +94,15 @@ const CallChannelScreen = () => {
   const [muted, setMuted] = useState(false);
   const [videoOn, setVideoOn] = useState(kind === 'video');
   const [screenSharing, setScreenSharing] = useState(false);
+  // 2026-06-18: Invite-Agent sheet — user reported the agent join
+  // affordance was nested + not visible.  callsApi.addAgent existed
+  // server-side (#264, plan F.11), but no UI button.  Surface it
+  // here so the same call surface that mutes/hangs-up also lets you
+  // bring an agent into the room.
+  const [inviteSheetVisible, setInviteSheetVisible] = useState(false);
+  const [availableAgents, setAvailableAgents] = useState([]);
+  const [loadingAgents, setLoadingAgents] = useState(false);
+  const [invitingAgentId, setInvitingAgentId] = useState(null);
   const ended = useRef(false);
   // Live LiveKit Room reference + foreground-service state.  Held in
   // refs (not state) because they're imperative side-effects, not
@@ -455,7 +464,9 @@ const CallChannelScreen = () => {
         case 'hangup':
         case 'decline':
           ended.current = true;
-          (async () => { try { await callsApi.leave(call_id); } catch (_) {} })();
+          callsApi.leave(call_id).catch(e => {
+            console.warn('Failed to leave call via wear action', e);
+          });
           navigation.goBack();
           break;
         case 'accept':
@@ -481,6 +492,65 @@ const CallChannelScreen = () => {
     } catch (_) {}
     navigation.goBack();
   }, [call_id, navigation]);
+
+  // 2026-06-18: Invite-Agent sheet flow.  Tap "Invite Agent" in the
+  // call controls → fetch the user's custom bots → render a Modal
+  // with a tap-to-invite list.  On invite: POST /calls/:id/agents.
+  // The agent joins as participant kind='agent' (server-side spawns
+  // an AgentVoiceBridge if voice/video, or a passive join otherwise).
+  // Declared BEFORE the `if (loading) return` early return below so
+  // hook call count stays constant across renders.
+  const openInviteSheet = useCallback(async () => {
+    setInviteSheetVisible(true);
+    setLoadingAgents(true);
+    try {
+      const userId = await new Promise((res) => {
+        try {
+          NativeModules?.OnboardingModule?.getUser_id?.((id) => res(id));
+          // 200ms fallback so the sheet doesn't hang on a non-Android stub.
+          setTimeout(() => res(0), 200);
+        } catch (_) { res(0); }
+      });
+      const raw = await chatApi.getCustomBots(userId);
+      const list = Array.isArray(raw) ? raw : (Array.isArray(raw?.data) ? raw.data : []);
+      setAvailableAgents(list);
+    } catch (_e) {
+      setAvailableAgents([]);
+    } finally {
+      setLoadingAgents(false);
+    }
+  }, []);
+
+  const handleInviteAgent = useCallback(async (agent) => {
+    const agentId = agent?.prompt_id || agent?.id;
+    if (!agentId || !call_id) return;
+    setInvitingAgentId(String(agentId));
+    try {
+      await callsApi.addAgent(call_id, agentId);
+      // Optimistically prepend a participant tile so the user sees
+      // the invite landed even before the REST roster refresh.
+      setParticipants((prev) => {
+        const already = prev.some((p) => String(p.agent_id) === String(agentId));
+        if (already) return prev;
+        return [
+          ...prev,
+          {
+            participant_id: `pending_agent_${agentId}`,
+            agent_id: agentId,
+            agent_kind: 'agent',
+            device_kind: 'agent_bridge',
+            display_name: agent.name || `Agent ${String(agentId).slice(0, 6)}`,
+            joined: false,
+          },
+        ];
+      });
+      setInviteSheetVisible(false);
+    } catch (e) {
+      Alert.alert('Invite failed', (e && e.message) || 'Could not add agent to the call.');
+    } finally {
+      setInvitingAgentId(null);
+    }
+  }, [call_id]);
 
   // ── Renderers ────────────────────────────────────────────────────
 
@@ -628,6 +698,16 @@ const CallChannelScreen = () => {
           />
         </TouchableOpacity>
 
+        {/* 2026-06-18: Invite Agent — surfaces the previously-buried
+            callsApi.addAgent path that had no UI. */}
+        <TouchableOpacity
+          style={styles.ctrlBtn}
+          onPress={openInviteSheet}
+          accessibilityLabel="Invite agent to call"
+        >
+          <MaterialCommunityIcons name="robot-outline" size={22} color="#FFF" />
+        </TouchableOpacity>
+
         <TouchableOpacity
           style={styles.hangupBtn}
           onPress={handleHangup}
@@ -636,6 +716,78 @@ const CallChannelScreen = () => {
           <Ionicons name="call" size={24} color="#FFF" />
         </TouchableOpacity>
       </View>
+
+      <Modal
+        visible={inviteSheetVisible}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setInviteSheetVisible(false)}
+      >
+        <View style={styles.sheetBackdrop}>
+          <View style={styles.sheet}>
+            <View style={styles.sheetHandle} />
+            <Text style={styles.sheetTitle}>Invite agent to this call</Text>
+            <Text style={styles.sheetSubtitle}>
+              The agent joins as a bridged participant — it can listen,
+              react, and (when voice infra is live) speak.
+            </Text>
+            {loadingAgents ? (
+              <View style={{ paddingVertical: 28 }}>
+                <ActivityIndicator size="small" color="#FFF" />
+              </View>
+            ) : availableAgents.length === 0 ? (
+              <Text style={styles.sheetEmpty}>
+                No custom agents found. Create one from the Agents tab first.
+              </Text>
+            ) : (
+              <FlatList
+                data={availableAgents}
+                keyExtractor={(item, i) => String(item.prompt_id || item.id || i)}
+                renderItem={({ item }) => {
+                  const idStr = String(item.prompt_id || item.id || '');
+                  const isInviting = invitingAgentId === idStr;
+                  return (
+                    <TouchableOpacity
+                      style={styles.agentRow}
+                      onPress={() => handleInviteAgent(item)}
+                      disabled={isInviting}
+                      accessibilityLabel={`Invite ${item.name || 'agent'}`}
+                    >
+                      <View style={styles.agentBadge}>
+                        <MaterialCommunityIcons name="robot" size={20} color="#FFD740" />
+                      </View>
+                      <View style={{ flex: 1, marginHorizontal: 12 }}>
+                        <Text style={styles.agentName} numberOfLines={1}>
+                          {item.name || `Agent ${idStr.slice(0, 6)}`}
+                        </Text>
+                        {item.description ? (
+                          <Text style={styles.agentSub} numberOfLines={1}>
+                            {item.description}
+                          </Text>
+                        ) : null}
+                      </View>
+                      {isInviting ? (
+                        <ActivityIndicator size="small" color="#FFF" />
+                      ) : (
+                        <Ionicons name="add-circle" size={26} color="#10B981" />
+                      )}
+                    </TouchableOpacity>
+                  );
+                }}
+                ItemSeparatorComponent={() => <View style={styles.agentSep} />}
+                style={{ maxHeight: hp('40%') }}
+              />
+            )}
+            <TouchableOpacity
+              style={styles.sheetClose}
+              onPress={() => setInviteSheetVisible(false)}
+              accessibilityLabel="Close invite sheet"
+            >
+              <Text style={styles.sheetCloseText}>Close</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 };
@@ -709,6 +861,64 @@ const styles = StyleSheet.create({
     alignItems: 'center', justifyContent: 'center',
     transform: [{ rotate: '135deg' }],
   },
+
+  // 2026-06-18: Invite-Agent sheet styles.
+  sheetBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.6)',
+    justifyContent: 'flex-end',
+  },
+  sheet: {
+    backgroundColor: '#141225',
+    paddingHorizontal: wp('5%'),
+    paddingTop: 12,
+    paddingBottom: hp('3%'),
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+  },
+  sheetHandle: {
+    width: 44, height: 4, borderRadius: 2,
+    backgroundColor: '#3A3A4A',
+    alignSelf: 'center',
+    marginBottom: 16,
+  },
+  sheetTitle: {
+    color: '#FFF', fontSize: wp('4.4%'), fontWeight: '700',
+    marginBottom: 4,
+  },
+  sheetSubtitle: {
+    color: '#9090A0', fontSize: wp('3.2%'),
+    marginBottom: 16,
+  },
+  sheetEmpty: {
+    color: '#9090A0', fontSize: wp('3.4%'),
+    paddingVertical: 20,
+    textAlign: 'center',
+  },
+  agentRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 12,
+  },
+  agentBadge: {
+    width: 40, height: 40, borderRadius: 20,
+    backgroundColor: '#2A2540',
+    alignItems: 'center', justifyContent: 'center',
+  },
+  agentName: { color: '#FFF', fontSize: wp('3.7%'), fontWeight: '600' },
+  agentSub: { color: '#9090A0', fontSize: wp('3%'), marginTop: 2 },
+  agentSep: {
+    height: StyleSheet.hairlineWidth,
+    backgroundColor: '#23223A',
+  },
+  sheetClose: {
+    marginTop: 16,
+    paddingVertical: 12,
+    borderRadius: 999,
+    backgroundColor: '#23223A',
+    alignItems: 'center',
+  },
+  sheetCloseText: { color: '#FFF', fontWeight: '600' },
 });
 
 export default CallChannelScreen;

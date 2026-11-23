@@ -9,7 +9,15 @@ const STORAGE_KEYS = {
   stars: '@kidsLearning:totalStars',
   customGames: '@kidsLearning:customGames',
   pendingSync: '@kidsLearning:pendingSync',
+  briefSignatures: '@kidsLearning:briefSignatures',
 };
+
+// Per-launch novelty guard for the unique-brief path: the renderer
+// refuses any brief whose signature appears in this list, so the same
+// (mechanic, art_style, palette, character) tuple never lands twice in
+// a row.  Capped at 50 entries; the composer also receives this list
+// over the wire so the server-side picker can avoid collisions too.
+const BRIEF_SIGNATURE_WINDOW = 50;
 
 const defaultProgress = {gamesPlayed: 0, totalScore: 0, bestScore: 0, lastPlayed: null};
 
@@ -46,6 +54,19 @@ const useKidsLearningStore = create((set, get) => ({
   // Custom games created by parents/teachers
   customGames: [],
 
+  // Unique-brief novelty guard window
+  recentBriefSignatures: [],
+
+  recordBriefSignature: (sig) => {
+    if (!sig || typeof sig !== 'string') return;
+    set((s) => {
+      const dedup = s.recentBriefSignatures.filter((x) => x !== sig);
+      const next = [sig, ...dedup].slice(0, BRIEF_SIGNATURE_WINDOW);
+      AsyncStorage.setItem(STORAGE_KEYS.briefSignatures, JSON.stringify(next)).catch(() => {});
+      return { recentBriefSignatures: next };
+    });
+  },
+
   // Loading
   loading: false,
   fetchingQuestion: false,
@@ -54,16 +75,18 @@ const useKidsLearningStore = create((set, get) => ({
   // Initialize from AsyncStorage
   initialize: async () => {
     try {
-      const [progressStr, historyStr, starsStr, customStr] = await Promise.all([
+      const [progressStr, historyStr, starsStr, customStr, sigStr] = await Promise.all([
         AsyncStorage.getItem(STORAGE_KEYS.progress),
         AsyncStorage.getItem(STORAGE_KEYS.history),
         AsyncStorage.getItem(STORAGE_KEYS.stars),
         AsyncStorage.getItem(STORAGE_KEYS.customGames),
+        AsyncStorage.getItem(STORAGE_KEYS.briefSignatures),
       ]);
       const progress = progressStr ? JSON.parse(progressStr) : {};
       const history = historyStr ? JSON.parse(historyStr) : [];
       const stars = starsStr ? parseInt(starsStr, 10) : 0;
       const custom = customStr ? JSON.parse(customStr) : [];
+      const sigs = sigStr ? (() => { try { const a = JSON.parse(sigStr); return Array.isArray(a) ? a.slice(0, BRIEF_SIGNATURE_WINDOW) : []; } catch { return []; } })() : [];
       set({
         englishProgress: progress.english || {...defaultProgress},
         mathProgress: progress.math || {...defaultProgress},
@@ -73,6 +96,7 @@ const useKidsLearningStore = create((set, get) => ({
         gameHistory: history,
         totalStars: stars,
         customGames: custom,
+        recentBriefSignatures: sigs,
         initialized: true,
       });
     } catch (e) {

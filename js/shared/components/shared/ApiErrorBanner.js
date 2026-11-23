@@ -23,25 +23,35 @@ import {
   TouchableOpacity,
   Animated,
   DeviceEventEmitter,
+  NativeModules,
 } from 'react-native';
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
 
-const DEDUP_WINDOW_MS = 5000;
-const AUTO_DISMISS_MS = 6000;
+import { messageFor } from '../../services/apiErrorMessages';
 
-const messageFor = (status) => {
-  if (status >= 500) return "Something's off on our end. Pull to refresh.";
-  if (status === 401 || status === 403) return 'Session expired — sign in again.';
-  if (status === 404) return "Couldn't find what you asked for.";
-  if (status >= 400) return 'Bad request — try again in a moment.';
-  return 'Network glitch. Pull to refresh.';
-};
+const DEDUP_WINDOW_MS = 5000;
+// 2026-06-20: 401/403 spam was unbearable — every fresh screen mount
+// hit a new path and each (status, path) was unique, so the per-path
+// 5s dedup never suppressed them.  Users saw the red "Session expired"
+// banner pop on every navigation.  A global window covering ALL paths
+// for auth errors fixes the spam without hiding legitimate per-endpoint
+// errors (404, 5xx still dedup per-path on the 5s window).
+const AUTH_GLOBAL_DEDUP_MS = 30000;
+const AUTO_DISMISS_MS = 6000;
+const isAuthError = (s) => s === 401 || s === 403;
+
+// messageFor lives in services/apiErrorMessages (pure, no RN imports) so it
+// can be unit-tested; this component cannot be loaded under jest.
 
 const ApiErrorBanner = () => {
   const [visible, setVisible] = useState(false);
   const [message, setMessage] = useState('');
+  const [showSignIn, setShowSignIn] = useState(false);
   const opacity = useRef(new Animated.Value(0)).current;
   const dedupRef = useRef(new Map()); // key → ts
+  // 2026-06-20: single global timestamp for 401/403 across all paths.
+  // Per-path dedup wasn't enough — every screen mount hit a fresh path.
+  const lastAuthErrorTsRef = useRef(0);
   const dismissTimerRef = useRef(null);
 
   useEffect(() => {
@@ -67,17 +77,28 @@ const ApiErrorBanner = () => {
     const sub = DeviceEventEmitter.addListener('ApiError', (payload) => {
       const status = payload?.status || 0;
       const path = payload?.path || '';
-      const key = `${status}:${path}`;
       const now = Date.now();
+      // Auth errors (401/403) get a global rate limit — once shown,
+      // suppress ALL auth errors (regardless of path) for 30s.  This
+      // prevents the "every screen mount = new toast" spam pattern.
+      if (isAuthError(status)) {
+        if (now - lastAuthErrorTsRef.current < AUTH_GLOBAL_DEDUP_MS) return;
+        lastAuthErrorTsRef.current = now;
+        setShowSignIn(true);
+        show(messageFor(status));
+        return;
+      }
+      // Non-auth errors: per (status, path) dedup unchanged.
+      const key = `${status}:${path}`;
       const lastTs = dedupRef.current.get(key) || 0;
       if (now - lastTs < DEDUP_WINDOW_MS) return;
       dedupRef.current.set(key, now);
-      // Prune stale entries opportunistically so the Map doesn't grow forever.
       if (dedupRef.current.size > 50) {
         for (const [k, ts] of dedupRef.current.entries()) {
           if (now - ts > DEDUP_WINDOW_MS) dedupRef.current.delete(k);
         }
       }
+      setShowSignIn(false);
       show(messageFor(status));
     });
 
@@ -97,6 +118,27 @@ const ApiErrorBanner = () => {
       <View style={styles.banner}>
         <MaterialCommunityIcons name="cloud-off-outline" size={18} color="#FFFFFF" />
         <Text style={styles.text} numberOfLines={2}>{message}</Text>
+        {showSignIn ? (
+          <TouchableOpacity
+            onPress={() => {
+              try {
+                if (NativeModules.OnboardingModule && NativeModules.OnboardingModule.openLogin) {
+                  NativeModules.OnboardingModule.openLogin();
+                }
+              } catch (e) { /* native may not expose openLogin yet */ }
+              Animated.timing(opacity, {
+                toValue: 0,
+                duration: 150,
+                useNativeDriver: true,
+              }).start(() => setVisible(false));
+            }}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+            style={styles.signInBtn}
+            accessibilityLabel="Sign in"
+          >
+            <Text style={styles.signInText}>Sign in</Text>
+          </TouchableOpacity>
+        ) : null}
         <TouchableOpacity
           onPress={() => {
             Animated.timing(opacity, {
@@ -144,6 +186,17 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 13,
     fontWeight: '600',
+  },
+  signInBtn: {
+    backgroundColor: 'rgba(255,255,255,0.2)',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 6,
+  },
+  signInText: {
+    color: '#FFFFFF',
+    fontSize: 12,
+    fontWeight: '700',
   },
 });
 

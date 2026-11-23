@@ -6,9 +6,9 @@ import {
   FlatList,
   TouchableOpacity,
   RefreshControl,
-  SafeAreaView,
   StatusBar,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import {
   widthPercentageToDP as wp,
   heightPercentageToDP as hp,
@@ -102,15 +102,23 @@ const CampaignsScreen = () => {
         </View>
       </View>
 
-      {/* Tabs */}
+      {/* Tabs — #412 batch fix: "My Campaigns" / "Templates" wrapped
+          per-syllable on Samsung S23 (real labels rendered as
+          "My Cam/paigns" and "Templat/es") because each TouchableOpacity
+          has flex:1 but the Text inside refused to shrink without
+          numberOfLines+adjustsFontSizeToFit. */}
       <View style={styles.tabsContainer}>
         {TABS.map((tab, index) => (
           <TouchableOpacity
             key={tab}
-            style={[styles.tab, activeTab === index && styles.tabActive]}
+            style={[styles.tab, {minWidth: 0}, activeTab === index && styles.tabActive]}
             onPress={() => setActiveTab(index)}
           >
-            <Text style={[styles.tabText, activeTab === index && styles.tabTextActive]}>
+            <Text
+              style={[styles.tabText, activeTab === index && styles.tabTextActive]}
+              numberOfLines={1}
+              adjustsFontSizeToFit
+              minimumFontScale={0.75}>
               {tab}
             </Text>
           </TouchableOpacity>
@@ -205,6 +213,7 @@ const CampaignsScreen = () => {
       case 0: return renderMyCampaigns();
       case 1: return renderBrowse();
       case 2: return renderTemplates();
+      /* istanbul ignore next — unreachable: activeTab only ever set to 0/1/2 by 3-entry TABS map */
       default: return null;
     }
   };

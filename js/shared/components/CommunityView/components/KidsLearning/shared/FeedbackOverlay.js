@@ -10,7 +10,12 @@ import useKidsLearningStore from '../../../../../kidsLearningStore';
 // Safe context reader — auto-reads feedbackStyle when inside GameShell
 // (no circular dep since GameShell doesn't import FeedbackOverlay)
 let _useGameShell = null;
-try { ({useGameShell: _useGameShell} = require('../GameShell')); } catch (_) {}
+try { ({useGameShell: _useGameShell} = require('./gameShellContext')); } catch (_) {}
+
+function useGuidedFromContext() {
+  if (!_useGameShell) return false;
+  try { return Boolean(_useGameShell()?.guided); } catch (_) { return false; }
+}
 
 function useFeedbackStyleFromContext() {
   if (!_useGameShell) return null;
@@ -41,6 +46,9 @@ function useFeedbackStyleFromContext() {
 const FeedbackOverlay = ({visible, isCorrect, message, onDismiss, speakFeedback, feedbackStyle: feedbackStyleProp}) => {
   // Auto-read feedbackStyle from GameShell context if not passed as prop
   const contextStyle = useFeedbackStyleFromContext();
+  // In a guided game the shell speaks the step and plays its cue: this
+  // overlay is then visual only, so a tap is heard exactly once.
+  const guided = useGuidedFromContext();
   const feedbackStyle = feedbackStyleProp || contextStyle || 'stamp';
 
   // Shared
@@ -73,7 +81,7 @@ const FeedbackOverlay = ({visible, isCorrect, message, onDismiss, speakFeedback,
 
   // TTS for young learners
   useEffect(() => {
-    if (visible && shouldSpeak) {
+    if (visible && shouldSpeak && !guided) {
       const spokenText = message || (isCorrect ? 'Correct!' : 'Try Again!');
       TTSManager.speak(spokenText, {voice: 'kids_narrator'}).catch(() => {});
     }
@@ -82,7 +90,9 @@ const FeedbackOverlay = ({visible, isCorrect, message, onDismiss, speakFeedback,
   // Main animation effect
   useEffect(() => {
     if (!visible) return;
-    if (isCorrect) { GameSounds.correct(); } else { GameSounds.wrong(); }
+    if (!guided) {
+      if (isCorrect) { GameSounds.correct(); } else { GameSounds.wrong(); }
+    }
 
     // Reset everything
     opacity.setValue(1);

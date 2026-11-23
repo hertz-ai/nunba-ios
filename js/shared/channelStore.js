@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { channelsApi } from './services/socialApi';
+import { channelsApi, channelBindingForUi } from './services/socialApi';
 
 const useChannelStore = create((set) => ({
   // Bindings (user's connected channels)
@@ -63,7 +63,8 @@ const useChannelStore = create((set) => ({
     try {
       const res = await channelsApi.createBinding(bindingData);
       if (res.success && res.data) {
-        set((state) => ({ bindings: [...state.bindings, res.data] }));
+        // the same shape the list endpoint gives the screens
+        set((state) => ({ bindings: [...state.bindings, channelBindingForUi(res.data)] }));
       }
       return res;
     } catch {
@@ -108,7 +109,7 @@ const useChannelStore = create((set) => ({
       if (res.success && res.data) {
         set({
           pairCode: res.data.code || null,
-          pairQrUrl: res.data.qr_url || '',
+          pairQrUrl: res.data.qr_data_url || '',
         });
       }
       return res;

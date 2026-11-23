@@ -1,14 +1,15 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   View,
   Text,
   TouchableOpacity,
   FlatList,
   StyleSheet,
-  SafeAreaView,
   StatusBar,
+  RefreshControl,
   Alert,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import {
   widthPercentageToDP as wp,
   heightPercentageToDP as hp,
@@ -163,6 +164,45 @@ const EncountersScreen = () => {
     fetchMyMissedConnections,
   ]);
 
+  // #463 (2026-06-22): pull-to-refresh wired across all 5 tabs.  The
+  // EncountersScreen has 5 distinct fetchers, one per tab — dispatch
+  // the right one based on activeTab.  Each tab's FlatList shares the
+  // same `refreshing` state + handler.
+  const [refreshing, setRefreshing] = useState(false);
+  const refreshTimerRef = useRef(null);
+  const handleRefresh = useCallback(() => {
+    if (refreshing) return;
+    setRefreshing(true);
+    if (activeTab === 0) {
+      // Tab 0 = proximity matches, owned by useEncounterStore via BLE.
+      // No direct fetcher; pulse the BLE list as a best-effort proxy.
+      fetchBleMatches();
+    } else if (activeTab === 1) {
+      fetchMissedConnections();
+    } else if (activeTab === 2) {
+      fetchDiscoverySuggestions();
+    } else if (activeTab === 3) {
+      fetchMyMissedConnections();
+    } else if (activeTab === 4) {
+      fetchBleMatches();
+    }
+    if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current);
+    refreshTimerRef.current = setTimeout(() => {
+      setRefreshing(false);
+      refreshTimerRef.current = null;
+    }, 1500);
+  }, [
+    refreshing,
+    activeTab,
+    fetchMissedConnections,
+    fetchDiscoverySuggestions,
+    fetchBleMatches,
+    fetchMyMissedConnections,
+  ]);
+  useEffect(() => () => {
+    if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current);
+  }, []);
+
   const handleReveal = useCallback(async (matchId) => {
     // socialApi returns the {success, data} envelope instead of throwing on
     // HTTP errors, so a rejected reveal used to vanish silently and the card
@@ -315,7 +355,8 @@ const EncountersScreen = () => {
           )}
           <FlatList
             data={matches}
-            keyExtractor={(item) => item.id?.toString() || Math.random().toString()}
+            refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />}
+            keyExtractor={(item, index) => item.id?.toString() || `proximity-${index}`}
             renderItem={({ item }) => (
               <ProximityMatchCard
                 match={item}
@@ -360,12 +401,34 @@ const EncountersScreen = () => {
                 style={styles.enableButton}
               >
                 <MaterialIcons name="my-location" size={20} color="#FFFFFF" />
-                <Text style={styles.enableButtonText}>Enable Location</Text>
+                {/* #412 batch fix: button text was wrapping mid-word
+                    ("Enabl/e Loc") on Samsung S23 because the button has
+                    horizontal padding wp('7%') and the Text refused to
+                    shrink.  Locking to one line + adjustsFontSizeToFit
+                    keeps the CTA on one line at all phone widths. */}
+                <Text
+                  style={styles.enableButtonText}
+                  numberOfLines={1}
+                  adjustsFontSizeToFit
+                  minimumFontScale={0.8}>
+                  Enable Location
+                </Text>
               </LinearGradient>
             ) : (
               <View style={[styles.enableButton, { backgroundColor: INSTA[1] }]}>
                 <MaterialIcons name="my-location" size={20} color="#FFFFFF" />
-                <Text style={styles.enableButtonText}>Enable Location</Text>
+                {/* #412 batch fix: button text was wrapping mid-word
+                    ("Enabl/e Loc") on Samsung S23 because the button has
+                    horizontal padding wp('7%') and the Text refused to
+                    shrink.  Locking to one line + adjustsFontSizeToFit
+                    keeps the CTA on one line at all phone widths. */}
+                <Text
+                  style={styles.enableButtonText}
+                  numberOfLines={1}
+                  adjustsFontSizeToFit
+                  minimumFontScale={0.8}>
+                  Enable Location
+                </Text>
               </View>
             )}
           </TouchableOpacity>
@@ -414,7 +477,8 @@ const EncountersScreen = () => {
       </View>
       <FlatList
         data={missedConnections}
-        keyExtractor={(item) => item.id?.toString() || Math.random().toString()}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />}
+        keyExtractor={(item, index) => item.id?.toString() || `missed-${index}`}
         renderItem={({ item }) => (
           <MissedConnectionCard item={item} onPress={() => handleMissedPress(item)} />
         )}
@@ -457,6 +521,7 @@ const EncountersScreen = () => {
     // false for production releases.
     // TODO(2026-Q3): remove this gate after product greenlight;
     // cleanup tracked in ledger #444.
+    /* istanbul ignore next — production-only "Coming Soon" gate; __DEV__ is true in jest, branch unreachable in tests */
     if (!__DEV__) {
       return (
         <View style={styles.tabContent}>
@@ -475,8 +540,9 @@ const EncountersScreen = () => {
       <View style={styles.tabContent}>
         <FlatList
           data={discoverySuggestions}
-          keyExtractor={(item) =>
-            item.id?.toString() || Math.random().toString()
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />}
+          keyExtractor={(item, index) =>
+            item.id?.toString() || `discovery-${index}`
           }
           renderItem={({ item }) => (
             <EncounterCard
@@ -505,7 +571,8 @@ const EncountersScreen = () => {
     <View style={styles.tabContent}>
       <FlatList
         data={myMissedConnections}
-        keyExtractor={(item) => item.id?.toString() || Math.random().toString()}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />}
+        keyExtractor={(item, index) => item.id?.toString() || `my-missed-${index}`}
         renderItem={({ item }) => (
           <MissedConnectionCard item={item} onPress={() => handleMissedPress(item)} />
         )}
@@ -545,6 +612,7 @@ const EncountersScreen = () => {
     <View style={styles.tabContent}>
       <FlatList
         data={bleMatches}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />}
         keyExtractor={(item) => item.id?.toString() || Math.random().toString()}
         renderItem={({ item }) => (
           <BleMatchCard
@@ -581,6 +649,7 @@ const EncountersScreen = () => {
         return renderMyPostsTab();
       case 4:
         return renderBleMatchesTab();
+      /* istanbul ignore next — defensive default; activeTab is constrained to 0-4 by TAB_LABELS, unreachable via UI */
       default:
         return null;
     }
@@ -744,7 +813,12 @@ const styles = StyleSheet.create({
     fontSize: wp('3.5%'),
     marginTop: hp('1%'),
     textAlign: 'center',
-    lineHeight: 22,
+    // 2026-06-20: fixed lineHeight (22) was SMALLER than fontSize on
+    // tablets (wp('3.5%') ≈ 25 on Xiaomi 1600px-wide @ density 2.25),
+    // so lines visually collapsed on top of each other.  Scale
+    // lineHeight off fontSize at ~1.45x so it tracks every form
+    // factor cleanly.
+    lineHeight: wp('3.5%') * 1.45,
   },
   enableButtonShadow: {
     marginTop: hp('3%'),
@@ -773,6 +847,9 @@ const styles = StyleSheet.create({
     fontSize: wp('3.5%'),
     textAlign: 'center',
     marginTop: hp('5%'),
+    // 2026-06-20: explicit lineHeight so default platform metrics
+    // don't collapse multi-line empty-state copy on tablets.
+    lineHeight: wp('3.5%') * 1.45,
   },
   missedHeader: {
     flexDirection: 'row',

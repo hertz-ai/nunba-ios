@@ -7,9 +7,9 @@ import {
   Dimensions,
   FlatList,
   TextInput,
-  SafeAreaView,
   StatusBar,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import {
   widthPercentageToDP as wp,
   heightPercentageToDP as hp,
@@ -148,16 +148,25 @@ const OnboardingOverlayScreen = () => {
     const loadProgress = async () => {
       try {
         const res = await onboardingApi.getProgress();
-        if (res.data?.completedSteps) setCompletedSteps(res.data.completedSteps);
+        // steps_completed maps each finished step's key to when it finished.
+        if (res.data?.steps_completed) setCompletedSteps(Object.keys(res.data.steps_completed));
       } catch (e) { /* start fresh */ }
     };
     loadProgress();
   }, []);
 
-  const handleCompleteStep = async (stepIndex) => {
+  // The server finds a step by its key; an index matched none of them and
+  // every call came back "Unknown step".
+  const handleCompleteStep = async (stepKey) => {
     try {
-      await onboardingApi.completeStep({ step: stepIndex });
+      await onboardingApi.completeStep({ step: stepKey });
     } catch (e) { /* fire and forget */ }
+  };
+
+  // tutorial_dismissed is the server's one record that the tour is over;
+  // MainScreen opens the tour again on every launch until it is set.
+  const recordTourEnd = async () => {
+    try { await onboardingApi.dismiss(); } catch (e) {}
   };
 
   const handleNext = () => {
@@ -165,14 +174,16 @@ const OnboardingOverlayScreen = () => {
     if (!completedSteps.includes(currentStepData.id)) {
       setCompletedSteps([...completedSteps, currentStepData.id]);
       setTotalRewards(totalRewards + currentStepData.reward);
-      handleCompleteStep(currentStep);
+      handleCompleteStep(currentStepData.id);
     }
 
     if (currentStep < ONBOARDING_STEPS.length - 1) {
       setCurrentStep(currentStep + 1);
       flatListRef.current?.scrollToIndex({ index: currentStep + 1, animated: true });
     } else {
-      // Complete onboarding
+      // Complete onboarding.  Recorded now, not after the celebration, so
+      // closing the app during it does not bring the tour back.
+      recordTourEnd();
       setShowConfetti(true);
       setTimeout(() => {
         navigation.goBack();
@@ -180,18 +191,19 @@ const OnboardingOverlayScreen = () => {
     }
   };
 
+  const handleDismiss = async () => {
+    await recordTourEnd();
+    navigation.goBack();
+  };
+
   const handleSkip = () => {
     if (currentStep < ONBOARDING_STEPS.length - 1) {
       setCurrentStep(currentStep + 1);
       flatListRef.current?.scrollToIndex({ index: currentStep + 1, animated: true });
     } else {
-      navigation.goBack();
+      // Skipping the last step leaves the tour, as X does.
+      handleDismiss();
     }
-  };
-
-  const handleDismiss = async () => {
-    try { await onboardingApi.dismiss(); } catch (e) {}
-    navigation.goBack();
   };
 
   const handleCheckHandle = (text) => {

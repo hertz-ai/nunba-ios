@@ -255,14 +255,35 @@ export default function VisualHint({type = 'tap', visible = true, onDismiss}) {
     };
   }, [visible, type, translateX, translateY, scale, rotateVal, opacity]);
 
-  // Auto-dismiss after 2.5s
+  // Auto-dismiss after 2.5s.
+  //
+  // Keyed on `visible` ALONE, with onDismiss read through a ref. It used to
+  // depend on onDismiss too, and all six games pass an inline arrow
+  // (`onDismiss={() => setShowVisualHint(false)}`), which is a new function on
+  // every render - so every render tore this timer down and started a fresh
+  // 2.5s, and the hint never dismissed itself.
+  //
+  // It does not merely linger: styles.overlay is an absoluteFill sitting over
+  // the whole game with a TouchableWithoutFeedback across it, so it EATS the
+  // child's first interaction. Measured on a device: in 2D Shapes Basic the
+  // first tap on the right answer did nothing but clear the hint, and only the
+  // second tap scored. On the drag games it is worse - a drag begins on the
+  // overlay, so the item never picks up at all.
+  //
+  // Reading the latest callback is safe here in a way it was not for
+  // FeedbackOverlay: every caller's onDismiss just hides the hint and closes
+  // over no game state, so the newest and the first do exactly the same thing.
+  const onDismissRef = useRef(onDismiss);
+  onDismissRef.current = onDismiss;
+
   useEffect(() => {
     if (!visible) return;
     const timer = setTimeout(() => {
-      if (onDismiss) onDismiss();
+      const dismiss = onDismissRef.current;
+      if (dismiss) dismiss();
     }, 2500);
     return () => clearTimeout(timer);
-  }, [visible, onDismiss]);
+  }, [visible]);
 
   if (!visible) return null;
 
