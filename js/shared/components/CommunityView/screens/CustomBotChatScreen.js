@@ -21,19 +21,25 @@ import {
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { chatApi } from '../../../services/chatApi';
+import { getUserId } from '../../../services/apiHelpers';
 import { NativeModules } from 'react-native';
 import EmptyState from '../../shared/EmptyState';
 import { flatListVirtualizationProps } from '../../shared/listPerf';
 
 const BUBBLE_HEIGHT = 80;
 
-const userIdOrZero = () => {
+const userIdOrZero = async () => {
   try {
     const m = NativeModules?.ActivityStarterModule;
     if (m && typeof m.getUser_Id === 'function') {
       const id = m.getUser_Id();
       return Number(id) || 0;
     }
+  } catch (_) {}
+  // iOS has no ActivityStarterModule (Android only): read the signed-in
+  // user from OnboardingModule, as every other iOS API call does.
+  try {
+    return Number(await getUserId()) || 0;
   } catch (_) {}
   return 0;
 };
@@ -112,11 +118,15 @@ const CustomBotChatScreen = () => {
     });
 
     try {
-      const userId = userIdOrZero();
+      const userId = await userIdOrZero();
       const res = await chatApi.customGpt({
         user_id: userId,
         conversation_id: conversationId,
         bot_id: botId,
+        // The node picks the agent by prompt_id, as Android's custom_gpt
+        // body names it; bot_id alone reaches the default agent.
+        prompt_id: botId,
+        prompt_name: botName,
         message: text,
         text,
       });
