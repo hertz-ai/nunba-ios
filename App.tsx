@@ -84,6 +84,8 @@ const SeasonScreen                = lazy(() => import('./js/shared/components/Co
 const RegionsScreen               = lazy(() => import('./js/shared/components/CommunityView/screens/RegionsScreen'));
 const RegionDetailScreen          = lazy(() => import('./js/shared/components/CommunityView/screens/RegionDetailScreen'));
 const AgentEvolutionScreen        = lazy(() => import('./js/shared/components/CommunityView/screens/AgentEvolutionScreen'));
+const AgentsHubScreen             = lazy(() => import('./js/shared/components/CommunityView/screens/AgentsHubScreen'));
+const CustomBotChatScreen         = lazy(() => import('./js/shared/components/CommunityView/screens/CustomBotChatScreen'));
 const CampaignsScreen             = lazy(() => import('./js/shared/components/CommunityView/screens/CampaignsScreen'));
 const CampaignStudioScreen        = lazy(() => import('./js/shared/components/CommunityView/screens/CampaignStudioScreen'));
 const CampaignDetailScreen        = lazy(() => import('./js/shared/components/CommunityView/screens/CampaignDetailScreen'));
@@ -182,6 +184,8 @@ type RootStackParamList = {
   Regions: undefined;
   RegionDetail: {id?: string};
   AgentEvolution: {agentId?: string};
+  AgentsHub: undefined;
+  CustomBotChat: {botId: string; botName?: string; botImage?: string | null};
   Campaigns: undefined;
   CampaignStudio: undefined;
   CampaignDetail: {id?: string};
@@ -594,6 +598,8 @@ function App(): React.JSX.Element {
         <Stack.Screen name="Regions" component={withGuards(RegionsScreen, 'Regions')} />
         <Stack.Screen name="RegionDetail" component={withGuards(RegionDetailScreen, 'RegionDetail')} />
         <Stack.Screen name="AgentEvolution" component={withGuards(AgentEvolutionScreen, 'AgentEvolution')} />
+        <Stack.Screen name="AgentsHub" component={withGuards(AgentsHubScreen, 'AgentsHub')} options={{headerShown: false}} />
+        <Stack.Screen name="CustomBotChat" component={withGuards(CustomBotChatScreen, 'CustomBotChat')} options={{headerShown: false}} />
         <Stack.Screen name="Campaigns" component={withGuards(CampaignsScreen, 'Campaigns')} />
         <Stack.Screen name="CampaignStudio" component={withGuards(CampaignStudioScreen, 'CampaignStudio')} />
         <Stack.Screen name="CampaignDetail" component={withGuards(CampaignDetailScreen, 'CampaignDetail')} />

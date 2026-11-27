@@ -33,6 +33,7 @@ import Ionicons from 'react-native-vector-icons/Ionicons';
 import { useNavigation } from '@react-navigation/native';
 import { NativeModules } from 'react-native';
 import { chatApi } from '../../../services/chatApi';
+import { getUserId } from '../../../services/apiHelpers';
 
 const BLUE = '#0078FF';
 const BG   = '#000000';
@@ -62,12 +63,17 @@ const PLACEHOLDER_GOALS = [
   { id: 'goal_default', name: 'Set a goal',  icon: 'add-circle-outline' },
 ];
 
-const userIdOrZero = () => {
+const userIdOrZero = async () => {
   try {
     const m = NativeModules?.ActivityStarterModule;
     if (m && typeof m.getUser_Id === 'function') {
       return Number(m.getUser_Id()) || 0;
     }
+  } catch (_) {}
+  // iOS has no ActivityStarterModule (Android only): read the signed-in
+  // user from OnboardingModule, as every other iOS API call does.
+  try {
+    return Number(await getUserId()) || 0;
   } catch (_) {}
   return 0;
 };
@@ -142,7 +148,7 @@ const AgentsHubScreen = () => {
   const loadCustomBots = useCallback(async () => {
     setLoading(true);
     try {
-      const userId = userIdOrZero();
+      const userId = await userIdOrZero();
       const res = await chatApi.getCustomBots(userId);
       const list = Array.isArray(res) ? res : (Array.isArray(res?.data) ? res.data : []);
       setCustomBots(list);
